@@ -964,46 +964,129 @@ class GrammarApp:
             meanings_block = "\n".join(f"- {m}" for m in meanings) or "- (no dictionary meanings found)"
 
             prompt = textwrap.dedent(f"""
-                You are a Punjabi grammar expert. I will give you:
+            You are a Punjabi grammar expert trained in the grammatical framework of Sri Guru Granth Sahib (SGGS). I will provide:
 
-                1. **Verse** (in Gurmukhi)
-                2. **Established Darpan translation** (from SGGS Darpan of Prof. Sahib Singh)
-                3. **Word under scrutiny** with my selections for Number, Gender, and Part of Speech
-                4. **Dictionary Meanings** of that word (secondary reference):
+            1. **Verse** (in Gurmukhi)  
+            2. **Established Darpan Translation** (by Prof. Sahib Singh)  
+            3. **Word under scrutiny**, along with my selected values for Number, Gender, and Part of Speech  
+            4. **Dictionary Meanings** of that word (as a secondary reference)
 
-                {meanings_block}
+            Your job is to confirm or correct my selections based on the **Darpan Translation and its contextual meaning**, which is the **primary reference**. Override my input only if the Darpan explanation makes it grammatically or semantically incorrect.
 
-                **Please:**
-                - Confirm whether each of my selections is correct, explaining your reasoning.
-                - If any selection is incorrect, recommend the correct value(s) with a brief rationale.
-                - Cite relevant Gurmukhi grammar rules or examples where helpful.
+            ---
 
-                ---
-                **Verse (Gurmukhi):**
-                {verse}
+            ## 📘 Reference Framework – SGGS Grammar Definitions
 
-                **Darpan Translation:**
-                {trans}
+            ### 1. **Noun (ਨਾਂਵ)**  
+            Names a person, place, quality, or thing. Types:  
+            - **Proper** (ਗੁਰਪਰੀਤ), **Common** (ਮਨੁੱਖ), **Abstract** (ਸੇਵਾ), **Material** (ਜਲ), **Collective** (ਸੰਗਤ)
 
-                **Word under scrutiny:**
-                {word}
+            ### 2. **Pronoun (ਪੜਨਾਂਵ)**  
+            Stands in for nouns. Types:  
+            - **Personal** (ਮੈਂ, ਤੂੰ), **Demonstrative** (ਇਹ, ਉਹ), **Reflexive** (ਆਪ), **Possessive** (ਮੇਰਾ, ਤੇਰਾ),  
+            - **Relative/Correlative** (ਜੋ...ਸੋ, ਜਿਸ...ਤਿਸ), **Indefinite** (ਕੋਈ, ਸਭ), **Interrogative** (ਕੌਣ, ਕਿਹੜਾ)
 
-                **My selections:**
-                - Number: {num}
-                - Gender: {gen}
-                - Part of Speech: {pos}
+            ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ)**  
+            Describes or qualifies a **noun or pronoun only**. Must be linked to one.  
+            Types:  
+            - **Qualitative** (ਕਾਲਾ, ਚੰਗਾ),  
+            - **Demonstrative** (ਇਹ ਕਿਤਾਬ),  
+            - **Indefinite** (ਚੋਟਾ, ਥੋੜਾ),  
+            - **Pronominal** (ਮੇਰਾ, ਤੇਰਾ),  
+            - **Numeral** (ਪੰਜ, ਤੀਜਾ),  
+            - **Interrogative** (ਕਿਹੜਾ)
 
-                ---
-                **Response format:**
-                1. **Confirmation:**
-                - Number: (correct/incorrect) – explanation
-                - Gender: (correct/incorrect) – explanation
-                - Part of Speech: (correct/incorrect) – explanation
+            #### ✔ Adjective Agreement (Number & Gender)
+            In SGGS grammar, adjectives—especially qualitative and demonstrative ones—reflect the number and gender of the noun or pronoun they modify. Use the Darpan translation to guide this.
+            ✅ Use this rule only if the Darpan gloss clearly links the adjective to a noun or pronoun, and the agreement is evident.
 
-                2. **Corrections (if needed):**
-                - Number: <correct value> – rationale
-                - Gender: <correct value> – rationale
-                - Part of Speech: <correct value> – rationale
+            ### 4. **Verb (ਕਿਰਿਆ)**  
+            Shows action or state.  
+            - **Transitive**: Takes direct object (e.g., ਲਿਖੀ)  
+            - **Intransitive**: No object (e.g., ਗਿਆ)  
+            - Includes **Compound, Subjunctive, Passive, Causative, Auxiliary** as needed.
+
+            ### 5. **Adverb (ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ)**  
+            Modifies verbs, adjectives, or other adverbs only (never nouns). Adverbs describe when, where, how, how much, why, or how often an action occurs. In Gurbāṇī, they can appear as single words, compound adverbs, or adverbial phrases.
+
+            ⚙ Categories of Adverbs in SGGS Grammar:
+            Time / ਸਮਾ ਵਾਚਕ – e.g., ਅੱਜ (today), ਹੁਣ (now), ਫਿਰਿ (again), ਸਦਾ (always), ਤਦ (then)
+
+            Place / ਥਾਂ ਵਾਚਕ – e.g., ਇੱਥੇ (here), ਉੱਥੇ (there), ਅੰਦਰ (inside), ਬਾਹਰ (outside), ਨੇੜੇ (near)
+
+            Manner / ਢੰਗ ਵਾਚਕ – e.g., ਇਸ ਤਰ੍ਹਾਂ (in this way), ਜਿਵੇਂ (like this), ਸਥਿਰ (steadily), ਧੀਰੇ (slowly)
+
+            Measurement / ਪਰਮਾਣ ਵਾਚਕ – e.g., ਘੱਟ (less), ਬਹੁਤ (much), ਥੋੜ੍ਹਾ (a little), ਸਮਾਨ (equally)
+
+            Frequency / ਸੰਖਿਆ ਵਾਚਕ – e.g., ਇੱਕ ਵਾਰ (once), ਅਕਸਰ (often), ਫਿਰਿ ਫਿਰਿ (again and again)
+
+            Decision / ਨਿਰਣਾ ਵਾਚਕ – e.g., ਹਾਂ (yes), ਨਹੀਂ (no), ਜ਼ਰੂਰ (surely)
+
+            Reason / ਕਾਰਣ ਵਾਚਕ – e.g., ਇਸ ਕਰਕੇ (because of this), ਤਾਂ ਜੋ (so that)
+
+            Stress/Emphasis / ਤਾਕੀਦ ਵਾਚਕ – e.g., ਵੀ (even), ਹੀ (indeed), ਮੁੱਲੇ (at all), ਜ਼ਰੂਰ (surely)
+
+            Use the Darpan translation to confirm the functional role of the word, especially when distinguishing between adverbs of manner and qualitative adjectives, which may appear similar in surface form but differ in what they modify (verb vs noun).
+
+            ### 6. **Postposition (ਸਿੰਬੰਧਕ)**  
+            Expresses relationship: e.g., ਨਾਲ, ਤੋਂ, ਵਿੱਚ, ਨੂੰ, ਉੱਤੇ, ਦੇ
+
+            ### 7. **Conjunction (ਯੋਗਕ)**  
+            Joins: ਅਤੇ, ਜਾਂ, ਪਰ, ਜੇਕਰ
+
+            ### 8. **Interjection (ਵਿਸਮੀਕ)**  
+            Emotion/exclamation: ਵਾਹ ਵਾਹ!, ਹਾਏ ਰਾਮ!
+
+            ---
+
+            ## 🎯 Evaluation Guidelines
+
+            - Use **Darpan Translation** to understand the **semantic role** of the word.
+            - Confirm **Part of Speech**:
+            - If it modifies a noun/pronoun → Adjective
+            - If it modifies a verb or shows time/manner/degree → Adverb
+            - If it’s acting (or acted upon) → Noun or Pronoun
+            - Confirm **Number / Gender** **only** if Darpan's translation implies clear grammatical agreement or reference.
+            - Ignore spelling similarity; rely strictly on meaning and function in the verse.
+
+            ---
+
+            ## 📥 Inputs
+
+            **Verse (Gurmukhi):**  
+            {verse}
+
+            **Darpan Translation:**  
+            {trans}
+
+            **Word under scrutiny:**  
+            {word}
+
+            **My Selections:**  
+            - Number: {num}  
+            - Gender: {gen}  
+            - Part of Speech: {pos}
+
+            **Dictionary Meanings (Secondary Aid):**  
+            {meanings_block}
+
+            ---
+
+            ## 📋 Response Format
+
+            1. **Feature Confirmation**  
+            - Number: (Correct / Incorrect) – backed by Darpan gloss  
+            - Gender: (Correct / Incorrect) – based on noun agreement, if applicable  
+            - Part of Speech: (Correct / Incorrect) – tied to contextual function in Darpan
+
+            2. **Corrections (if needed)**  
+            - Number: <correct value> – rationale  
+            - Gender: <correct value> – rationale  
+            - Part of Speech: <correct value> – rationale
+
+            3. **Commentary**  
+            - A few lines showing how Darpan translation justifies your decision. Compare role with definitions provided.
+
             """).strip()
 
             # copy to clipboard
