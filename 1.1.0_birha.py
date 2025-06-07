@@ -987,18 +987,28 @@ class GrammarApp:
             - **Relative/Correlative** (ਜੋ...ਸੋ, ਜਿਸ...ਤਿਸ), **Indefinite** (ਕੋਈ, ਸਭ), **Interrogative** (ਕੌਣ, ਕਿਹੜਾ)
 
             ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ)**  
-            Describes or qualifies a **noun or pronoun only**. Must be linked to one.  
-            Types:  
-            - **Qualitative** (ਕਾਲਾ, ਚੰਗਾ),  
-            - **Demonstrative** (ਇਹ ਕਿਤਾਬ),  
-            - **Indefinite** (ਚੋਟਾ, ਥੋੜਾ),  
-            - **Pronominal** (ਮੇਰਾ, ਤੇਰਾ),  
-            - **Numeral** (ਪੰਜ, ਤੀਜਾ),  
-            - **Interrogative** (ਕਿਹੜਾ)
+            Describes or qualifies a noun or pronoun only. Must be linked to one. Types:
+            Qualitative (ਕਾਲਾ, ਚੰਗਾ)
+            Demonstrative (ਇਹ ਕਿਤਾਬ)
+            Indefinite (ਚੋਟਾ, ਥੋੜਾ)
+            Pronominal (ਮੇਰਾ, ਤੇਰਾ)
+            Numeral (ਪੰਜ, ਤੀਜਾ)
+            Interrogative (ਕਿਹੜਾ)
 
-            #### ✔ Adjective Agreement (Number & Gender)
-            In SGGS grammar, adjectives—especially qualitative and demonstrative ones—reflect the number and gender of the noun or pronoun they modify. Use the Darpan translation to guide this.
-            ✅ Use this rule only if the Darpan gloss clearly links the adjective to a noun or pronoun, and the agreement is evident.
+            ✔ Mandatory Check: Adjective Agreement (Number & Gender)
+            If the word is confirmed as an Adjective, then:
+            🔎 Step-1: Identify the noun/pronoun it qualifies.
+            ✅ Step-2: The adjective's form matches the number and gender of that noun/pronoun.
+            This step is required, especially for:
+            Qualitative adjectives (e.g., ਚੰਗਾ, ਅਗਲੋ, ਘਣੀ)
+            Demonstrative adjectives (e.g., ਇਹ, ਉਹ)
+            Numeral or possessive adjectives, where agreement may affect form
+
+            ⚠ Skip this check only if:
+            Darpan does not establish a link between the adjective and any noun
+            ✅ Example Use
+            Correct: "ਚੰਗੀ ਬਾਣੀ" → feminine singular noun "ਬਾਣੀ" with matching adjective "ਚੰਗੀ"
+            Incorrect: "ਚੰਗਾ ਬਾਣੀ" → mismatch in gender
 
             ### 4. **Verb (ਕਿਰਿਆ)**  
             Shows action or state.  
@@ -1010,22 +1020,14 @@ class GrammarApp:
             Modifies verbs, adjectives, or other adverbs only (never nouns). Adverbs describe when, where, how, how much, why, or how often an action occurs. In Gurbāṇī, they can appear as single words, compound adverbs, or adverbial phrases.
 
             ⚙ Categories of Adverbs in SGGS Grammar:
-            Time / ਸਮਾ ਵਾਚਕ – e.g., ਅੱਜ (today), ਹੁਣ (now), ਫਿਰਿ (again), ਸਦਾ (always), ਤਦ (then)
-
-            Place / ਥਾਂ ਵਾਚਕ – e.g., ਇੱਥੇ (here), ਉੱਥੇ (there), ਅੰਦਰ (inside), ਬਾਹਰ (outside), ਨੇੜੇ (near)
-
-            Manner / ਢੰਗ ਵਾਚਕ – e.g., ਇਸ ਤਰ੍ਹਾਂ (in this way), ਜਿਵੇਂ (like this), ਸਥਿਰ (steadily), ਧੀਰੇ (slowly)
-
-            Measurement / ਪਰਮਾਣ ਵਾਚਕ – e.g., ਘੱਟ (less), ਬਹੁਤ (much), ਥੋੜ੍ਹਾ (a little), ਸਮਾਨ (equally)
-
-            Frequency / ਸੰਖਿਆ ਵਾਚਕ – e.g., ਇੱਕ ਵਾਰ (once), ਅਕਸਰ (often), ਫਿਰਿ ਫਿਰਿ (again and again)
-
-            Decision / ਨਿਰਣਾ ਵਾਚਕ – e.g., ਹਾਂ (yes), ਨਹੀਂ (no), ਜ਼ਰੂਰ (surely)
-
-            Reason / ਕਾਰਣ ਵਾਚਕ – e.g., ਇਸ ਕਰਕੇ (because of this), ਤਾਂ ਜੋ (so that)
-
-            Stress/Emphasis / ਤਾਕੀਦ ਵਾਚਕ – e.g., ਵੀ (even), ਹੀ (indeed), ਮੁੱਲੇ (at all), ਜ਼ਰੂਰ (surely)
-
+            Time / ਸਮਾ ਵਾਚਕ – ਅੱਜ, ਹੁਣ, ਫਿਰਿ, ਸਦਾ, ਤਦ
+            Place / ਥਾਂ ਵਾਚਕ – ਇੱਥੇ, ਉੱਥੇ, ਅੰਦਰ, ਬਾਹਰ, ਨੇੜੇ
+            Manner / ਢੰਗ ਵਾਚਕ – ਇਸ ਤਰ੍ਹਾਂ, ਜਿਵੇਂ, ਸਥਿਰ, ਧੀਰੇ
+            Measurement / ਪਰਮਾਣ ਵਾਚਕ – ਘੱਟ, ਬਹੁਤ, ਥੋੜ੍ਹਾ, ਸਮਾਨ
+            Frequency / ਸੰਖਿਆ ਵਾਚਕ – ਇੱਕ ਵਾਰ, ਅਕਸਰ, ਫਿਰਿ ਫਿਰਿ
+            Decision / ਨਿਰਣਾ ਵਾਚਕ – ਹਾਂ, ਨਹੀਂ, ਜ਼ਰੂਰ
+            Reason / ਕਾਰਣ ਵਾਚਕ – ਇਸ ਕਰਕੇ, ਤਾਂ ਜੋ
+            Stress/Emphasis / ਤਾਕੀਦ ਵਾਚਕ – ਵੀ, ਹੀ, ਮੁੱਲੇ, ਜ਼ਰੂਰ
             Use the Darpan translation to confirm the functional role of the word, especially when distinguishing between adverbs of manner and qualitative adjectives, which may appear similar in surface form but differ in what they modify (verb vs noun).
 
             ### 6. **Postposition (ਸਿੰਬੰਧਕ)**  
