@@ -25,7 +25,7 @@ Note:
 We'll need to update 'self.pankti_entry' with the user input.
 
 Here is the values of various variables in this function:
-user_input = 'ਸਭਿ ਗੁਣ ਤੇਰੇ ਮੈ ਨਾਹੀ ਕੋਇ ॥' (a verse I chose that alredy exists in our excell file)
+user_input = 'ਸਭਿ ਗੁਣ ਤੇਰੇ ਮੈ ਨਾਹੀ ਕੋਇ ॥' (a verse I chose that already exists in our Excel file)
 candidate_matches = (['S. No.', 'Verse', 'Verse No.', 'Stanza No.', 'Text Set No.', 'Raag (Fixed)', 'Sub-Raag', 'Writer (Fixed)', 'Verse Configuration (Optional)', 'Stanza Configuration (Optional)', 'Bani Name', 'Musical Note Configuration', 'Special Type Demonstrator', 'Type', 'Page Number'], [{...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}, {...}])
 
 
