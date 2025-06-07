@@ -995,20 +995,16 @@ class GrammarApp:
             Numeral (ਪੰਜ, ਤੀਜਾ)
             Interrogative (ਕਿਹੜਾ)
 
-            ✔ Mandatory Check: Adjective Agreement (Number & Gender)
-            If the word is confirmed as an Adjective, then:
-            🔎 Step-1: Identify the noun/pronoun it qualifies.
-            ✅ Step-2: The adjective's form matches the number and gender of that noun/pronoun.
-            This step is required, especially for:
-            Qualitative adjectives (e.g., ਚੰਗਾ, ਅਗਲੋ, ਘਣੀ)
-            Demonstrative adjectives (e.g., ਇਹ, ਉਹ)
-            Numeral or possessive adjectives, where agreement may affect form
+            **🛑 MANDATORY ADJECTIVE AGREEMENT BOX**  
+            If the word is confirmed as an **Adjective**, you **must**:
 
-            ⚠ Skip this check only if:
-            Darpan does not establish a link between the adjective and any noun
-            ✅ Example Use
-            Correct: "ਚੰਗੀ ਬਾਣੀ" → feminine singular noun "ਬਾਣੀ" with matching adjective "ਚੰਗੀ"
-            Incorrect: "ਚੰਗਾ ਬਾਣੀ" → mismatch in gender
+            | Step | Action |
+            |------|--------|
+            | 1 | Identify the noun/pronoun it qualifies. |
+            | 2 | Show that the adjective’s form matches that noun/pronoun in **Number** & **Gender**. |
+            |   | *If the adjective is morphologically in-variable, state that explicitly.* |
+
+            Failure to include this two-step table **renders the answer incomplete**.
 
             ### 4. **Verb (ਕਿਰਿਆ)**  
             Shows action or state.  
@@ -1048,6 +1044,8 @@ class GrammarApp:
             - If it modifies a noun/pronoun → Adjective
             - If it modifies a verb or shows time/manner/degree → Adverb
             - If it’s acting (or acted upon) → Noun or Pronoun
+            - When POS = Adjective, **the response must contain the “Adjective-Agreement Table”**.  
+            *Answers lacking this table will be considered incomplete.* 
             - Confirm **Number / Gender** **only** if Darpan's translation implies clear grammatical agreement or reference.
             - Ignore spelling similarity; rely strictly on meaning and function in the verse.
 
