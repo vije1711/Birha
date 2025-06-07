@@ -1305,6 +1305,7 @@ class GrammarApp:
                 f"| {case:11} | {', '.join(forms)} |"
                 for case, forms in merged.items()
             ]
+            rows_text = "\n".join(rows)
             ending_list = ", ".join(matched)
 
             # build the core table but DON’T return yet
@@ -1313,7 +1314,7 @@ class GrammarApp:
                 ({gender.split()[0]}/{number.split()[0]})**  
                 | Case         | Attested suffix(es) |
                 |--------------|----------------------|
-                {'\\n'.join(rows)}
+                {rows_text}
                 _Table shows **attested** suffixes.
                 If you need an unlisted case, propose a plausible form and justify._
             """).strip()
