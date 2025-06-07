@@ -966,21 +966,83 @@ class GrammarApp:
             prompt = textwrap.dedent(f"""
             You are a Punjabi grammar expert trained in the grammatical framework of Sri Guru Granth Sahib (SGGS). I will provide:
 
-                1. **Verse** (in Gurmukhi)
-                2. **Established Darpan translation** (from SGGS Darpan of Prof. Sahib Singh)
-                3. **Word under scrutiny** with my selections for Number, Gender, and Part of Speech
-                4. **Dictionary Meanings** of that word (secondary reference):
+            1. **Verse** (in Gurmukhi)  
+            2. **Established Darpan Translation** (by Prof. Sahib Singh)  
+            3. **Word under scrutiny**, along with my selected values for Number, Gender, and Part of Speech  
+            4. **Dictionary Meanings** of that word (as a secondary reference)
 
-                {meanings_block}
+            Your job is to confirm or correct my selections based on the **Darpan Translation and its contextual meaning**, which is the **primary reference**. Override my input only if the Darpan explanation makes it grammatically or semantically incorrect.
 
-                **Please:**
-                - Confirm whether each of my selections is correct, explaining your reasoning.
-                - If any selection is incorrect, recommend the correct value(s) with a brief rationale.
-                - Cite relevant Gurmukhi grammar rules or examples where helpful.
+            ---
 
-                ---
-                **Verse (Gurmukhi):**
-                {verse}
+            ## 📘 Reference Framework – SGGS Grammar Definitions
+
+            ### 1. **Noun (ਨਾਂਵ)**  
+            Names a person, place, quality, or thing. Types:  
+            - **Proper** (ਗੁਰਪਰੀਤ)  
+            - **Common** (ਮਨੁੱਖ)  
+            - **Abstract** (ਸੇਵਾ)  
+            - **Material** (ਜਲ)  
+            - **Collective** (ਸੰਗਤ)
+
+            ### 2. **Pronoun (ਪੜਨਾਂਵ)**  
+            Stands in for nouns. Types:  
+            - **Personal** (ਮੈਂ, ਤੂੰ)  
+            - **Demonstrative** (ਇਹ, ਉਹ)  
+            - **Reflexive** (ਆਪ)  
+            - **Possessive** (ਮੇਰਾ, ਤੇਰਾ)  
+            - **Relative / Correlative** (ਜੋ...ਸੋ, ਜਿਸ...ਤਿਸ)  
+            - **Indefinite** (ਕੋਈ, ਸਭ)  
+            - **Interrogative** (ਕੌਣ, ਕਿਹੜਾ)
+
+            ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ)**  
+            Describes or qualifies a noun or pronoun only. Must be linked to one.  
+            Types: **Qualitative**, **Demonstrative**, **Indefinite**, **Pronominal**, **Numeral**, **Interrogative**
+
+            **🛑 MANDATORY ADJECTIVE-AGREEMENT BOX**  
+            If the word is confirmed as an **Adjective**, you **must**:
+
+            | Step | Action |
+            |------|--------|
+            | 1 | Identify the noun/pronoun it qualifies. |
+            | 2 | Show that the adjective’s form matches that noun/pronoun in **Number** & **Gender**. <br> If the adjective is morphologically in-variable, state that explicitly. |
+
+            *Answers lacking this two-step table will be considered incomplete.*
+
+            Examples  
+            ✅ Correct: **ਚੰਗੀ ਬਾਣੀ** → feminine-singular noun “ਬਾਣੀ” with matching adjective “ਚੰਗੀ”.  
+            ❌ Incorrect: **ਚੰਗਾ ਬਾਣੀ** → gender mismatch.
+
+            ### 4. **Verb (ਕਿਰਿਆ)**  
+            Shows action or state (transitive / intransitive, compound, passive, causative, auxiliary).
+
+            ### 5. **Adverb (ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ)**  
+            Modifies verbs, adjectives, or other adverbs only (never nouns).  
+            Categories in SGGS: **Time, Place, Manner, Measurement, Frequency, Decision, Reason, Stress/Emphasis**.
+
+            ### 6. **Postposition (ਸਿੰਬੰਧਕ)** e.g., ਨਾਲ, ਤੋਂ, ਵਿੱਚ, ਨੂੰ, ਉੱਤੇ, ਦੇ  
+            ### 7. **Conjunction (ਯੋਗਕ)** e.g., ਅਤੇ, ਜਾਂ, ਪਰ, ਜੇਕਰ  
+            ### 8. **Interjection (ਵਿਸਮੀਕ)** e.g., ਵਾਹ ਵਾਹ!, ਹਾਏ ਰਾਮ!
+
+            ---
+
+            ## 🎯 Evaluation Guidelines
+
+            1. Use **Darpan Translation** to determine the word’s semantic role.  
+            2. Confirm **Part of Speech**:  
+            - Modifies noun/pronoun → **Adjective** (→ include the Adjective-Agreement Table).  
+            - Modifies verb or expresses time/manner/degree → **Adverb**.  
+            - Otherwise → **Noun / Pronoun** as context dictates.  
+            3. Confirm **Number** & **Gender** only when Darpan clearly implies agreement.  
+            4. The response is **incomplete** if the word is an adjective and the Adjective-Agreement Table is missing.  
+            5. Ignore surface spelling similarity; rely strictly on meaning and function.
+
+            ---
+
+            ## 📥 Inputs
+
+            **Verse (Gurmukhi):**  
+            {verse}
 
             **Darpan Translation:**  
             {trans}
@@ -998,20 +1060,26 @@ class GrammarApp:
 
             ---
 
-            ## 📋 Response Format
+            ## 📋 Response Format  (follow exactly)
 
             1. **Feature Confirmation**  
-            - Number: (Correct / Incorrect) – backed by Darpan gloss  
-            - Gender: (Correct / Incorrect) – based on noun agreement, if applicable  
-            - Part of Speech: (Correct / Incorrect) – tied to contextual function in Darpan
+            - Number: (Correct / Incorrect) – cite Darpan gloss  
+            - Gender: (Correct / Incorrect) – explain when applicable  
+            - Part of Speech: (Correct / Incorrect) – justify with context  
 
             2. **Corrections (if needed)**  
             - Number: <correct value> – rationale  
             - Gender: <correct value> – rationale  
-            - Part of Speech: <correct value> – rationale
+            - Part of Speech: <correct value> – rationale  
 
             3. **Commentary**  
-            - A few lines showing how Darpan translation justifies your decision. Compare role with definitions provided.
+            - Briefly explain, with Darpan support, how you reached your decision.
+
+            4. **Adjective-Agreement Table (REQUIRED if POS = Adjective)**  
+            | Step | Requirement | Observation | Result |
+            |------|-------------|-------------|--------|
+            | 1 | Qualified noun/pronoun | … | … |
+            | 2 | Number & gender match | … | … |
 
             """).strip()
 
