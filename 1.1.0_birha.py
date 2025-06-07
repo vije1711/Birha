@@ -966,95 +966,21 @@ class GrammarApp:
             prompt = textwrap.dedent(f"""
             You are a Punjabi grammar expert trained in the grammatical framework of Sri Guru Granth Sahib (SGGS). I will provide:
 
-            1. **Verse** (in Gurmukhi)  
-            2. **Established Darpan Translation** (by Prof. Sahib Singh)  
-            3. **Word under scrutiny**, along with my selected values for Number, Gender, and Part of Speech  
-            4. **Dictionary Meanings** of that word (as a secondary reference)
+                1. **Verse** (in Gurmukhi)
+                2. **Established Darpan translation** (from SGGS Darpan of Prof. Sahib Singh)
+                3. **Word under scrutiny** with my selections for Number, Gender, and Part of Speech
+                4. **Dictionary Meanings** of that word (secondary reference):
 
-            Your job is to confirm or correct my selections based on the **Darpan Translation and its contextual meaning**, which is the **primary reference**. Override my input only if the Darpan explanation makes it grammatically or semantically incorrect.
+                {meanings_block}
 
-            ---
+                **Please:**
+                - Confirm whether each of my selections is correct, explaining your reasoning.
+                - If any selection is incorrect, recommend the correct value(s) with a brief rationale.
+                - Cite relevant Gurmukhi grammar rules or examples where helpful.
 
-            ## 📘 Reference Framework – SGGS Grammar Definitions
-
-            ### 1. **Noun (ਨਾਂਵ)**  
-            Names a person, place, quality, or thing. Types:  
-            - **Proper** (ਗੁਰਪਰੀਤ), **Common** (ਮਨੁੱਖ), **Abstract** (ਸੇਵਾ), **Material** (ਜਲ), **Collective** (ਸੰਗਤ)
-
-            ### 2. **Pronoun (ਪੜਨਾਂਵ)**  
-            Stands in for nouns. Types:  
-            - **Personal** (ਮੈਂ, ਤੂੰ), **Demonstrative** (ਇਹ, ਉਹ), **Reflexive** (ਆਪ), **Possessive** (ਮੇਰਾ, ਤੇਰਾ),  
-            - **Relative/Correlative** (ਜੋ...ਸੋ, ਜਿਸ...ਤਿਸ), **Indefinite** (ਕੋਈ, ਸਭ), **Interrogative** (ਕੌਣ, ਕਿਹੜਾ)
-
-            ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ)**  
-            Describes or qualifies a noun or pronoun only. Must be linked to one. Types:
-            Qualitative (ਕਾਲਾ, ਚੰਗਾ)
-            Demonstrative (ਇਹ ਕਿਤਾਬ)
-            Indefinite (ਚੋਟਾ, ਥੋੜਾ)
-            Pronominal (ਮੇਰਾ, ਤੇਰਾ)
-            Numeral (ਪੰਜ, ਤੀਜਾ)
-            Interrogative (ਕਿਹੜਾ)
-
-            **🛑 MANDATORY ADJECTIVE AGREEMENT BOX**  
-            If the word is confirmed as an **Adjective**, you **must**:
-
-            | Step | Action |
-            |------|--------|
-            | 1 | Identify the noun/pronoun it qualifies. |
-            | 2 | Show that the adjective’s form matches that noun/pronoun in **Number** & **Gender**. |
-            |   | *If the adjective is morphologically in-variable, state that explicitly.* |
-
-            Failure to include this two-step table **renders the answer incomplete**.
-
-            ### 4. **Verb (ਕਿਰਿਆ)**  
-            Shows action or state.  
-            - **Transitive**: Takes direct object (e.g., ਲਿਖੀ)  
-            - **Intransitive**: No object (e.g., ਗਿਆ)  
-            - Includes **Compound, Subjunctive, Passive, Causative, Auxiliary** as needed.
-
-            ### 5. **Adverb (ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ)**  
-            Modifies verbs, adjectives, or other adverbs only (never nouns). Adverbs describe when, where, how, how much, why, or how often an action occurs. In Gurbāṇī, they can appear as single words, compound adverbs, or adverbial phrases.
-
-            ⚙ Categories of Adverbs in SGGS Grammar:
-            Time / ਸਮਾ ਵਾਚਕ – ਅੱਜ, ਹੁਣ, ਫਿਰਿ, ਸਦਾ, ਤਦ
-            Place / ਥਾਂ ਵਾਚਕ – ਇੱਥੇ, ਉੱਥੇ, ਅੰਦਰ, ਬਾਹਰ, ਨੇੜੇ
-            Manner / ਢੰਗ ਵਾਚਕ – ਇਸ ਤਰ੍ਹਾਂ, ਜਿਵੇਂ, ਸਥਿਰ, ਧੀਰੇ
-            Measurement / ਪਰਮਾਣ ਵਾਚਕ – ਘੱਟ, ਬਹੁਤ, ਥੋੜ੍ਹਾ, ਸਮਾਨ
-            Frequency / ਸੰਖਿਆ ਵਾਚਕ – ਇੱਕ ਵਾਰ, ਅਕਸਰ, ਫਿਰਿ ਫਿਰਿ
-            Decision / ਨਿਰਣਾ ਵਾਚਕ – ਹਾਂ, ਨਹੀਂ, ਜ਼ਰੂਰ
-            Reason / ਕਾਰਣ ਵਾਚਕ – ਇਸ ਕਰਕੇ, ਤਾਂ ਜੋ
-            Stress/Emphasis / ਤਾਕੀਦ ਵਾਚਕ – ਵੀ, ਹੀ, ਮੁੱਲੇ, ਜ਼ਰੂਰ
-            Use the Darpan translation to confirm the functional role of the word, especially when distinguishing between adverbs of manner and qualitative adjectives, which may appear similar in surface form but differ in what they modify (verb vs noun).
-
-            ### 6. **Postposition (ਸਿੰਬੰਧਕ)**  
-            Expresses relationship: e.g., ਨਾਲ, ਤੋਂ, ਵਿੱਚ, ਨੂੰ, ਉੱਤੇ, ਦੇ
-
-            ### 7. **Conjunction (ਯੋਗਕ)**  
-            Joins: ਅਤੇ, ਜਾਂ, ਪਰ, ਜੇਕਰ
-
-            ### 8. **Interjection (ਵਿਸਮੀਕ)**  
-            Emotion/exclamation: ਵਾਹ ਵਾਹ!, ਹਾਏ ਰਾਮ!
-
-            ---
-
-            ## 🎯 Evaluation Guidelines
-
-            - Use **Darpan Translation** to understand the **semantic role** of the word.
-            - Confirm **Part of Speech**:
-            - If it modifies a noun/pronoun → Adjective
-            - If it modifies a verb or shows time/manner/degree → Adverb
-            - If it’s acting (or acted upon) → Noun or Pronoun
-            - When POS = Adjective, **the response must contain the “Adjective-Agreement Table”**.  
-            *Answers lacking this table will be considered incomplete.* 
-            - Confirm **Number / Gender** **only** if Darpan's translation implies clear grammatical agreement or reference.
-            - Ignore spelling similarity; rely strictly on meaning and function in the verse.
-
-            ---
-
-            ## 📥 Inputs
-
-            **Verse (Gurmukhi):**  
-            {verse}
+                ---
+                **Verse (Gurmukhi):**
+                {verse}
 
             **Darpan Translation:**  
             {trans}
