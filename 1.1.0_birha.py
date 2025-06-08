@@ -971,58 +971,119 @@ class GrammarApp:
             3. **Word under scrutiny**, along with my selected values for Number, Gender, and Part of Speech  
             4. **Dictionary Meanings** of that word (as a secondary reference)
 
-            Your job is to confirm or correct my selections based on the **Darpan Translation and its contextual meaning**, which is the **primary reference**. Override my input only if the Darpan explanation makes it grammatically or semantically incorrect.
+            Your job is to confirm or correct my selections based on the **Darpan Translation and its contextual meaning**, which is the **primary reference**. Override my input only if the Darpan explanation makes it grammatically, semantically, or functionally incorrect within the SGGS grammatical framework.
+
+           ---
+
+            ## 🔄 Two-Pass Analysis Workflow
+            **Phase 1 – Functional Tagging**  
+            1 a. Locate every occurrence of the stem in the verse.  
+            1 b. Assign provisional POS to each occurrence from context.  
+
+            **Phase 2 – Morphological Reconciliation**  
+            2 a. Compare endings of all identical stems found in 1 a.  
+            2 b. If endings differ → mark the stem **declinable** and align each form with its noun/pronoun.  
+            2 c. If endings never differ → note “No declension detected.”  
+
+            If Phase 2 detects a declinable pattern but any token fails to agree with its noun/pronoun, **STOP** and return “Agreement Error – Review Needed.”
 
             ---
 
             ## 📘 Reference Framework – SGGS Grammar Definitions
 
+            ### 🧩 Implicit Case Logic in Gurbani Grammar
+            Many case roles in SGGS are conveyed through **inflection or contextual meaning**, not modern postpositions. Refer to the gloss clues (“of”, “by”, “with”, etc.) to infer case correctly.
+
             ### 1. **Noun (ਨਾਂਵ)**  
-            Names a person, place, quality, or thing. Types:  
-            - **Proper** (ਗੁਰਪਰੀਤ)  
-            - **Common** (ਮਨੁੱਖ)  
-            - **Abstract** (ਸੇਵਾ)  
-            - **Material** (ਜਲ)  
-            - **Collective** (ਸੰਗਤ)
+            A noun is a word that names a person, place, thing, quality, or idea.
+
+            #### 🔹 Types:
+            - **Proper Noun (ਵਿਸ਼ੇਸ਼ ਨਾਂਵ)** – e.g., ਗੁਰੂ ਨਾਨਕ
+            - **Common Noun (ਸਧਾਰਨ ਨਾਂਵ)** – e.g., ਪਾਣੀ, ਰੋਟੀ
+            - **Abstract Noun (ਭਾਵ ਨਾਂਵ)** – e.g., ਪਿਆਰ, ਗਿਆਨ
+            - **Material Noun (ਦ੍ਰਵ ਨਾਂਵ)** – e.g., ਸੋਨਾ, ਜਲ
+            - **Collective Noun (ਸਮੂਹਕ ਨਾਂਵ)** – e.g., ਸੰਗਤ, ਫੌਜ
+
+            #### 🔹 Cases in Gurbani Grammar:
+            Nouns in Gurbani may appear in the following **grammatical cases** (*vibhakti*), sometimes **without explicit post-positions**:
+
+            | Case         | Helper (Gloss Clue)             | Modern Marker    | When to Use                                                       |
+            |--------------|----------------------------------|------------------|-------------------------------------------------------------------|
+            | **Nominative**     | No helper, subject role         | None             | Default when noun is subject of verb                              |
+            | **Accusative**     | No helper, object role          | None             | Default when noun is object of verb                               |
+            | **Genitive**       | “of”, “ਦੇ/ਦੀ/ਦਾ”                | `ਦੇ`, `ਦੀ`, `ਦਾ` | Use when gloss adds ownership/association                         |
+            | **Instrumental**   | “by”, “with”, “under”           | `ਨਾਲ`, `ਅਧੀਨ`     | Use when gloss suggests means/manner (even if unstated in verse)  |
+            | **Dative**         | “to”, “for”                     | `ਨੂੰ`, `ਲਈ`       | When gloss implies recipient/beneficiary                          |
+            | **Locative**       | “in”, “on”, “at”                | `ਵਿੱਚ`, `ਤੇ`      | When gloss places noun in space/context                           |
+            | **Ablative**       | “from”, “out of”                | `ਤੋਂ`, `ਉਤੋਂ`      | When gloss implies source                                         |
+            | **Vocative**       | “O”, “Hey”                      | *(address)*       | Used for direct address (e.g., *ਹੇ ਭਾਈ!*)                          |
+
+            > 🔸 **Implicit Post-Positions:** If Darpan adds “ਨਾਲ, ਦੇ, ਵਿੱਚ, ਤੋਂ” etc., treat it as a **helper** for inferring the noun’s **grammatical case**, even if the verse lacks a marker.
+            >
+            > 🔸 **Indeclinable Loan Nouns:** Sanskrit-based nouns (like *ਬਿਧਿ*, *ਮਤੀ*) may not show visible inflection. Their case must be inferred from semantic role and Darpan gloss, not suffix alone.
+
+            > 🔹 **Fallback Rule:**  
+            > When the gloss offers no helper and the noun does not visibly decline, default to **Nominative or Accusative**, then refine based on sentence structure and implied role in the Darpan explanation.
 
             ### 2. **Pronoun (ਪੜਨਾਂਵ)**  
-            Stands in for nouns. Types:  
-            - **Personal** (ਮੈਂ, ਤੂੰ)  
-            - **Demonstrative** (ਇਹ, ਉਹ)  
-            - **Reflexive** (ਆਪ)  
-            - **Possessive** (ਮੇਰਾ, ਤੇਰਾ)  
-            - **Relative / Correlative** (ਜੋ...ਸੋ, ਜਿਸ...ਤਿਸ)  
-            - **Indefinite** (ਕੋਈ, ਸਭ)  
-            - **Interrogative** (ਕੌਣ, ਕਿਹੜਾ)
+            Used in place of nouns. Types include:  
+            - **Personal**, **Demonstrative**, **Reflexive**, **Possessive**, **Relative**, **Indefinite**, **Interrogative**
 
-            ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ)**  
-            Describes or qualifies a noun or pronoun only. Must be linked to one.  
-            Types: **Qualitative**, **Demonstrative**, **Indefinite**, **Pronominal**, **Numeral**, **Interrogative**
+            ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ) – Agreement Framework**
+            Describes or qualifies a noun or pronoun only. Must be directly linked to one.  
+            Adjectives include: **Qualitative**, **Demonstrative**, **Indefinite**, **Pronominal**, **Numeral**, and **Interrogative**.
+            Examples include: ਚੰਗਾ ਮਨੁ, ਚੰਗੀ ਬਾਣੀ, ਚੰਗੇ ਬਚਨ, ਸਾਰਾ ਦੁਖ, ਉਹ ਮਾਇਆ, ਕੋਈ ਮਨੁੱਖ
 
-            **🛑 MANDATORY ADJECTIVE-AGREEMENT BOX**  
-            If the word is confirmed as an **Adjective**, you **must**:
+            🔴 **GURBANI RULE (STRICT)**  
+            ▶️ **All adjectives in Gurbani MUST agree in Number and Gender with the noun or pronoun they qualify.**  
+            This is a **non-negotiable rule** confirmed by both **Sikh Research Institute (SikhRi)** and **Prof. Sahib Singh’s Gurbani Vyakaran**.  
+            The agreement must be:
+            - **Semantic** (referring to the correct noun/pronoun)
+            - **Morphological** (adjective form visibly matches Number & Gender)
 
-            | Step | Action |
-            |------|--------|
-            | 1 | Identify the noun/pronoun it qualifies. |
-            | 2 | Show that the adjective’s form matches that noun/pronoun in **Number** & **Gender**. <br> If the adjective is morphologically in-variable, state that explicitly. |
+            👉 *In Gurbani, adjectives are always **declined** to match the Number and Gender of the noun or pronoun they describe. This means adjectives **change form** based on their grammatical role. They are not fixed or invariable by default.*
 
-            *Answers lacking this two-step table will be considered incomplete.*
+            If the adjective’s form appears fixed (e.g., ending in ‘ō’ or ‘au’), consult its grammatical root ending (Muktā, Kannā, Aunkār, Horā, Bihārī) to verify its role and alignment.
 
-            Examples  
-            ✅ Correct: **ਚੰਗੀ ਬਾਣੀ** → feminine-singular noun “ਬਾਣੀ” with matching adjective “ਚੰਗੀ”.  
-            ❌ Incorrect: **ਚੰਗਾ ਬਾਣੀ** → gender mismatch.
+            🔍 *Do not assume that any adjective is morphologically invariable unless **Gurbani Vyakaran** explicitly identifies it as a poetic variant that still maintains grammatical agreement.* **Do not conclude invariance merely because the same form appears with multiple nouns.**
+            **Many adjectives follow internal paradigms that are consistent across different contexts, even if they *look* fixed.**
+
+            🧠 *If the adjective’s ending appears unchanged, it must still be evaluated against known adjective paradigms (e.g., hōrā-ending, kannā-ending). Only when those forms confirm invariance through grammatical structure—not intuition—should it be marked as ‘invariable’ in the agreement table.*
+
+            > **Cross-token check ** – If the same stem re-appears with a different ending in the *line*, treat that as conclusive evidence it is **declinable**; do not invoke “indeclinable” unless all tokens are identical in form *and* no paradigm lists inflected endings.
+
+            ---
+
+            **🛑 Mandatory Adjective Agreement Table**
+            ⚠️ **Caution:**  
+            Do **not** classify a word as an Adjective merely because it appears near a noun.  
+            Carefully check whether the word is:
+            - Acting as the **object of a postposition** (e.g., "ਦੇ ਅਧੀਨ", "ਵਿੱਚ", "ਤੋਂ", "ਉੱਤੇ"), in which case it is a **noun**, not an adjective.
+            - Part of an **oblique noun phrase** and not qualifying the noun directly.
+            - Functioning as a **noun in instrumental case** (e.g., ਤ੍ਰਿਬਿਧਿ – by/with threefold means); these may **appear** descriptive but are **semantically instrumental nouns**, not adjectives.
+            
+            These constructions often create **false links**. Always confirm grammatical agreement and functional relationship before assigning Adjective.
+
+            If a word is confirmed as an adjective, this table is required:
+
+            | Step | Requirement | Observation | Result |
+            |------|-------------|-------------|--------|
+            | 1 | Identify the qualified noun/pronoun | (e.g., ਸੁਖੁ – masculine singular) | ... |
+            | 2 | Show matching Number & Gender in adjective form | (e.g., ਅਗਲੋ = masculine singular form of ਹੌਰਾ-ending adjective) | ✅ / ❌ |
+            | 3 | Stem-variation observed? | e.g. ਫਕੜ / ਫਕੜੁ | ✅ / ❌ |
+
+            ❌ *Responses that skip this table or assume invariable adjectives will be treated as incomplete.*
+            *(skip the table entirely if final POS ≠ Adjective)*
 
             ### 4. **Verb (ਕਿਰਿਆ)**  
-            Shows action or state (transitive / intransitive, compound, passive, causative, auxiliary).
+            Expresses an action, state, or condition. Includes forms like transitive/intransitive, passive, causative, auxiliary, etc.
 
             ### 5. **Adverb (ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ)**  
-            Modifies verbs, adjectives, or other adverbs only (never nouns).  
-            Categories in SGGS: **Time, Place, Manner, Measurement, Frequency, Decision, Reason, Stress/Emphasis**.
+            Modifies verbs, adjectives, or other adverbs only. Never nouns. Categories include Time, Place, Manner, Degree, Frequency, etc.
 
-            ### 6. **Postposition (ਸਿੰਬੰਧਕ)** e.g., ਨਾਲ, ਤੋਂ, ਵਿੱਚ, ਨੂੰ, ਉੱਤੇ, ਦੇ  
-            ### 7. **Conjunction (ਯੋਗਕ)** e.g., ਅਤੇ, ਜਾਂ, ਪਰ, ਜੇਕਰ  
-            ### 8. **Interjection (ਵਿਸਮੀਕ)** e.g., ਵਾਹ ਵਾਹ!, ਹਾਏ ਰਾਮ!
+            ### 6. **Postposition (ਸਿੰਬੰਧਕ)** – e.g., ਨਾਲ, ਵਿੱਚ, ਉੱਤੇ  
+            ### 7. **Conjunction (ਯੋਗਕ)** – e.g., ਅਤੇ, ਜੇਕਰ, ਪਰ  
+            ### 8. **Interjection (ਵਿਸਮੀਕ)** – e.g., ਵਾਹ ਵਾਹ!, ਹਾਏ!
 
             ---
 
@@ -1030,12 +1091,19 @@ class GrammarApp:
 
             1. Use **Darpan Translation** to determine the word’s semantic role.  
             2. Confirm **Part of Speech**:  
-            - Modifies noun/pronoun → **Adjective** (→ include the Adjective-Agreement Table).  
-            - Modifies verb or expresses time/manner/degree → **Adverb**.  
-            - Otherwise → **Noun / Pronoun** as context dictates.  
-            3. Confirm **Number** & **Gender** only when Darpan clearly implies agreement.  
-            4. The response is **incomplete** if the word is an adjective and the Adjective-Agreement Table is missing.  
-            5. Ignore surface spelling similarity; rely strictly on meaning and function.
+            - Modifies noun/pronoun → Adjective (**triggers the agreement check**)  
+            - Modifies verb/adjective/adverb → Adverb  
+            - If noun/pronoun → classify accordingly  
+            3. For Adjectives:
+            - Confirm Number & Gender based on the noun/pronoun the adjective qualifies. If the adjective form appears fixed, verify its grammatical alignment using its root ending.
+            - If adjective doesn’t change form (invariable), still list target noun and declare this explicitly 
+            - ⚠️ The **noun’s gender and number** must be derived from **Gurbani Grammar definitions** (as per Darpan and Vyakaran), not from modern Punjabi intuition or pronunciation. For example, abstract nouns like **ਸੇਵਾ** are feminine singular by SGGS convention.
+            ✅ *Trigger Adjective Agreement Table only if:*  
+            - Word semantically modifies a noun/pronoun (confirmed in Darpan gloss)  
+            - Is not the subject/object of a helper-preposition  
+            - Does not serve as the head of a noun phrase or abstract concept (e.g., ਤ੍ਰਿਬਿਧਿ = by/through threefold mode)  
+            4. Do not guess based on spelling or intuition—**rely on function and context from translation**  
+            5. Output is **incomplete** if POS = Adjective and Adjective Agreement Table is missing
 
             ---
 
@@ -1060,26 +1128,62 @@ class GrammarApp:
 
             ---
 
-            ## 📋 Response Format  (follow exactly)
+            ## 📋 Response Format (Follow exactly)
 
             1. **Feature Confirmation**  
-            - Number: (Correct / Incorrect) – cite Darpan gloss  
-            - Gender: (Correct / Incorrect) – explain when applicable  
-            - Part of Speech: (Correct / Incorrect) – justify with context  
+            - Number: (Correct / Incorrect) – based on Darpan gloss and noun agreement  
+            - Gender: (Correct / Incorrect) – based on noun gender  
+            - Part of Speech: (Correct / Incorrect) – based on function and Darpan context  
 
             2. **Corrections (if needed)**  
-            - Number: <correct value> – rationale  
-            - Gender: <correct value> – rationale  
-            - Part of Speech: <correct value> – rationale  
+            - Number: <correct value> – with rationale  
+            - Gender: <correct value> – with rationale  
+            - Part of Speech: <correct value> – with rationale  
 
             3. **Commentary**  
-            - Briefly explain, with Darpan support, how you reached your decision.
+            - Explain briefly how the Darpan translation and noun/pronoun connection led to your decision  
+            - If adjective form is invariable, name the adjective group (e.g., **Horaa** ending or **Poetic variation**)
 
             4. **Adjective-Agreement Table (REQUIRED if POS = Adjective)**  
-            | Step | Requirement | Observation | Result |
-            |------|-------------|-------------|--------|
-            | 1 | Qualified noun/pronoun | … | … |
-            | 2 | Number & gender match | … | … |
+            | Step | Requirement              | Observation                    | Result        |
+            |------|--------------------------|--------------------------------|---------------|
+            | 1    | Qualified noun/pronoun   | (e.g., ਸੁਖੁ – masculine-singular) | (Identified) |
+            | 2    | Number & Gender match    | (e.g., adjective ends with -ō, matches masculine singular noun; or declare as invariable) | ✅/❌ |
+            
+            ---
+
+            📘 **Quick Reference: Common Adjective Endings in Gurbani**
+
+            | Ending      | Number & Gender         | Example           |
+            |-------------|--------------------------|-------------------|
+            | **-ō**      | Masculine singular        | ਅਗਲੋ, ਨਿਵ੍ਰਤੋ       |
+            | **-ē / ਏ**  | Masculine plural          | ਅਗਲੇ, ਚੰਗੇ         |
+            | **-ī**      | Feminine singular         | ਚੰਗੀ, ਅਗਲੀ         |
+            | **-īāṁ / ਿਆਂ** | Feminine plural         | ਚੰਗੀਆਂ, ਅਗਲੀਆਂ      |
+
+            These endings are drawn from adjective groups described in Prof. Sahib Singh’s *Gurbani Vyakaran*, e.g., hōrā-samāpt adjectives. Always match these with the gender and number of the qualified noun.
+            🔹 *Tatsam Words (Sanskrit-Derived)*:  
+            Many Sanskrit-origin words in Gurbani—such as **ਤ੍ਰਿਬਿਧਿ**, **ਗੁਹਜ**, **ਤਤ**—often appear morphologically fixed and may superficially resemble adjectives. However, they frequently function as **abstract nouns** or appear in **instrumental** or other oblique grammatical cases.
+
+            > 🔸 **Tatsam Adjectives vs Indeclinable Nouns:**  
+            > Do **not** classify such words as adjectives unless the **Darpan gloss clearly shows them qualifying a noun**, with **visible agreement in Number and Gender**.  
+            > ▶️ If the gloss inserts a helper like *“by,” “with,” “in,” or “of”*, this usually signals a **noun in an oblique case**—not an adjective.  
+            > ➕ For example, **ਤ੍ਰਿਬਿਧਿ** may mean *“by threefold means”* or *“through the three qualities”*, serving a **functional role** rather than describing a noun.
+
+            🔍 *Key Insight:*  
+            Words like **ਤ੍ਰਿਬਿਧਿ**, despite their descriptive appearance, often act as **instrumental-case nouns** or form part of a **compound abstract expression** (e.g., *ਤ੍ਰਿਗੁਣੀ ਮਾਇਆ*). Always validate their role against the **Darpan translation** and **Gurbani grammar definitions**, not surface resemblance.
+
+            ---
+
+            ### 📑 Stem-Variation Check 🆕
+            *(Fill this mini-grid during Phase 2 if you detected more than one token of the same stem)*  
+            | Token | Ending | Nearby noun/pronoun | Expected agreement | Matches? |
+            |-------|--------|---------------------|--------------------|----------|
+
+            ---
+
+            🛠 **Debug Trace** 🆕 (single line at the very end):  
+            `[TokensChecked:X | Declined:Yes/No | FinalPOS:___ | AgreementOK:Yes/No]`
 
             """).strip()
 
