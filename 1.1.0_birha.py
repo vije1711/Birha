@@ -1869,6 +1869,239 @@ class GrammarApp:
 
                 """).strip() + "\n\n"
 
+            elif entry["Type"] == "Verb / ਕਿਰਿਆ":
+                # ────────────────────────────────────────────────
+                # 4-B  IMPLICIT-NOTE  – how to “read” the gloss
+                # ────────────────────────────────────────────────
+                implicit_note = textwrap.dedent("""\
+                **VERBS IN GURBĀṆĪ – IMPLIED CLUES FROM THE GLOSS**
+
+                Verbs in Gurbāṇī span a wide linguistic spectrum—Lahindī, Braj, Hindustānī, and archaic Panjābī. The verse alone often omits explicit markers for **tense, voice, mood, or even subject**. Prof. Sāhib Siṅgh’s **Darpan gloss** therefore becomes our decoder ring: it regularly inserts the **hidden agent, auxiliary, or intent** that lets us recover the full verbal meaning.
+
+                ---
+
+                ### ✔ Step 1 · Read the gloss literally
+                Ask yourself:
+                * Is the action **ongoing**, **completed**, or **yet to come**?
+                * Is the subject **doing** the action or **receiving** it?
+                * Is the clause a **command**, a **wish**, or a **hypothetical**?
+                * Do helper words appear—*has, was, should, may, being, let*—that hint at aspect or mood?
+
+                ---
+
+                ### ✔ Step 2 · Map the gloss cue to a grammatical category
+
+                | Category            | Common cues in the gloss (Eng. gloss)            |
+                |---------------------|--------------------------------------------------|
+                | **Present**         | do, does, is, are, becomes, gives                |
+                | **Past**            | did, was, were, had, gave, came                  |
+                | **Future**          | will, shall, would                               |
+                | **Imperative**      | (you) give, fall, listen — direct command forms  |
+                | **Subjunctive**     | if … may / might / should / let us               |
+                | **Passive**         | is called, was given — object promoted to subject |
+                | **Participles**     | having done, while doing, upon going, imbued     |
+                | **Compound/Aux**    | do come, has gone, may go — multi-verb chains    |
+
+                ---
+
+                ### 🧠 Key heuristics from the Darpan gloss
+                * **“was made / is given”** → strong passive signal.  
+                * **“has shown / had come”** → perfect aspect; expect past-participle + auxiliary.  
+                * If the gloss shows the subject **causing** another to act (*was made to go*) → tag the verb **causative**.
+
+                ---
+
+                ### 📌 Postposition surrogates
+                Gloss words like *to, by, with, for, from* often reveal an implied **shift in voice** or a **participial/causative chain** hidden in the surface form.
+
+                ---
+
+                ### 🔄 When in doubt
+                * Subject absent, object prominent → suspect **passive**.  
+                * Two verbs side-by-side (*will come go*, *has been given*) → parse for **compound** or **auxiliary** roles.  
+                * Conditional tone (*if … may …*, *let it be …*) → test for **subjunctive**.
+
+                ---
+
+                ### 🧩 Suffix hints  
+                Endings like **–ਹਉ, –ਹੀ, –ਮ, –ਸੀਅ** (and Lahindī –ਉ, –ਹੁ) can encode person or emphasis. Cross-check with the gloss’s subject reference.
+
+                ---
+
+                > **Rule of thumb**  
+                > *If the gloss shows something **happening to** someone and the agent is missing → think passive.*  
+                > *If multiple verbs are chained, the **right-most** verb usually carries tense/voice; earlier ones express the semantic action.*
+
+                _Use the gloss—its hidden auxiliaries, agents, and helpers—to uncover the verb’s true grammatical load._\
+                """).strip() + "\n\n"
+
+
+                common_sense_note = textwrap.dedent("""\
+                ### 🔹 `common_sense_note` – VERBS / ਕਿਰਿਆ (semantic sanity layer)
+
+                **Essence** A sieve that questions every verb label: *Does this person × number × tense truly fit what the verb is doing in the paṅktī?*
+
+                **Vision** Fuse surface-form clues with syntactic/semantic roles so edge-cases (poetic plurals, ergative flips, auxiliary drop, Lahindī quirks) are flagged, not rubber-stamped.
+
+                ---
+
+                ## 1 · Finite vs Non-finite: cheat grid  
+
+                | Tag you plan | Sanity checks (abort / relabel if violated) |
+                |--------------|---------------------------------------------|
+                | **Present / Future** | Ending shows **person+number; no gender**. If ending = –ਦਾ/ਦੀ/ਦੇ **without** auxiliary **ਹੈ/ਹਨ**, treat as participle (habitual/progressive) not finite. |
+                | **Imperative** | Only 2nd-person. Command/request mood. If clause is conditional (*ਜੇ ਸੁਣਹੁ…*) → **Subjunctive** not Imperative. |
+                | **Subjunctive** | Expresses wish/suggestion; often with *ਜੇ, ਜੇਕਰ, ਤਾਂ*. Never shows gender agreement. |
+                | **Past / Perfective** | Built on past-participle endings **–ਆ / –ਈ / –ਏ**. Transitive verbs agree with **object** (ergative); intransitives with **subject**. |
+                | **Passive finite** | Look for **ਕਰੀਐ, ਕੀਆ ਜਾਏ, ਕਹੀਏ** etc. Object promoted to subject; auxiliary **ਕਰੀਨਿ, ਕਰੀਐ** etc. present/past table (§ passive pages). |
+                | **Causative** | Endings –ਆਵਾ, –ਨਾੳ, –ਵਉ, –ਏਇ, –ਵਹਿ…; semantics must show *caused* action. |
+                | **Auxiliary-only token** | If root **ਹੋ** form (ਹਾ, ਹੈ, ਹਾਂ, ਹੁੰ, ਸੀ, ਸੇ, ਸੀਐ, ਸਾ…) appears **alone**, tag = **Auxiliary Verb** not main finite. |
+
+                ---
+
+                ## 2 · Past-participle agreement sanity  
+
+                1. **Intransitive:** participle ↔ subject.  
+                2. **Transitive (ergative):** participle ↔ object; subject in instrumental/obl.  
+                3. **Pron.-suffix –ਉ/-ਹੁ:** when object = **ਤੈ/ਤੂੰ**, endings like **ਕੀਉ, ਕਿਉਹੁ** act as clitics → tag “Pronominal-suffix” sub-type.  
+                4. Gender/number mismatch with controller → flag for review.
+
+                ---
+
+                ## 2A · When gender actually matters  
+
+                * **Finite verbs** (Present, Future, Imperative, Subjunctive, Causative, Auxiliary)  
+                  → **never carry masc/fem marks** in SGGS.  Tag their gender **Trans / ਨਪੁਂਸਕ**.
+
+                * **Participles** – the only verb forms that **do** mark gender:  
+                  • Perfect / perfective: **Masc SG -ਆ / Fem SG -ਈ / Masc PL -ਏ / Fem PL -ਈਆਂ**  
+                  • Habitual / imperfective: **Masc SG -ਦਾ / Fem SG -ਦੀ / Masc PL -ਦੇ / Fem PL -ਦੀਆਂ**  
+                  • Dialectal allomorphs (ਲਹਿੰਦੀ **-ਇਓ**, ਬ੍ਰਜ **-ਯੋ**, etc.) are **still Masc SG**.
+
+                * **Controller rule**  
+                  – **Intransitive** → participle agrees with **subject**.  
+                  – **Transitive perfective** (ergative) → participle agrees with **object**.
+
+                * **Auxiliaries stay neuter.**  `ਹੈ/ਹਨ/ਸੀ…` never add gender; only the participle does.
+
+                ---
+
+                ## 3 · Auxiliary verbs & silent dropping  
+
+                * Present auxiliaries: **ਹਾ (1 sg), ਹੈ (2 sg), ਹੈ (3 sg), ਹਾਂ (1 pl), ਹਉ/ਹੁ (2 pl respect), ਹਨ/hin (3 pl)**.  
+                * Past auxiliaries (rare): **ਸਾ/ਸੇ/ਸੀ/ਸਿਤ, ਸਿਆ, ਸਾ; 3 pl = ਸੇ, ਸੈਨ, ਸੀਮਾ**.  
+                * In Gurbāṇī the auxiliary is **often absorbed** into a longer verb with pronominal suffix: *ਚਲਦਿਵੈ, ਭਰਵਾਈਐ*. If you can’t locate a free auxiliary, confirm tense via surface ending first.
+
+                ---
+
+                ## 4 · Imperative & Subjunctive overlap  
+
+                | Ending cluster | True Imperative if… | Else → likely Subjunctive |
+                |----------------|---------------------|---------------------------|
+                | **–ਹੁ / –ਹੁਗੇ / –ਹੋ** | Stand-alone command/request | Used inside conditional/wish |
+                | **–ਹੇ / –ਹੀ / –ਹੇਇ** | Vocative context | Hypothetical clause |
+
+                ---
+
+                ## 5 · Passive voice heuristics  
+
+                * **Surface template:** participle (ਘਲਿਆ) + auxiliary **ਕਰੀਐ / ਕਹੀਐ / ਕਵਾਇਓ** etc.  
+                * Only 3rd-person shows full paradigm in tables; 1st/2nd are scarce → flag if you tag 1st-person finite passive without strong textual evidence.  
+                * Present passive often masquerades as adjective; ensure a *patient-as-subject* reading is plausible.
+
+                ---
+
+                ## 6 · Causative sanity  
+
+                * First-person causatives: **–ਆਵਾ / –ਆਵਾ, –ਕਰਾਵਾ**. No object → verb likely **inchoative**, not causative.  
+                * 3rd-person causatives: **–ਵਾਇਆ, –ਵਧਾਇਆ, –ਤਿਵਾਇਆ, –ਈਯੈ**: must show agent-causes-other scenario.  
+                * If semantic agent = performer, drop “causative” tag.
+
+                ---
+
+                ## 7 · Compound verbs  
+
+                * Earlier element -> conjunct ending **-ਕੇ / -ਇ / -ਆ / -ਕੇਂ**.  
+                * Last element holds tense/person.  
+                * Tag first as “Conjunct Verb / Gerund”, second as finite.
+
+                ---
+
+                ## 8 · Auto-highlight (red flags)  
+
+                | Pattern | Likely mis-label |
+                |---------|------------------|
+                | Ending **-ਗਾ/ਗੀ/ਗੇ** but tag ≠ Future | Wrong tense |
+                | Ending **-ਹੁ/-ਹੁਗੇ** tagged 1st/3rd person | Imperative bleed |
+                | Ending **-ਦਾ/ਦੀ/ਦੇ** with no **ਹੈ/ਹਨ** & tag = Present/Future | Participle, not finite |
+                | Two consecutive finite-verb tags inside one clause | Probably compound verb – split roles |
+                | Passive participle **ਕਰੀਐ/ਕਰਾਤੁ** but subject‐agent reading given | Reverse voice |
+                | Finite verb tagged Masc/Fem | Finite forms should be Trans – likely mis-tag |
+                | Participial ending gender ≠ controller noun/pronoun | Agreement error (ergative or intransitive mix-up) |
+
+                ---
+
+                <sub>Heuristics sourced from pages 5.1 – 5.12: Present, Past, Future, Imperative, Subjunctive, Participles, Compound, Passive, Causative, Auxiliary, Pron-suffix sections.</sub>\
+                """).strip() + "\n\n"
+
+                ending_cheat_sheet = textwrap.dedent("""\
+                **VERB / ਕਿਰਿਆ ENDINGS – QUICK REFERENCE (Gurbāṇī corpus, Sheet 1)**  
+
+                🔹 **Agreement grid (what can legally combine)**  
+                • **Person / ਪੁਰਖ** → 1st (ਉੱਤਮ) | 2nd (ਮਧਮ) | 3rd (ਅਨਯ)  
+                • **Number / ਵਚਨ** → Singular / ਇਕ | Plural / ਬਹੁ  
+                • **Tense / Mood** → Present / ਵਰਤਮਾਨ | Past / ਭੁਤ | Future / ਭਵਿੱਖਤ | Causative / ਪੇ੍ਰਣਾਰਥਕ | Pronominal suffix  
+                <sub>*Finite verbs ignore noun-gender; –ਦਾ/–ਦੀ/–ਦੇ are participial*</sub>
+
+                ---
+
+                ### A · Canonical ending patterns (+ three toy forms on **ਗਾਵ-**)
+
+                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **1st Sg** | Present | ਈ/ਉ/ਊ/ਾ/ੀ/ਤ/ਣਾ/ਤਾ/ਦਾ/ਨਾ/ੇਉ/ੰਦਾ/ੇਂਦੀ | ਗਾਵਈ, ਗਾਵਉ, ਗਾਵੇਉ |
+                |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
+                |  | Future | ਉ/ਊ/ਾ/ਸਾ/ਉਗਾ/ਉਗੀ/ਉਗੋ/ੈ ਹਉ | ਗਾਵਉ, ਗਾਵਊ, ਗਾਵਉਗਾ |
+                |  | Causative | ਵਉ/ਾਈ/ਾਵਾ/ਾਹਾ | ਗਾਵਵਉ, ਗਾਵਾਈ, ਗਾਵਾਵਾ |
+                |  | Pronominal | ਮ/ਮੁ | ਗਾਵਮ, ਗਾਵਮੁ |
+                | **1st Pl** | Present | ਹ/ਹਾ/ਤ/ਤੇ/ਦੇ | ਗਾਵਹ, ਗਾਵਤ, ਗਾਵਤੇ |
+                |  | Past | ੇ | ਗਾਵੇ |
+                |  | Future | ਸਹ/ਹਗੇ/ਹਿਗੇ | ਗਾਵਸਹ, ਗਾਵਹਗੇ |
+
+                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **2nd Sg** | Present | ਤ/ੈ/ਸਿ/ਹਿ/ਹੀ/ਹੇ/ੇਹੀ/ਦਾ | ਗਾਵਤ, ਗਾਵੈ, ਗਾਵਹਿ |
+                |  | Past | ਾ/ੀ/ਹੁ | ਗਾਵਾ, ਗਾਵੀ, ਗਾਵਹੁ |
+                |  | Future | ਸਿ/ਸੀ/ਹਿ/ਹੀ/ਹੋ/ਸਹਿ/ਹਿਗਾ | ਗਾਵਸਿ, ਗਾਵਸੀ |
+                |  | Causative | ਹਿ/ਇਦਾ/ਇਹਿ | ਗਾਵਹਿ, ਗਾਵਇਦਾ |
+                |  | Pronominal | ਇ/ਈ/ਹਿ/ਹੁ | ਗਾਵਇ, ਗਾਵਈ |
+                | **2nd Pl** | Present | ਹੁ/ਤ ਹਉ/ਤ ਹੌ/ਤ ਹਹੁ/ਈਅਤ ਹੌ | ਗਾਵਹੁ, ਗਾਵਤ ਹਉ |
+                |  | Past | ੇ/ਹੋ | ਗਾਵੇ, ਗਾਵਹੋ |
+                |  | Future | ਹੁ/ੇਹੁ/ਹੁਗੇ | ਗਾਵਹੁ, ਗਾਵੇਹੁ |
+
+                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **3rd Sg** | Present | ਇ/ਈ/ਏ/ੈ/ਤ/ਤਾ/ਤੀ/ਤਿ/ੇ/ਂਤ/ਦਾ/ਦੀ/ੰਤਾ/ਸਿ/ਹੈ | ਗਾਵਇ, ਗਾਵਈ, ਗਾਵਤੀ |
+                |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
+                |  | Future | ਈ/ੈ/ਗਾ/ਗੀ/ਗੋ/ਸਿ/ਸੀ | ਗਾਵਗਾ, ਗਾਵਗੀ |
+                |  | Causative | ਏ/ਈਐ/ਿਵੈ/ਿਦਾ/ਾਵੈ | ਗਾਵਏ, ਗਾਵਇਦਾ |
+                |  | Pronominal | ਨੁ/ਸੁ | ਗਾਵਨੁ, ਗਾਵਸੁ |
+                | **3rd Pl** | Present | ਤ/ਤੇ/ੰਤੇ/ਦੇ/ੰਦੇ/ਨਿ/ਨੀ/ਸਿ/ਹਿ/ਹੀ/ਇਨਿ/ਇੰਨਿ/ਦੀਆ/ਦੀਆਂ | ਗਾਵਤੇ, ਗਾਵਦੇ |
+                |  | Past | ੇ | ਗਾਵੇ |
+                |  | Future | ਹਿ/ਹੀ/ਸਨਿ/ਹਿਗੇ | ਗਾਵਹਿ, ਗਾਵਹਿਗੇ |
+                |  | Causative | ਇਦੇ/ਇਨਿ/ਵਹਿ | ਗਾਵਇਦੇ, ਗਾਵਵਹਿ |
+
+                ---
+
+                ### B · How to use the dashboard  
+
+                1. **Validate annotations** – If you tag a form “2nd Pl Future” but it ends in **–ਦਾ**, the table shows that combo never occurs → revisit the tag.  
+                2. **Debug machine predictions** – Surface ending not found under predicted role → flag for review.  
+                3. **Handle sandhi** – Remember silent –ਉ can drop before postpositions (e.g. **ਤੋਂ, ਨੂੰ**).  
+
+                _Export or further slicing on request._\
+                """).strip() + "\n\n"
+
             notes_block = ending_cheat_sheet + implicit_note + common_sense_note
 
             prompt = textwrap.dedent(f"""
