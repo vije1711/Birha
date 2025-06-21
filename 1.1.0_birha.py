@@ -1551,7 +1551,9 @@ class GrammarApp:
                         parts = [f"**{p}**" for p in parts]
                         parts[0] = "✅ " + parts[0]
 
-                    rows.append("| " + " | ".join(parts) + " |")
+                    rows.append("| " + " | ".join(
+                        parts + [str(_count), f"{_perc:.1f}%"]
+                    ) + " |")
 
                 if rows:
                     headers = [
@@ -1562,6 +1564,8 @@ class GrammarApp:
                         "Gender / ਲਿੰਗ",
                         "Word Root",
                         "Type",
+                        "Match Count",
+                        "Match %",
                     ]
                     table_lines = [
                         "**Top Grammar Matches**",
