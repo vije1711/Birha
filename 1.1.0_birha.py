@@ -22,6 +22,13 @@ import textwrap
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
 
+# Helper to determine whether a given string is a full Punjabi word
+def is_full_word(s: str) -> bool:
+    """Return ``True`` if *s* looks like a complete Punjabi word."""
+    s = str(s).strip()
+    # Words starting with a vowel matra are generally suffixes
+    return len(s) > 1 and not ("\u0A3E" <= s[0] <= "\u0A4C")
+
 # ── Canonical ending-class labels for the dropdown ───────────────
 CANONICAL_ENDINGS = [
     "NA",
@@ -105,10 +112,6 @@ def build_example_bases(
     if ending_examples is None or keep_char is None:
         raise ValueError("Pass ENDING_EXAMPLES and KEEP_CHAR")
 
-    # helper
-    def is_full_word(s: str) -> bool:
-        s = str(s).strip()
-        return len(s) > 1 and not ('\u0A3E' <= s[0] <= '\u0A4C')
 
     df = (pd.read_csv(csv_path).fillna("")
             .assign(**{
@@ -1536,8 +1539,43 @@ class GrammarApp:
                 crit_num = num if num != "(please choose)" else "NA"
                 crit_gen = gen if gen != "(please choose)" else "NA"
                 crit_matches = self.search_by_criteria(word, crit_num, crit_gen, pos)
-                match_lines = [f"  – {m[0]}" for m in crit_matches[:5]]
-                matches_block = "\n".join(["- **Top Grammar Matches**", *match_lines]) if match_lines else ""
+
+                rows = []
+                for result, _count, _perc in crit_matches[:5]:
+                    parts = [p.strip() for p in result.split("|")]
+                    if len(parts) < 7:
+                        parts += [""] * (7 - len(parts))
+
+                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
+                    if highlight:
+                        parts = [f"**{p}**" for p in parts]
+                        parts[0] = "✅ " + parts[0]
+
+                    rows.append("| " + " | ".join(
+                        parts + [str(_count), f"{_perc:.1f}%"]
+                    ) + " |")
+
+                if rows:
+                    headers = [
+                        "Word under Analysis",
+                        "Vowel Ending / Word Matches",
+                        "Number / ਵਚਨ",
+                        "Grammar / ਵਯਾਕਰਣ",
+                        "Gender / ਲਿੰਗ",
+                        "Word Root",
+                        "Type",
+                        "Match Count",
+                        "Match %",
+                    ]
+                    table_lines = [
+                        "**Top Grammar Matches**",
+                        "| " + " | ".join(headers) + " |",
+                        "| " + " | ".join(["---"] * len(headers)) + " |",
+                        *rows,
+                    ]
+                    matches_block = "\n".join(table_lines)
+                else:
+                    matches_block = ""
             except Exception as exc:
                 print(f"search_by_criteria failed: {exc}")
                 matches_block = ""
