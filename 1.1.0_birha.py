@@ -112,10 +112,6 @@ def build_example_bases(
     if ending_examples is None or keep_char is None:
         raise ValueError("Pass ENDING_EXAMPLES and KEEP_CHAR")
 
-    # helper
-    def is_full_word(s: str) -> bool:
-        s = str(s).strip()
-        return len(s) > 1 and not ('\u0A3E' <= s[0] <= '\u0A4C')
 
     df = (pd.read_csv(csv_path).fillna("")
             .assign(**{
