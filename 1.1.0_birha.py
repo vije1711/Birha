@@ -1489,12 +1489,13 @@ class GrammarApp:
             ending_list = ", ".join(matched)
 
             # build the core table but DON’T return yet
+            table_rows = "\n".join(rows)
             table_markdown = textwrap.dedent(f"""
-                **Morphology map – endings matched: {ending_list}  
-                ({gender.split()[0]}/{number.split()[0]})**  
+                **Morphology map – endings matched: {ending_list}
+                ({gender.split()[0]}/{number.split()[0]})**
                 | Case         | Attested suffix(es) |
                 |--------------|----------------------|
-                {'\\n'.join(rows)}
+                {table_rows}
                 _Table shows **attested** suffixes.
                 If you need an unlisted case, propose a plausible form and justify._
             """).strip()
@@ -1523,6 +1524,23 @@ class GrammarApp:
                 for it in items:
                     lines.append(f"  – {it}")
                 return "\n".join(lines)
+
+            # ------------------------------------------------------------------
+            # Use the existing search_by_criteria helper to surface any grammar
+            # matches that align with the current selections.  This gives the
+            # language model extra context about how the form appears in the
+            # database.  If no match is found or the search fails, we simply
+            # omit the block from the prompt.
+            # ------------------------------------------------------------------
+            try:
+                crit_num = num if num != "(please choose)" else "NA"
+                crit_gen = gen if gen != "(please choose)" else "NA"
+                crit_matches = self.search_by_criteria(word, crit_num, crit_gen, pos)
+                match_lines = [f"  – {m[0]}" for m in crit_matches[:5]]
+                matches_block = "\n".join(["- **Top Grammar Matches**", *match_lines]) if match_lines else ""
+            except Exception as exc:
+                print(f"search_by_criteria failed: {exc}")
+                matches_block = ""
 
             opts_block = "\n\n".join([
                 make_block("Word Under Analysis", [ve]),
@@ -2080,7 +2098,7 @@ class GrammarApp:
                 |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
                 |  | Future | ਉ/ਊ/ਾ/ਸਾ/ਉਗਾ/ਉਗੀ/ਉਗੋ/ੈ ਹਉ | ਗਾਵਉ, ਗਾਵਊ, ਗਾਵਉਗਾ |
                 |  | Causative | ਵਉ/ਾਈ/ਾਵਾ/ਾਹਾ | ਗਾਵਵਉ, ਗਾਵਾਈ, ਗਾਵਾਵਾ |
-                |  | Pronominal | ਿਮ/ਮੁ | ਗਾਵਿਮ, ਗਾਵਮੁ |
+                |  | Pronominal | ਮ/ਮੁ | ਗਾਵਮ, ਗਾਵਮੁ |
                 | **1st Pl** | Present | ਹ/ਹਾ/ਤ/ਤੇ/ਦੇ | ਗਾਵਹ, ਗਾਵਤ, ਗਾਵਤੇ |
                 |  | Past | ੇ | ਗਾਵੇ |
                 |  | Future | ਸਹ/ਹਗੇ/ਹਿਗੇ | ਗਾਵਸਹ, ਗਾਵਹਗੇ |
@@ -2091,7 +2109,7 @@ class GrammarApp:
                 |  | Past | ਾ/ੀ/ਹੁ | ਗਾਵਾ, ਗਾਵੀ, ਗਾਵਹੁ |
                 |  | Future | ਸਿ/ਸੀ/ਹਿ/ਹੀ/ਹੋ/ਸਹਿ/ਹਿਗਾ | ਗਾਵਸਿ, ਗਾਵਸੀ |
                 |  | Causative | ਹਿ/ਇਦਾ/ਇਹਿ | ਗਾਵਹਿ, ਗਾਵਇਦਾ |
-                |  | Pronominal | ੋਈ/ਓਹਿ/ੋਹੁ | ਗਾਵਈ, ਗਾਵਓਹਿ |
+                |  | Pronominal | ਇ/ਈ/ਹਿ/ਹੁ | ਗਾਵਇ, ਗਾਵਈ |
                 | **2nd Pl** | Present | ਹੁ/ਤ ਹਉ/ਤ ਹੌ/ਤ ਹਹੁ/ਈਅਤ ਹੌ | ਗਾਵਹੁ, ਗਾਵਤ ਹਉ |
                 |  | Past | ੇ/ਹੋ | ਗਾਵੇ, ਗਾਵਹੋ |
                 |  | Future | ਹੁ/ੇਹੁ/ਹੁਗੇ | ਗਾਵਹੁ, ਗਾਵੇਹੁ |
@@ -2102,7 +2120,7 @@ class GrammarApp:
                 |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
                 |  | Future | ਈ/ੈ/ਗਾ/ਗੀ/ਗੋ/ਸਿ/ਸੀ | ਗਾਵਗਾ, ਗਾਵਗੀ |
                 |  | Causative | ਏ/ਈਐ/ਿਵੈ/ਿਦਾ/ਾਵੈ | ਗਾਵਏ, ਗਾਵਇਦਾ |
-                |  | Pronominal | ਿਅਨੁ/ਈਸੁ | ਗਾਵਿਅਨੁ, ਗਾਵਈਸੁ |
+                |  | Pronominal | ਨੁ/ਸੁ | ਗਾਵਨੁ, ਗਾਵਸੁ |
                 | **3rd Pl** | Present | ਤ/ਤੇ/ੰਤੇ/ਦੇ/ੰਦੇ/ਨਿ/ਨੀ/ਸਿ/ਹਿ/ਹੀ/ਇਨਿ/ਇੰਨਿ/ਦੀਆ/ਦੀਆਂ | ਗਾਵਤੇ, ਗਾਵਦੇ |
                 |  | Past | ੇ | ਗਾਵੇ |
                 |  | Future | ਹਿ/ਹੀ/ਸਨਿ/ਹਿਗੇ | ਗਾਵਹਿ, ਗਾਵਹਿਗੇ |
@@ -2127,6 +2145,7 @@ class GrammarApp:
                 Below are the *allowed choices* for each feature of the highlighted word:
 
                 {opts_block}
+                {matches_block}
 
                 {notes_block}
 
