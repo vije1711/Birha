@@ -1489,12 +1489,13 @@ class GrammarApp:
             ending_list = ", ".join(matched)
 
             # build the core table but DON’T return yet
+            table_rows = "\n".join(rows)
             table_markdown = textwrap.dedent(f"""
-                **Morphology map – endings matched: {ending_list}  
-                ({gender.split()[0]}/{number.split()[0]})**  
+                **Morphology map – endings matched: {ending_list}
+                ({gender.split()[0]}/{number.split()[0]})**
                 | Case         | Attested suffix(es) |
                 |--------------|----------------------|
-                {'\\n'.join(rows)}
+                {table_rows}
                 _Table shows **attested** suffixes.
                 If you need an unlisted case, propose a plausible form and justify._
             """).strip()
@@ -1523,6 +1524,23 @@ class GrammarApp:
                 for it in items:
                     lines.append(f"  – {it}")
                 return "\n".join(lines)
+
+            # ------------------------------------------------------------------
+            # Use the existing search_by_criteria helper to surface any grammar
+            # matches that align with the current selections.  This gives the
+            # language model extra context about how the form appears in the
+            # database.  If no match is found or the search fails, we simply
+            # omit the block from the prompt.
+            # ------------------------------------------------------------------
+            try:
+                crit_num = num if num != "(please choose)" else "NA"
+                crit_gen = gen if gen != "(please choose)" else "NA"
+                crit_matches = self.search_by_criteria(word, crit_num, crit_gen, pos)
+                match_lines = [f"  – {m[0]}" for m in crit_matches[:5]]
+                matches_block = "\n".join(["- **Top Grammar Matches**", *match_lines]) if match_lines else ""
+            except Exception as exc:
+                print(f"search_by_criteria failed: {exc}")
+                matches_block = ""
 
             opts_block = "\n\n".join([
                 make_block("Word Under Analysis", [ve]),
@@ -2127,6 +2145,7 @@ class GrammarApp:
                 Below are the *allowed choices* for each feature of the highlighted word:
 
                 {opts_block}
+                {matches_block}
 
                 {notes_block}
 
