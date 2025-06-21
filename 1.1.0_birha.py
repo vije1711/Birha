@@ -1956,6 +1956,8 @@ class GrammarApp:
                 | **Passive finite** | Look for **ਕਰੀਐ, ਕੀਆ ਜਾਏ, ਕਹੀਏ** etc. Object promoted to subject; auxiliary **ਕਰੀਨਿ, ਕਰੀਐ** etc. present/past table (§ passive pages). |
                 | **Causative** | Endings –ਆਵਾ, –ਨਾੳ, –ਵਉ, –ਏਇ, –ਵਹਿ…; semantics must show *caused* action. |
                 | **Auxiliary-only token** | If root **ਹੋ** form (ਹਾ, ਹੈ, ਹਾਂ, ਹੁੰ, ਸੀ, ਸੇ, ਸੀਐ, ਸਾ…) appears **alone**, tag = **Auxiliary Verb** not main finite. |
+                *If the Canonical row label is “Pronominal Suffixes …” you **must tag Grammar Case = “Pronominal Suffixes …”**, not plain Past/Present.*
+                *For finite verbs, **Word-Root must record the person (1st / 2nd / 3rd)**; tense or aspect belongs in “Grammar Case / ਵਯਾਕਰਣ,” not in Word-Root.*
 
                 ---
 
@@ -1971,7 +1973,7 @@ class GrammarApp:
                 ## 2A · When gender actually matters  
 
                 * **Finite verbs** (Present, Future, Imperative, Subjunctive, Causative, Auxiliary)  
-                  → **never carry masc/fem marks** in SGGS.  Tag their gender **Trans / ਨਪੁਂਸਕ**.
+                  → **never carry masc/fem marks** in SGGS.  *Finite verbs must therefore be tagged **Gender = Trans / ਨਪੁਂਸਕ** (not NA).*
 
                 * **Participles** – the only verb forms that **do** mark gender:  
                   • Perfect / perfective: **Masc SG -ਆ / Fem SG -ਈ / Masc PL -ਏ / Fem PL -ਈਆਂ**  
@@ -2038,6 +2040,8 @@ class GrammarApp:
                 | Passive participle **ਕਰੀਐ/ਕਰਾਤੁ** but subject‐agent reading given | Reverse voice |
                 | Finite verb tagged Masc/Fem | Finite forms should be Trans – likely mis-tag |
                 | Participial ending gender ≠ controller noun/pronoun | Agreement error (ergative or intransitive mix-up) |
+                | Ending-tense combo not found in Canonical table | Illegal combination – override gloss |
+                | Finite verb with Gender = NA | Should be Trans – fix label |
 
                 ---
 
@@ -2045,6 +2049,19 @@ class GrammarApp:
                 """).strip() + "\n\n"
 
                 ending_cheat_sheet = textwrap.dedent("""\
+                🔔 **Authoritative workflow**
+
+                1️⃣ **Check legality** – If a surface ending × person/number × tense combo is **absent** from the
+                Canonical table below, reject or relabel.
+
+                2️⃣ **Decide meaning** – Among the *legal* options, pick the tag that is **best supported by
+                the Darpan Translation and Darpan Meanings** (Prof. Sāhib Siṅgh).  
+                *Those glosses remain the primary key to tense, mood, voice, and agent/object choice.*
+
+                3️⃣ Apply common-sense sanity rules (§ 1–8) for edge-case flags.
+
+                ---
+
                 **VERB / ਕਿਰਿਆ ENDINGS – QUICK REFERENCE (Gurbāṇī corpus, Sheet 1)**  
 
                 🔹 **Agreement grid (what can legally combine)**  
@@ -2063,7 +2080,7 @@ class GrammarApp:
                 |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
                 |  | Future | ਉ/ਊ/ਾ/ਸਾ/ਉਗਾ/ਉਗੀ/ਉਗੋ/ੈ ਹਉ | ਗਾਵਉ, ਗਾਵਊ, ਗਾਵਉਗਾ |
                 |  | Causative | ਵਉ/ਾਈ/ਾਵਾ/ਾਹਾ | ਗਾਵਵਉ, ਗਾਵਾਈ, ਗਾਵਾਵਾ |
-                |  | Pronominal | ਮ/ਮੁ | ਗਾਵਮ, ਗਾਵਮੁ |
+                |  | Pronominal | ਿਮ/ਮੁ | ਗਾਵਿਮ, ਗਾਵਮੁ |
                 | **1st Pl** | Present | ਹ/ਹਾ/ਤ/ਤੇ/ਦੇ | ਗਾਵਹ, ਗਾਵਤ, ਗਾਵਤੇ |
                 |  | Past | ੇ | ਗਾਵੇ |
                 |  | Future | ਸਹ/ਹਗੇ/ਹਿਗੇ | ਗਾਵਸਹ, ਗਾਵਹਗੇ |
@@ -2074,7 +2091,7 @@ class GrammarApp:
                 |  | Past | ਾ/ੀ/ਹੁ | ਗਾਵਾ, ਗਾਵੀ, ਗਾਵਹੁ |
                 |  | Future | ਸਿ/ਸੀ/ਹਿ/ਹੀ/ਹੋ/ਸਹਿ/ਹਿਗਾ | ਗਾਵਸਿ, ਗਾਵਸੀ |
                 |  | Causative | ਹਿ/ਇਦਾ/ਇਹਿ | ਗਾਵਹਿ, ਗਾਵਇਦਾ |
-                |  | Pronominal | ਇ/ਈ/ਹਿ/ਹੁ | ਗਾਵਇ, ਗਾਵਈ |
+                |  | Pronominal | ੋਈ/ਓਹਿ/ੋਹੁ | ਗਾਵਈ, ਗਾਵਓਹਿ |
                 | **2nd Pl** | Present | ਹੁ/ਤ ਹਉ/ਤ ਹੌ/ਤ ਹਹੁ/ਈਅਤ ਹੌ | ਗਾਵਹੁ, ਗਾਵਤ ਹਉ |
                 |  | Past | ੇ/ਹੋ | ਗਾਵੇ, ਗਾਵਹੋ |
                 |  | Future | ਹੁ/ੇਹੁ/ਹੁਗੇ | ਗਾਵਹੁ, ਗਾਵੇਹੁ |
@@ -2085,7 +2102,7 @@ class GrammarApp:
                 |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
                 |  | Future | ਈ/ੈ/ਗਾ/ਗੀ/ਗੋ/ਸਿ/ਸੀ | ਗਾਵਗਾ, ਗਾਵਗੀ |
                 |  | Causative | ਏ/ਈਐ/ਿਵੈ/ਿਦਾ/ਾਵੈ | ਗਾਵਏ, ਗਾਵਇਦਾ |
-                |  | Pronominal | ਨੁ/ਸੁ | ਗਾਵਨੁ, ਗਾਵਸੁ |
+                |  | Pronominal | ਿਅਨੁ/ਈਸੁ | ਗਾਵਿਅਨੁ, ਗਾਵਈਸੁ |
                 | **3rd Pl** | Present | ਤ/ਤੇ/ੰਤੇ/ਦੇ/ੰਦੇ/ਨਿ/ਨੀ/ਸਿ/ਹਿ/ਹੀ/ਇਨਿ/ਇੰਨਿ/ਦੀਆ/ਦੀਆਂ | ਗਾਵਤੇ, ਗਾਵਦੇ |
                 |  | Past | ੇ | ਗਾਵੇ |
                 |  | Future | ਹਿ/ਹੀ/ਸਨਿ/ਹਿਗੇ | ਗਾਵਹਿ, ਗਾਵਹਿਗੇ |
@@ -2131,19 +2148,23 @@ class GrammarApp:
 
                 **Task:**  
                 1. **Confirm or correct** each feature—if blank, **choose** the best option  
-                (one-sentence rationale citing the inflection or usage).  
+                (one-sentence rationale citing the inflection or usage).
+                • For finite forms, choose **1st / 2nd / 3rd Person** in Word-Root (do not use Past/Perfect there). 
                 2. **Corrections**, if any:  
                 - Number → …  
                 - Grammar Case → …  
                 - Word Root → …  
                 3. **Example Usage:**  
                 Provide **one** new Gurbāṇī-style sentence using **“{ve}”** with the
-                confirmed ending, number, case, gender, and root.  
-                4. **Ending ⇄ Case cross-check:**
+                confirmed ending, number, case, gender, and root.
+                4. **Table citation:**  
+                Quote the person × number × tense row header you matched in the Canonical table  
+                (e.g., “1 Sg | Past”). **Use that row’s category name for “Grammar Case / ਵਯਾਕਰਣ,” unless a sanity rule forbids it.**
+                5. **Ending ⇄ Case cross-check:**
                 • If the cheat-sheet already lists a suffix for your chosen case, use it.  
                 • If the case is **missing**, you may propose a likely form
                     (or say “uninflected”) **but give one-line reasoning**.
-                5. **Commentary:**  
+                6. **Commentary:**  
                 Please write 2–3 sentences as “ChatGPT Commentary:” explaining how you arrived at each feature choice.
             """).strip()
 
