@@ -2213,7 +2213,7 @@ class GrammarApp:
                 | **ਕਾਰਣ / Reason**     | causation           | ਯਾਤੇ, ਕਿਤੁ ਅਰਥਿ |
                 | **ਤਾਕੀਦ / Stress**    | emphasis            | ਹੀ, ਭੀ, ਮੂਲੇ |
 
-                \* A full “high-freq” table—including **phrase, compound & iterative** idioms—follows in *common_sense_note*.  
+                * A full “high-freq” table—including **phrase, compound & iterative** idioms—follows in *common_sense_note*.
 
                 ---
 
