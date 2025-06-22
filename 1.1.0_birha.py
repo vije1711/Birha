@@ -1082,7 +1082,7 @@ class GrammarApp:
             Expresses an action, state, or condition. Includes forms like transitive/intransitive, passive, causative, auxiliary, etc.
 
             ### 5. **Adverb (ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ)**  
-            Modifies verbs, adjectives, or other adverbs only. Never nouns. Categories include Time, Place, Manner, Degree, Frequency, etc.
+            Modifies verbs only. Never nouns. Categories include Time, Place, Manner, Degree, Frequency, etc.
 
             ### 6. **Postposition (ਸਿੰਬੰਧਕ)** – e.g., ਨਾਲ, ਵਿੱਚ, ਉੱਤੇ  
             ### 7. **Conjunction (ਯੋਗਕ)** – e.g., ਅਤੇ, ਜੇਕਰ, ਪਰ  
@@ -2174,6 +2174,170 @@ class GrammarApp:
 
                 _Export or further slicing on request._\
                 """).strip() + "\n\n"
+
+            elif entry["Type"] == "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ":
+                implicit_note = textwrap.dedent("""\<br>
+                ### 🔹 `implicit_note` – ADVERB / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ  
+                *(SGGS-centric discovery guide)*  
+
+                **Essence** Teach the evaluator to recognise words that **modify the *action itself***—never the doer (noun) nor the quality‐word (adjective).  
+
+                **Vision** Lean on *Prof. Sāhib Siṅgh’s* Darpan gloss to infer *how, when, where* the verb happens—even when SGGS omits explicit post-positions or auxiliaries.  
+
+                ---
+
+                ## 1 · Adverb ≠ Adjective ≠ Noun — the litmus test 🩺  
+
+                | Ask this first | Pass ✔️ → Adverb | Fail ✖️ → something else |
+                |----------------|------------------|--------------------------|
+                | **Does the word alter the meaning of the verb?** <br>(time, place, manner, measure…) | ✔️ modifies *action* → keep testing | ✖️ modifies noun → likely *Adjective* or *Noun* |
+                | **Will the clause stay grammatical if the word is removed?** | ✔️ sentence remains; nuance lost | ✖️ structure breaks → maybe pronoun/helper |
+                | **Can the word move freely in the clause?** | ✔️ adverbs float (ੴ ਦਇਆਲੁ **ਹੁਣਿ** ਮਿਲਿਆ) | ✖️ fixed next to noun → adjective/compound |
+                | **Any number/gender inflection visible?** | ✔️ none (adverbs are **indeclinable**) | ✖️ – ਆ/–ਈ/–ਏ etc. → participle/adjective |
+                | **Darpan gloss clue** says: “now, then, quickly, here, twice…” | ✔️ adopt adverb label | ✖️ gloss uses “of, to, with” → case marker |
+
+                > **Rule:** In this framework an adverb may *expand* a phrase (ਜਗਿ **ਸਭਤੈ**), but it still targets the action, **not** the noun.  
+
+                ---
+
+                ## 2 · Functional buckets 🗂️  
+
+                | Category (Punjabi) | Core semantic cue | Minimal examples* |
+                |--------------------|-------------------|-------------------|
+                | **ਸਮਾ / Time**        | ‘ਕਦੋਂ? ਕਿੰਨਾ ਸਮਾਂ?’ | ਹੁਣਿ, ਕਦੇ, ਅਜੁ, ਨਿਤ, ਅਹਿਨਿਸਿ |
+                | **ਥਾਂ / Place**       | ‘ਕਿੱਥੇ?’            | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
+                | **ਵਿਧੀ / Manner**     | ‘ਕਿਵੇਂ? ਕਿਸ ਢੰਗ ਨਾਲ?’ | ਜਿਉ, ਇਉ, ਨਿਸੰਗੁ, ਰਸਕਿ ਰਸਕਿ |
+                | **ਪਰਮਾਣ / Measure**   | ‘ਕਿੰਨਾ?’            | ਅਤਿ, ਬਹੁਤੁ, ਘਣਾ, ਭਰਪੂਰਿ |
+                | **ਸੰਖਿਆ / Number**    | ‘ਕਿੰਨੀ ਵਾਰ?’        | ਬਾਰੰ ਬਾਰ, ਫਿਰਿ ਫਿਰਿ |
+                | **ਨਿਨੈ / Decision**   | certainty / denial  | ਨਾਹਿ, ਨਿਹਚਉ |
+                | **ਕਾਰਣ / Reason**     | causation           | ਯਾਤੇ, ਕਿਤੁ ਅਰਥਿ |
+                | **ਤਾਕੀਦ / Stress**    | emphasis            | ਹੀ, ਭੀ, ਮੂਲੇ |
+
+                \* A full “high-freq” table—including **phrase, compound & iterative** idioms—follows in *common_sense_note*.  
+
+                ---
+
+                ## 3 · Zero-inflection principle 🚫🧬  
+
+                * Adverbs **never** show number (-ਏ/-ਉ), gender, person or case.  
+                * If a token **does** decline, re-classify: participial verb (*-ਦਾ/-ਦੀ/-ਦੇ*), adjective, or oblique noun.  
+
+                ---
+
+                ## 4 · Typical gloss helpers 🔍  
+
+                | Gloss clue | Likely adverb class | Illustration |
+                |------------|--------------------|--------------|
+                | “**now / today / always**” | Time | “ਹੁਣਿ ਮਿਲਿਆ” |
+                | “**here / everywhere / within**” | Place | “ਅੰਦਰਿ ਰਹੈ” |
+                | “**thus / quickly / secretly**” | Manner | “ਜਿਉ ਕਰੇ” |
+                | “**fully / a little**” | Measure | “ਭਰਪੂਰਿ ਰੰਗਿ ਰਤਾ” |
+                | “**again / twice**” | Number | “ਫਿਰਿ ਫਿਰਿ ਆਇਆ” |
+
+                ---
+
+                ## 5 · Quick detection workflow ⚡  
+
+                1. **Mark all gloss adverbials** – scan Darpan for English adverbs.  
+                2. **Map to Punjabi surface form** – locate the SGGS token(s) that carry that nuance.  
+                3. **Apply indeclinability test** – no visible suffix change? keep as adverb.  
+                4. **Check floating mobility** – move token; if syntax survives, adverb confirmed.  
+                5. **Edge alert** – if token sits after a post-position (ਦੇ, ਨਾਲ…), probably **oblique noun** not adverb.
+
+                ---
+
+                ## 6 · Red-flag heuristics 🚩  
+
+                * Word tagged *Adverb* but ends in **-ਦਾ/-ਦੀ/-ਦੇ** → likely participial.  
+                * Tagged *Adverb* but gloss shows possession (*of*) → test for Genitive noun.  
+                * Compound form **ਸਾਸਿ ਗਿਰਾਸਿ** mis-tagged as Time/Manner interchangeably → ensure Darpan intent.  
+                * Form appears **twice with different endings** in same ṭuk → must be *declinable* → not adverb.  
+
+                ---
+
+                ### 📝 Footnote on spreadsheet codes  
+                The Excel “Adverbs” sheet groups every token into **eight functional sets** above, plus **Compound / Phrase** and **Iterative** markers. These codes are referenced only for *high-freq tables* and require **no inflection logic**.
+
+                _Use this guide, then apply the sanity layer in `common_sense_note` for mis-tag traps._<br>
+                """).strip() + "\n\n"
+            
+                common_sense_note = textwrap.dedent("""\
+                ### 🔹 `common_sense_note` – ADVERBS / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ (semantic sanity layer)
+
+                **Essence** A quick triage: *Does this token truly act as an **adverb**—i.e., modifies a verb (or a whole clause) and NEVER a noun/pronoun?*
+
+                **Vision** Prevent false-positives caused by:
+                * Post-positions or emphatic particles masquerading as adverbs  
+                * Adjectival or nominal words that look “adverb-ish” but show agreement or case
+
+                ---
+
+                ## 1 · Three-step sanity check 🧪  
+
+                | Step | Ask yourself | Abort / Relabel if… |
+                |------|--------------|--------------------|
+                | ① | **Function** – Does the word modify a **verb or clause** (manner, time, place, degree)? | It directly qualifies a noun/pronoun → likely Adjective or Noun |
+                | ② | **Morphology** – No number / gender / person agreement & no case endings | You see –ਏ/–ਉ etc. agreeing with noun → it’s NOT an adverb |
+                | ③ | **Position / Helpers** – Is it followed by a postposition (*ਦੇ, ਨੂੰ, ਨਾਲ*)? | Token + post-position ⇒ treat token as **Noun in oblique**, PP = post-position |
+
+                ---
+
+                ## 2 · Category reference with high-frequency SGGS tokens 🔍  
+
+                | Category | Typical surface cues | SGGS high-freq examples |
+                |----------|----------------------|-------------------------|
+                | **Time / ਸਮਾਂ** | “when?”, duration, sequence | ਹੁਣਿ, ਸਦਾ, ਕਦੇ, ਤਦਿ, ਸਵੇਰੈ |
+                | **Place / ਥਾਂ** | “where?”, location, direction | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
+                | **Manner / ਵਿਧੀ** | “how?”, style, attitude | ਜਿਉ, ਸਹਜਿ, ਇਉ, ਕਿਵ, ਨਿਸੰਗੁ |
+                | **Measurement / ਪਰਮਾਣ** | quantity / degree | ਅਤਿ, ਬਹੁਤਾ, ਘਣਾ, ਭਰਪੂਰਿ, ਤਿਲੁ |
+                | **Number / ਸੰਖਿਆ** | frequency / repetition | ਫਿਰਿ ਫਿਰਿ, ਬਾਰੰ ਬਾਰ, ਵਤਿ, ਲਖ ਲਖ, ਅਨਿਕ ਬਾਰ |
+                | **Decision / ਨਿਨੈ** | negation / affirmation | ਨਾ, ਨਹ, ਨਾਹੀ, ਨਿਹਚਉ, ਮਤ |
+                | **Reason / ਕਾਰਣ** | cause / purpose | ਯਾਤੇ |
+                | **Stress / ਤਾਕੀਦ** | emphasis / focus | ਹੀ, ਭੀ, ਹੈ, ਸਰਪਰ, ਮੂਲੇ |
+                
+                ---
+
+                ### ▸ Phrase / Compound & Iterative idioms (extended reference)
+
+                | Sub-group | Token set → **all indeclinable adverbs** | Main category |
+                |-----------|------------------------------------------|---------------|
+                | **Time — Phrase** | ਅਹਿਨਿਸਿ, ਨਿਸਿ ਬਾਸੁਰ, ਪਹਿਲੋ ਦੇ, ਪਿਛੋ ਦੇ, ਰਾਤਿ ਦਿਨੰਤਿ, ਅੰਤ ਕੀ ਬੇਲਾ, ਅਬ ਕੈ ਕਹਿਐ, ਆਠ ਪਹਰ, ਆਦਿ ਜੁਗਾਦਿ, ਇਬ ਕੇ ਰਾਹੇ, ਨਿਤ ਪ੍ਰਤਿ | Time / ਸਮਾ |
+                | **Place — Phrase** | ਅੰਤਰਿ ਬਾਹਰਿ, ਪਾਸਿ ਦੁਆਸਿ, ਵਿਚੁਦੇ, ਆਸ ਪਾਸ, ਊਪਰਿ ਭੁਜਾ ਕਰਿ, ਅਗਹੁ ਪਿਛਹੁ, ਈਹਾ ਊਹਾ, ਕਿਤੁ ਠਾਇ, ਤਿਹਾ ਧਿਰਿ, ਤਿੰਹੁ ਲੋਇ, ਦੇਸ ਦਿਸੰਤਰ | Place / ਥਾਂ |
+                | **Manner — Phrase** | ਤਾ ਭੀ, ਤਿਲੁ ਸਾਰ, ਇਕ ਮਨਿ, ਏਵੈ, ਸਹਜ ਭਾਇ, ਕਵਨ ਮੁਖਿ, ਕਾਹੇ ਕਉ, ਕਿਉ ਨ, ਕਿਤੁ ਅਰਥਿ, ਨਾਨਾ ਬਿਧਿ, ਕਿਵੈ ਨ, ਰਸਕਿ ਰਸਕਿ | Manner / ਵਿਧੀ |
+                | **Iterative (Time)** | ਫਿਰਿ ਫਿਰਿ, ਦਿਨੁ ਦਿਨੁ, ਸਦਾ ਸਦਾ, ਸਾਸਿ ਸਾਸਿ, ਨਿਤ ਨਿਤ, ਨਿਮਖ ਨਿਮਖ, ਪਲੁ ਪਲੁ, ਬਾਰੰ ਬਾਰ, ਪੁਨਹ ਪੁਨਹ | Time / ਸਮਾ |
+                | **Iterative (Place)** | ਜਤ ਕਤ, ਘਰਿ ਘਰਿ, ਜਹ ਜਹ, ਜਿਤੁ ਜਿਤੁ, ਦੇਸ ਦਿਸੰਤਰਿ | Place / ਥਾਂ |
+                | **Iterative (Manner)** | ਝਿਮਿ ਝਿਮਿ, ਤਿਲ ਤਿਲ, ਖਿਰ ਖਿਰ, ਰਸਿਕ ਰਸਿਕ, ਲੁਡਿ ਲੁਡਿ | Manner / ਵਿਧੀ |
+
+                *(Duplicates collapsed; diacritics kept as in SGGS.)*
+
+                ---
+
+                ## 3 · Red-flag heuristics 🚨  
+
+                | Pattern | Likely mis-tag |
+                |---------|---------------|
+                | Token shows **plural/oblique –ਆਂ / –ਏ / –ਉ** agreement | Probably a noun or adjective |
+                | Token immediately followed by post-position (**ਨਾਲ, ਤੇ, ਵਿਚ**) | Treat as noun + PP |
+                | Token doubles as **auxiliary verb** (*ਹੀ, ਹੈ*) in context | Re-evaluate as Stress adverb OR auxiliary |
+                | Same stem appears with changing endings inside verse | Likely **declinable adjective**, not adverb |
+                | Gloss marks token as **object / subject** | Not an adverb |
+
+                ---
+
+                ## 4 · Usage tips 💡  
+
+                1. **No gender/number tags** – Always set **Gender = NA** & **Number = NA** for adverbs.  
+                2. **POS override wins** – If sanity check fails, switch POS before finishing the task.  
+                3. Quote at least one verb the adverb is modifying when you justify your choice.
+
+                ---
+
+                <sub>Source pages: Grammar book ch. 6 (pp. 6.1–6.2.6) & “Adverbs” sheet from 0.2 For Data to GPT.xlsx.</sub>\
+                """).strip() + "\n\n"
+
+                ending_cheat_sheet = (
+                    "**ADVERBS:** Indeclinable in SGGS → no ending table required."
+                )
 
             notes_block = ending_cheat_sheet + implicit_note + common_sense_note
 
