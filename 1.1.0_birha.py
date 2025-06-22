@@ -2176,7 +2176,7 @@ class GrammarApp:
                 """).strip() + "\n\n"
 
             elif entry["Type"] == "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ":
-                implicit_note = textwrap.dedent("""<br>
+                implicit_note = textwrap.dedent("""\
                 ### 🔹 `implicit_note` – ADVERB / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ  
                 *(SGGS-centric discovery guide)*  
 
@@ -2258,7 +2258,7 @@ class GrammarApp:
                 ### 📝 Footnote on spreadsheet codes  
                 The Excel “Adverbs” sheet groups every token into **eight functional sets** above, plus **Compound / Phrase** and **Iterative** markers. These codes are referenced only for *high-freq tables* and require **no inflection logic**.
 
-                _Use this guide, then apply the sanity layer in `common_sense_note` for mis-tag traps._<br>
+                _Use this guide, then apply the sanity layer in `common_sense_note` for mis-tag traps._
                 """).strip() + "\n\n"
             
                 common_sense_note = textwrap.dedent("""\
