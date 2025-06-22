@@ -2176,7 +2176,7 @@ class GrammarApp:
                 """).strip() + "\n\n"
 
             elif entry["Type"] == "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ":
-                implicit_note = textwrap.dedent("""\<br>
+                implicit_note = textwrap.dedent("""<br>
                 ### 🔹 `implicit_note` – ADVERB / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ  
                 *(SGGS-centric discovery guide)*  
 
