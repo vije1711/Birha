@@ -888,6 +888,7 @@ class GrammarApp:
             ("Pronoun",     "Pronoun / ਪੜਨਾਂਵ"),
             ("Postposition","Postposition / ਸੰਬੰਧਕ"),
             ("Conjunction", "Conjunction / ਯੋਜਕ"),
+            ("Interjection", "Interjection / ਵਿਸਮਿਕ"),
             ("Unknown",     "NA")
         ]
 
@@ -3454,7 +3455,7 @@ class GrammarApp:
             [("Noun", "Noun / ਨਾਂਵ"), ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
             ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"), ("Verb", "Verb / ਕਿਰਿਆ"),
             ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"), ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
-            ("Conjunction", "Conjunction / ਯੋਜਕ")],
+            ("Conjunction", "Conjunction / ਯੋਜਕ"), ("Interjection", "Interjection / ਵਿਸਮਿਕ")],
             self.pos_var
         )
 
@@ -4817,7 +4818,7 @@ class GrammarApp:
             [("Noun", "Noun / ਨਾਂਵ"), ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
             ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"), ("Verb", "Verb / ਕਿਰਿਆ"),
             ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"), ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
-            ("Conjunction", "Conjunction / ਯੋਜਕ")],
+            ("Conjunction", "Conjunction / ਯੋਜਕ"), ("Interjection", "Interjection / ਵਿਸਮਿਕ")],
             self.pos_var
         )
 
@@ -5643,7 +5644,7 @@ class GrammarApp:
                     matches.append((result, match_count, match_percentage))
 
         # Part of Speech: Adverb, Postposition, Conjunction
-        elif pos in ["Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ", "Postposition / ਸੰਬੰਧਕ", "Conjunction / ਯੋਜਕ"]:
+        elif pos in ["Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ", "Postposition / ਸੰਬੰਧਕ", "Conjunction / ਯੋਜਕ", "Interjection / ਵਿਸਮਿਕ"]:
             for rule in self.grammar_data:
                 if word in rule['\ufeffVowel Ending'] and rule['Type'] == pos:
                     result = " | ".join([
@@ -5758,7 +5759,7 @@ class GrammarApp:
                     matches.append((result, match_count, match_percentage))
 
             # Adverb, Postposition, and Conjunction processing
-            elif rule_pos in ["Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ", "Postposition / ਸੰਬੰਧਕ", "Conjunction / ਯੋਜਕ"]:
+            elif rule_pos in ["Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ", "Postposition / ਸੰਬੰਧਕ", "Conjunction / ਯੋਜਕ", "Interjection / ਵਿਸਮਿਕ"]:
                 if word in rule['\ufeffVowel Ending']:
                     result = " | ".join([
                         word,
