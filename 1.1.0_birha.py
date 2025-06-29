@@ -2406,6 +2406,115 @@ class GrammarApp:
                     "**ADVERBS:** Indeclinable in SGGS → no ending table required."
                 )
 
+            elif entry["Type"] == "Postposition / ਸੰਬੰਧਕ":
+                implicit_note = textwrap.dedent("""\
+                    **POSTPOSITIONS IN GURBĀṆĪ – SEEING THE HIDDEN LINKS**  
+
+                    A postposition (_ਸੰਬੰਧਕ_) expresses the *relationship* of a noun or pronoun to the
+                    rest of the clause.  Think of it as a Punjabi sibling of the English preposition,
+                    except it normally **follows** the word it governs.
+
+                    ### 1 · Why they matter in annotation  
+                    • **Old case-endings → new helpers** – Classical Punjabi often fused case endings
+                    straight onto the noun (e.g. ਕੈ, ਕਉ).  Over centuries these endings began to act
+                    like separate postpositions—and Gurbāṇī preserves *both* layers.  
+                    • **One helper ≠ one case** – Don’t map “each postposition to one case” by reflex.
+                    Many helpers (esp. ‘of’, ‘from’, ‘with’) sit across **multiple traditional cases**.  
+                    • **Pre-noun surprise** – Forms such as **ਕੈ** can surface *before* the noun when
+                    they co-occur with another postposition; still tag them as postpositions.
+
+                    ### 2 · How to read the Darpan gloss  
+                    1. **Scan the English helper** inserted by Prof. Sāhib Siṅgh – _to, of, from,
+                    with, without, in, on, before, after, near, far…_  
+                    2. **Locate the Punjabi token(s)** that deliver that meaning in the pāṅktī.
+                    They may be:  
+                    • an **attached ending** (*…ਕੈ ਸੰਤ*),  
+                    • a **stand-alone word** (*ਨਾਲ, ਵਿਚ, ਉਪਰਿ*), or  
+                    • an **archaic variant** (e.g. _ਕਹ, ਵਸੇ, ਬਾਸੇ_).  
+                    3. **Check the noun form** – the governed noun should be in the **oblique** (ਸੰਬੰਧਕ)
+                    if the language still marks one; otherwise, rely on meaning.
+
+                    > **Rule of thumb** – If the gloss supplies a relational word the verse omits,
+                    > treat that English word as a flag that “a postposition is hiding here.”\
+                    """).strip() + "\\n\\n"
+
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – IS THIS *REALLY* A POSTPOSITION?**  
+
+                    ### ①  Function test  
+                    • Does the candidate **link** its noun/pronoun to the verb or another noun?  
+                    _Yes_ → proceed.  _No_ → it may be an **adverb**, **case-suffix**, or even
+                    part of a **compound noun**.
+
+                    ### ②  Morphology test  
+                    • Postpositions are **indeclinable** – no gender/number/person endings of their
+                    own.  If the token shows –ਆ/ਈ/ਏ etc., suspect an *oblique noun* instead.  
+                    • Possessive markers **ਦਾ, ਦੇ, ਦੀ** *look* like adjectives but behave as
+                    postpositions.  Tag them here only when they attach to another noun
+                    (“ਰਾਮ **ਦਾ** ਦਾਸ”).  
+
+                    ### ③  Dependency test  
+                    • A true postposition normally keeps a **dependent noun** close by.  If none
+                    appears, ask whether the word is actually an **adverbial particle** (“ਤਦਿ,
+                    ਅਗੈ”) or part of a **verb phrase**.
+
+                    ### ④  Red-flag heuristics 🚩  
+                    | Pattern | Likely mis-tag | Example cue |
+                    |---------|---------------|-------------|
+                    | Token plus **another postposition** with no noun in between | Missing oblique noun | “ਕੈ **ਨਾਲ**” |
+                    | Token followed by *ਹੈ/ਹਨ* | Probably predicate adjective | “ਨਾਨਕੁ ਦੋਖੀ **ਨਾਹਿ**” |
+                    | Token appears twice with changing endings | Declining noun, not postposition | “ਘਰਿ ਘਰਿ” |
+
+                    ### ⑤  Quick role alignment  
+                    | Semantic role | Common helpers (non-exhaustive) |
+                    |---------------|----------------------------------|
+                    | **Genitive / OF** | ਕਾ, ਕੇ, ਕੀ, ਦਾ, ਦੇ, ਦੀ, ਕੋਰਾ |
+                    | **Dative / TO, FOR** | ਕਉ, ਕੋ, ਕੈ, ਨੂ, ਲਈ |
+                    | **Ablative / FROM** | ਤੋਂ, ਤੇ, ਵੈਹੁ, ਬਿਨ, ਬਾਹਰ |
+                    | **Instrumental / WITH** | ਨਾਲ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ |
+                    | **Locative / IN, ON, AT** | ਵਿਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਉਪਰਿ, ਊਤੇ |
+                    | **Orientational / BEFORE, AFTER, NEAR, FAR** | ਅਗੈ, ਪਿਛੈ, ਕੋਲ, ਨਿਕਟ, ਦੂਰਿ |
+
+                    _If a helper can sit in more than one row, choose the case that best matches the
+                    **meaning of the clause**, and note the alternative in comments._\
+                    """).strip() + "\\n\\n"
+                
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **POSTPOSITION QUICK-REFERENCE – SURFACE FORMS BY SEMANTIC GROUP**  
+
+                    | Role (Eng.) | Core Punjabi forms* | Notes |
+                    |-------------|---------------------|-------|
+                    | **OF / Possessive** | ਦਾ, ਦੇ, ਦੀ · ਕਾ, ਕੇ, ਕੀ · ਕਾ, ਕੈ, ਕੈਹਿਉ · ਕੋਰਾ / ਕੋਰੈ | Masculine/Feminine variants; decline with possessed noun, not with owner |
+                    | **TO / FOR** | ਕਉ, ਕੂ, ਕੈ, ਕੋ · ਨੂ, ਨੂੰ · ਲਈ | Older endings (ਕਉ…) often fuse; **ਨੂੰ** modern |
+                    | **FROM / OUT OF** | ਤੋਂ, ਤੇ, ਉਤੋਂ, ਵੈਹੁ, ਬਾਹਰ, ਬਿਨਾ | Ablative / separative sense; *ਬਿਨਾ* also “without” |
+                    | **WITH / BY / ALONG** | ਨਾਲ, ਨਾਲੇ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ | Instrumental & associative; choice shaped by metre |
+                    | **WITHOUT / THAN** | ਬਾਜਹੁ, ਬਾਗੈ, ਬਿਨ, ਬਿਨੁ, ਵਿਣ, ਵਿਣਹੁ, ਥੋੜਾ | Negative / comparative nuance |
+                    | **IN / INSIDE / WITHIN** | ਵਿਚ, ਵਿ⸱ਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਮਹਿ, ਮਾਹਰੈ | Locative & internal |
+                    | **ON / OVER / ABOVE** | ਉਪਰਿ, ਉਪਰ, ਉਤੇ, ਊਤੇ, ਊਪਰਿ | Spatial elevation; *ਤੇ* doubles as generic PP |
+                    | **UNDER / BELOW** | ਤਲਿ, ਥਲੈ, ਹੇਠ, ਹੇਠਾਂ | Lower level |
+                    | **BEFORE / FRONT** | ਅਗੈ, ਅਗੇ | Temporal or spatial precedence |
+                    | **AFTER / BEHIND** | ਪਿਛੈ, ਪਾਛੈ, ਪਿਛੋ | Temporal or spatial following |
+                    | **TOWARDS / NEAR / FAR** | ਵਲ, ਕਨ, ਕੋਲ, ਕੋਲੀ, ਨਿਕਟ, ਪਾਸਿ, ਪਾਸੇ, ਦੂਰਿ | Directional & proximity |
+
+                    <sub>*Forms collated from pp. 1-7 of your textbook; diacritics left as printed.
+                    The list is not exhaustive—add dialectal or Braj variants as you meet them.</sub>
+
+                    **Oblique rule** – The governed noun normally appears in the **oblique**; the
+                    postposition itself **never inflects**.
+
+                    **Pre-noun exception** – When **ਕੈ** precedes another PP, it may surface *before*
+                    its noun (e.g. “ਮੰਨੇ ਜਮ **ਕੈ** ਸਾਥ ਨ ਜਾਇ”) – still tag as postposition.
+
+                    **Cross-case cautions**  
+                    • Some helpers (esp. “with”, “in”, “from”) can realise **Instrumental, Locative,
+                    or Ablative** – decide by semantics.  
+                    • Genitive set **ਦਾ/ਦੇ/ਦੀ** functions like an adjective in modern speech but
+                    grammatically remains a postposition in SGGS.
+
+                    _Use this sheet to *reject impossible guesses* and to **confirm legal surface
+                    forms** before finalising your annotation._\
+                    """).strip() + "\\n\\n"
+
             notes_block = ending_cheat_sheet + implicit_note + common_sense_note
 
             prompt = textwrap.dedent(f"""
