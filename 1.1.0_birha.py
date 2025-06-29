@@ -959,6 +959,71 @@ class GrammarApp:
             gen   = self.gender_var.get() or "–"
             pos   = self.pos_var.get()    or "–"
 
+            # --------------------------------------------------------------
+            # Surface existing matches from the grammar database.  We mimic
+            # perform_search_and_finish_reanalysis() to determine whether to
+            # call search_by_criteria() or search_by_inflections().
+            # --------------------------------------------------------------
+            try:
+                search_num = self.number_var.get()
+                search_gen = self.gender_var.get()
+                search_pos = self.pos_var.get()
+
+                if (
+                    search_num == "NA" and
+                    search_gen == "NA" and
+                    search_pos == "NA"
+                ):
+                    matches = self.search_by_inflections(word)
+                else:
+                    matches = self.search_by_criteria(
+                        word, search_num, search_gen, search_pos
+                    )
+                    if not matches:
+                        matches = self.search_by_inflections(word)
+
+                rows = []
+                for result, _count, _perc in matches[:5]:
+                    parts = [p.strip() for p in result.split("|")]
+                    if len(parts) < 7:
+                        parts += [""] * (7 - len(parts))
+
+                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
+                    if highlight:
+                        parts = [f"**{p}**" for p in parts]
+                        parts[0] = "✅ " + parts[0]
+
+                    rows.append(
+                        "| "
+                        + " | ".join(parts + [str(_count), f"{_perc:.1f}%"])
+                        + " |"
+                    )
+
+                if rows:
+                    headers = [
+                        "Word under Analysis",
+                        "Vowel Ending / Word Matches",
+                        "Number / ਵਚਨ",
+                        "Grammar / ਵਯਾਕਰਣ",
+                        "Gender / ਲਿੰਗ",
+                        "Word Root",
+                        "Type",
+                        "Match Count",
+                        "Match %",
+                    ]
+                    table_lines = [
+                        "**Top Grammar Matches**",
+                        "| " + " | ".join(headers) + " |",
+                        "| " + " | ".join(["---"] * len(headers)) + " |",
+                        *rows,
+                    ]
+                    matches_block = "\n".join(table_lines)
+                else:
+                    matches_block = ""
+            except Exception as exc:
+                print(f"search for matches failed: {exc}")
+                matches_block = ""
+
             # pull the meanings we stored for this word
             meanings = next(
                 (e["meanings"] for e in self.grammar_meanings if e["word"] == word),
@@ -1126,8 +1191,10 @@ class GrammarApp:
             - Gender: {gen}  
             - Part of Speech: {pos}
 
-            **Dictionary Meanings (Secondary Aid):**  
+            **Dictionary Meanings (Secondary Aid):**
             {meanings_block}
+
+            {matches_block}
 
             ---
 
