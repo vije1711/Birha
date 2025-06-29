@@ -2516,6 +2516,153 @@ class GrammarApp:
                     forms** before finalising your annotation._\
                     """).strip() + "\\n\\n"
 
+            elif entry["Type"] == "Conjunction / ਯੋਜਕ":
+                implicit_note = textwrap.dedent("""\
+                    **CONJUNCTIONS IN GURBĀṆĪ – HOW TO HEAR THE HINGES**
+
+                    A conjunction (_ਯੋਜਕ_) links words, phrases, or entire clauses—*and, but, or,
+                    if … then, even though…. *  Gurbāṇī uses a small core set, but the
+                    multilingual texture of the text supplies many **variants** (ੲੈ, ਅਤੇ, ਅਉ,
+                    ਫੁਨਿ; ਜੇ, ਜੇਕਰ; ਤਾ, ਤਾਂ, ਤਭ).
+
+                    #### 1 · Spotting them in the verse
+                    1. **Look for clause boundaries** – commas or the metrical “||” often signal the
+                    join.  
+                    2. **Map the gloss cue** – Prof. Sāhib Siṅgh frequently inserts
+                    *and / but / or / if / then / even*, etc.  Trace that helper back to a Punjabi
+                    token (sometimes a tiny vowel like **ਤ, ਜੇ, ਤੇ**).  
+                    3. **Check the flow** – removing a true conjunction should split the sentence
+                    into two meaningful parts; if the sense collapses, the token may be an
+                    **adverb** (*ਤੌਂ = then* vs. *ਤੋਂ = from*), **post-position**, or **particle**.
+
+                    > **Rule of thumb** – If the gloss supplies an English linker and the Punjabi
+                    > token neither declines nor carries case, you’ve found a conjunction.
+                    """).strip() + "\\n\\n"
+                
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – DOES THIS REALLY JOIN THINGS?**
+
+                    | Quick test | Keep as conjunction ✔︎ | Rethink ✘ |
+                    |------------|------------------------|-----------|
+                    | **Function** | Links two clauses / words of equal status | Adds a helper to a noun (*post-position*) |
+                    | **Morphology** | Indeclinable; no gender/number | Ends -ਆ/-ਈ/-ਏ → likely adjective/noun |
+                    | **Mobility** | Can often move to clause edge without breaking grammar | Locked to noun it follows → PP/adjective |
+                    | **Gloss cue** | gloss shows *and, but, or, if … then* | gloss shows *to, of, from* → case helper |
+
+                    #### Red-flag patterns 🚩
+                    * Token plus **post-position** (e.g. *ਜੇ ਕੋ*): maybe *ਜੇ* = “if” (OK) but *ਕੋ* =
+                    Dative → label both separately.  
+                    * **ਨੀ…ਨਾ** or **ਨੋ…ਨੋ** – might be emphatic repetition, not conjunction.  
+                    * **ਤਾ/ਤੇ/ਤੋਂ**: confirm rôle—*ਤਾ* = “then”, *ਤੇ* often Locative PP, *ਤੋਂ* Ablative.
+                    """).strip() + "\\n\\n"
+                
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **CONJUNCTION QUICK-REFERENCE – HIGH-FREQ FORMS IN SGGS**
+
+                    | Logical role | Punjabi forms* | Example gloss cue |
+                    |--------------|---------------|-------------------|
+                    | **AND / THEN** | ਤੇ, ਅਤੇ, ਅਤਿ, ਅਉ, ਅਵਰ, ਅਉਰੁ, ਫੁਨਿ | “and”, “then”, “also” |
+                    | **OR** | ਕੈ, ਕਿ, ਅਕੇ | “or / whether” |
+                    | **BUT / HOWEVER** | ਘਟ, ਪਰ, ਪਰੰਤੂ, ਫੁਨਿ | “but”, “yet” |
+                    | **IF** | ਜੇ, ਜੇਕਰ, ਜੇਵੀ | “if / provided that” |
+                    | **IF … THEN** | ਜੇ … ਤਾ/ਤਾਂ/ਤੋਂ | paired correlative |
+                    | **EVEN IF / EVEN THEN** | ਤ, ਜੇ, ਭਾਵੇ, ਤਉ ਭੀ, ਤਉ, ਤਉਂ | concessive |
+                    | **NEITHER … NOR** | ਨ … ਨਾ | correlative negative |
+                    | **OTHERWISE** | ਨਤ ਰਿ, ਨਤੂ, ਨਹੀਂ, ਨਹੀਂ ਤਾਂ | “otherwise” |
+                    | **THEREFORE / HENCE** | ਤਾ, ਤਾ ਤੇ, ਤਸੂ, ਕਾ ਤੇ | result / inference |
+                    | **AS / LIKE** | ਜਿਉ, ਜਿਵੇਂ | comparative |
+                    | **LEST** | ਮਤੁ | preventative |
+
+                    <sub>*Forms taken from textbook pp. 8.1 – 8.4; diacritics preserved.</sub>
+
+                    **Key reminders**
+
+                    * **Indeclinable** – conjunctions never carry case or agreement.
+                    * **Dual tokens** – Some forms (*ਤਾ, ਤੇ, ਤੋਂ*) double as post-positions.
+                    Decide by context: if it *links* clauses → conjunction; if it *marks* a noun
+                    → post-position.
+                    * **Correlative pairs** – Tag both halves (e.g. **ਜੇ** … **ਤਾਂ**) as one
+                    logical conjunction with a note “correlative”.
+                    """).strip() + "\\n\\n"
+                
+            elif entry["Type"] == "Interjection / ਵਿਸਮਿਕ":
+                implicit_note = textwrap.dedent("""\
+                    **INTERJECTIONS IN GURBĀṆĪ – PURE, UNINFLECTED EMOTION**
+
+                    An interjection (_ਵਿਸਮਿਕ_) erupts outside normal grammar to voice **feeling**:
+                    surprise, pain, devotion, blessing, awe…  Because they sit *outside* the clause
+                    structure, they **never govern case, never inflect, never agree**.
+
+                    #### 1 · What to notice in a verse
+                    1. **Standalone or comma-bound** tokens – often at the start, end, or mid-clause,
+                    separated by a breve pause.  E.g. **ਵਾਹੁ ਵਾਹੁ**, **ਹੈ ਹੈ**, **ਹਰਿ ਹਰਿ**.
+                    2. **Gloss cue** – Prof. Sāhib Siṅgh usually inserts an English exclamation
+                    (*O!, Alas!, Wow!, Blessed!*) or italicises the Punjabi for emphasis.
+                    3. **No syntactic load** – if you remove the interjection, the grammar of the
+                    sentence remains intact (though colour is lost).
+
+                    #### 2 · Ten broad emotional classes in SGGS
+                    1. **Vocative** – calling or invoking (*ਏ, ਐ, ਓ, ਹੈ, ਹਉ, ਹੇ ਜੀ…*).  
+                    2. **Repulsive** – aversion or disgust (*ਵਿਚੁ, ਫਿਟੁ*).  
+                    3. **Painful** – sorrow, lament (*ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ*).  
+                    4. **Submission** – ‘Divine willing’ (*ਅਲਹ*).  
+                    5. **Wondrous** – ecstatic awe (*ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਭੈਰੀ*).  
+                    6. **Caution / Warning** – prudent cry (*ਹਰਿ ਹਰਿ ਹਰੇ* used admonishingly).  
+                    7. **Blessing** – goodwill (*ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ*).  
+                    8. **Curse** – condemnation (*ਜਲਉ, ਜਲਿ ਜਾਉ*).  
+                    9. **Sacrificial** – self-offering (*ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ*).  
+                    10. **Reverence** – respectful welcome (*ਆਇ ਜੀ, ਪਿਛੋ ਜੀ*).
+
+                    > **Rule of thumb** – if the word communicates *only* emotion and detaches
+                    > cleanly from clause syntax, tag it as Interjection; otherwise test Adverb,
+                    > Vocative Noun, or Particle.
+                    """).strip() + "\\n\\n"
+
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – IS THIS TOKEN *JUST* AN EMOTION?**
+
+                    | Quick probe | Keep as Interjection ✔ | Rethink ✖ |
+                    |-------------|-----------------------|-----------|
+                    | **Function** | Adds emotional colour, no syntactic role | Performs grammatical work (case, link, inflection) |
+                    | **Inflection** | Completely indeclinable | Shows –ਆ / –ਈ / –ਏ endings → maybe adjective/noun |
+                    | **Dependence** | Can float; removal leaves clause intact | Sentence breaks → probably verb/particle |
+                    | **Gloss cue** | Gloss marks “O!”, “Alas!”, “Blessed!” etc. | Gloss gives “to, from, with” → post-position |
+
+                    #### Red-flag patterns 🚩
+                    * **ਵਾਹੁ ਵਾਹੁ** appears as noun/adjective elsewhere – decide per context.  
+                    * **ਹੈ ਮੈ, ਹੇ ਭਾਈ** – first token vocative interjection, second token noun;
+                    split tags, don’t bundle.  
+                    * Repeated **ਹਰਿ ਹਰਿ** could be mantra (noun) *or* caution interjection –
+                    weigh meaning.
+
+                    _For every interjection, fill **Number = NA** and **Gender = NA**; they never
+                    agree with anything._
+                    """).strip() + "\\n\\n"
+                
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **INTERJECTION QUICK-REFERENCE – FREQUENT FORMS BY EMOTIONAL CLASS**
+
+                    | Class               | High-frequency tokens* (SGGS spelling)        |
+                    |---------------------|----------------------------------------------|
+                    | **Vocative**        | ਏ, ਐ, ਓ, ਓਹ, ਹੇ, ਹੈ, ਹਉ, ਹਲੈ, ਮੁਸੈ, ਜੀ, ਰੇ, ਬੇ |
+                    | **Repulsive**       | ਵਿਚੁ, ਫਿਟੁ                                   |
+                    | **Painful**         | ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ, ਝੂਅਹ ਬੂਢਹ           |
+                    | **Submission**      | ਅਲਹ                                          |
+                    | **Wondrous**        | ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਵਾਹ, ਵਾਅ ਵਾਅ, ਵਹੁ ਵਹੁ, ਵਾਹ ਭੈ, ਵਹੁ ਵਹੁ |
+                    | **Caution / Warning** | ਹਰਿ ਹਰਿ ਹਰੇ, ਹਰੇ ਹਰੇ                       |
+                    | **Blessing**        | ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ, ਜੁਗੁ ਜੁਗੁ ਜੀਵੈ              |
+                    | **Curse**           | ਜਲਉ, ਜਲਿ ਜਾਉ, ਜਲਿ ਜਲਿ ਜਰਹੁ                  |
+                    | **Sacrificial**     | ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ, ਵਾਰੀ ਵੰਞਾ, ਕਣੀਏ ਵੰਞਾ    |
+                    | **Reverence**       | ਆਉ ਜੀ, ਆਇ ਜੀ, ਪਿਛੋ ਜੀ                       |
+
+                    <sub>*Tokens taken from textbook pp. 9.1–9.4; diacritics preserved.  
+                    Feel free to trim or expand as corpus stats evolve.</sub>
+
+                    **Remember** – Interjections are **indeclinable** and **carry no grammatical
+                    features**.  Therefore the spreadsheet needs **no ending table** beyond this
+                    categorical list.
+                    """).strip() + "\\n\\n"
+                
             notes_block = ending_cheat_sheet + implicit_note + common_sense_note
 
             prompt = textwrap.dedent(f"""
