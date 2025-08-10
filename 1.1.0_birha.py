@@ -10,8 +10,6 @@ import pyperclip
 import tkinter as tk
 from tkinter import ttk
 import threading
-import ast
-import re
 from rapidfuzz import fuzz
 import numpy as np
 import textwrap
@@ -5077,12 +5075,12 @@ class GrammarApp:
                 data = match_string.split(" | ")
                 new_entry = {
                     "Word": data[0],
-                    "Vowel Ending": data[1],
+                    "\ufeffVowel Ending": data[1],
                     "Number / ਵਚਨ": data[2],
                     "Grammar / ਵਯਾਕਰਣ": data[3],
                     "Gender / ਲਿੰਗ": data[4],
                     "Word Root": data[5],
-                    "Word Type": data[6]
+                    "Type": data[6],
                 }
                 current_entries.append(new_entry)
                 any_selection = True
@@ -5352,9 +5350,10 @@ class GrammarApp:
                 preselect = False
                 bg_color = "light gray"
             var = tk.BooleanVar(value=preselect)
+            text_str = display_str if " (Matching Characters:" in display_str else f"{display_str} (Matching Characters: {match[1]})"
             tk.Checkbutton(
                 matches_content,
-                text=f"{display_str} (Matching Characters: {match[1]})",
+                text=text_str,
                 variable=var,
                 bg=bg_color,
                 selectcolor='light blue',
