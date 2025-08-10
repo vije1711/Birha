@@ -7233,7 +7233,6 @@ class GrammarApp:
             current_verse_words = cleaned_verse.split()
 
             # Normalize tokens once and use everywhere to avoid Unicode/spacing mismatches
-            selected_words = set(current_verse_words)
             normalized_tokens = [_s(w) for w in current_verse_words]
             normalized_words = set(normalized_tokens)
 
@@ -7294,7 +7293,7 @@ class GrammarApp:
                     # --- Extract verse metadata from candidate matches ---
                     verse_to_match = _s(self.accumulated_pankti)
                     candidate = None
-                    if hasattr(self, 'candidate_matches') and self.chosen_match:
+                    if hasattr(self, 'candidate_matches') and hasattr(self, 'chosen_match') and self.chosen_match:
                         for cand in self.chosen_match:
                             if _s(cand.get("Verse")) == verse_to_match:
                                 candidate = cand
