@@ -3847,22 +3847,40 @@ class GrammarApp:
             col_frame = tk.Frame(inner_frame, bg='light gray')
             col_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
             for meaning in column:
-                # Set the default selection:
-                # For non-first occurrences, preselect if the meaning is either in prior selections or in the assessment.
-                if index != first_index:
-                    preselect = (meaning in prior_meanings) or (meaning in assessment_meanings)
-                else:
-                    preselect = True
+                # Determine whether this meaning was previously chosen during
+                # the earlier assessment.  Those meanings should stand out in
+                # MistyRose so that the user can easily recognise them when
+                # re‑analysing a word (mirroring the behaviour of grammar
+                # rule highlighting).
+                highlight = (meaning in assessment_meanings)
 
-                # Highlight checkboxes coming from assessment by changing background color.
-                # Here, if the meaning is in assessment_meanings, the background is MistyRose.
-                bg_color = "MistyRose" if (meaning in assessment_meanings) else "light gray"
+                # Default selection – for re‑analysis we only pre‑select a
+                # meaning if it was explicitly chosen earlier.  Previously the
+                # first occurrence of a word had every meaning pre‑selected
+                # which made it difficult to spot the assessed choice.  By
+                # limiting the pre‑selection to the highlighted meanings we
+                # keep the focus on what was actually picked before.
+                if index != first_index:
+                    preselect = (meaning in prior_meanings) or highlight
+                else:
+                    preselect = highlight
+
+                # Apply the MistyRose background when the meaning was part of
+                # the previous assessment; otherwise fall back to light gray.
+                bg_color = "MistyRose" if highlight else "light gray"
 
                 var = tk.BooleanVar(value=preselect)
-                chk = tk.Checkbutton(col_frame, text=f"- {meaning}", variable=var,
-                                    bg=bg_color, font=('Arial', 12),
-                                    wraplength=325, anchor='w', justify=tk.LEFT,
-                                    selectcolor='light blue')
+                chk = tk.Checkbutton(
+                    col_frame,
+                    text=f"- {meaning}",
+                    variable=var,
+                    bg=bg_color,
+                    font=('Arial', 12),
+                    wraplength=325,
+                    anchor='w',
+                    justify=tk.LEFT,
+                    selectcolor='light blue',
+                )
                 chk.pack(anchor='w', padx=15, pady=5)
                 self.meaning_vars.append((var, meaning))
 
