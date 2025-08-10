@@ -1,5 +1,10 @@
+# Allow PowerShell script execution for this session + activate venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 
-git pull  # get latest changes
+# Sync latest repo changes
+git pull origin main
+
+# Open VS Code in this folder
 code .
+
