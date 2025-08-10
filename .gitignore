@@ -2,11 +2,13 @@
 __pycache__/
 *.py[cod]
 *.so
+*.pyc
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
 # Virtual environment
+.venv/
 env/
 venv/
 ENV/
@@ -20,7 +22,3 @@ Thumbs.db
 
 # Log files
 *.log
-
-# Data files (optional, if they're large)
-*.csv
-*.xlsx
