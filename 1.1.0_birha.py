@@ -254,6 +254,10 @@ class GrammarApp:
         self.current_word_index = 0
         self.pankti_words       = []
 
+        # per-verse repeat-word note tracking
+        self._repeat_note_shown = set()
+        self._suppress_repeat_notes_for_verse = False
+
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
         # ------------------------------------------------------------------
@@ -274,6 +278,64 @@ class GrammarApp:
         if key == "Type" or key == "Word Type":
             return d.get("Type") or d.get("Word Type")
         return d.get(key)
+
+    def _maybe_show_repeat_important_note(self, word, occurrence_idx, verse_norm):
+        """Show an explanatory note for repeated words within a verse."""
+        if occurrence_idx < 1 or self._suppress_repeat_notes_for_verse:
+            return
+        key = (verse_norm, word)
+        if key in self._repeat_note_shown:
+            return
+        self._repeat_note_shown.add(key)
+
+        top = tk.Toplevel(self.root)
+        top.title("Important Note")
+        top.configure(bg='AntiqueWhite')
+        top.transient(self.root)
+        top.grab_set()
+
+        note_text = (
+            "This word appears multiple times in this verse. The highlighted grammar options reflect "
+            "your past selections for this word (or close matches) to encourage consistency. "
+            "They’re suggestions, not mandates—adjust if the current context differs."
+        )
+        tk.Label(
+            top,
+            text=note_text,
+            bg='AntiqueWhite',
+            wraplength=400,
+            justify=tk.LEFT,
+            font=('Arial', 12)
+        ).pack(padx=20, pady=(15,5))
+
+        dont_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            top,
+            text="Don't show again for this verse",
+            variable=dont_var,
+            bg='AntiqueWhite',
+            font=('Arial', 11)
+        ).pack(pady=(0,10))
+
+        tk.Button(
+            top,
+            text="OK",
+            command=top.destroy,
+            font=('Arial', 12, 'bold'),
+            bg='navy',
+            fg='white',
+            padx=10,
+            pady=5
+        ).pack(pady=(0,15))
+
+        top.update_idletasks()
+        w, h = top.winfo_width(), top.winfo_height()
+        x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
+        y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
+        top.geometry(f"{w}x{h}+{x}+{y}")
+        top.wait_window()
+        if dont_var.get():
+            self._suppress_repeat_notes_for_verse = True
 
     def show_dashboard(self):
         """Creates the dashboard interface directly in the main root window."""
@@ -7156,6 +7218,10 @@ class GrammarApp:
             self.accumulated_pankti = verse
             verse_norm = _s(verse)
 
+            # reset repeat-note tracking for this verse
+            self._repeat_note_shown = set()
+            self._suppress_repeat_notes_for_verse = False
+
             # Build a set of words for the current verse.
             # (Adjust the cleaning/splitting logic if needed.)
             cleaned_verse = verse_norm.replace('॥', '')
@@ -7163,6 +7229,9 @@ class GrammarApp:
             selected_words = set(current_verse_words)
             selected_words = selected_words if isinstance(selected_words, (set, list, tuple)) else set()
             normalized_words = {_s(w) for w in selected_words}
+            word_counts = {}
+            for w in current_verse_words:
+                word_counts[w] = word_counts.get(w, 0) + 1
 
             # Filter new_entries to only those whose "Word" is present in the current verse.
             filtered_new_entries = [
@@ -7280,12 +7349,18 @@ class GrammarApp:
                         for occ, pos in zip(range(k), occurrence_positions):
                             occurrence_mapping[(word, pos)] = groups[occ]
 
+                    occurrence_counters = {}
                     # Now, iterate over current_verse_words (which are in order) and process each occurrence.
                     for idx, word in enumerate(current_verse_words):
+                        occ_idx = occurrence_counters.get(word, 0)
+                        occurrence_counters[word] = occ_idx + 1
                         key = (word, idx)  # Unique key for the occurrence at position idx.
                         entries = occurrence_mapping.get(key, [])
                         if not entries:
                             continue  # No entries for this occurrence.
+
+                        if word_counts.get(word, 0) > 1 and occ_idx > 0:
+                            self._maybe_show_repeat_important_note(word, occ_idx, verse_norm)
 
                         # Remove duplicate entries within this occurrence group (local deduplication).
                         dedup_entries = []
