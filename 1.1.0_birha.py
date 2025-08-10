@@ -3687,39 +3687,68 @@ class GrammarApp:
         self.all_matches.append(unique_matches)
 
         self.current_reanalysis_index.append(index)
-        
+
+        # Determine whether there are any prior-highlighted items or repeated words
+        past_details = self.past_word_details.get(index, {})
+        assessment_meanings = past_details.get("darpan_meanings", [])
+        has_meaning_highlight = any(m in assessment_meanings for m in meanings)
+
+        assessment_fields = self.extract_grammar_fields(past_details)
+        has_match_highlight = False
+        for match in unique_matches[:max_display]:
+            field_label, match_value = match[0], match[1]
+            if " | " in field_label:
+                parsed = self.parse_composite(field_label)
+                highlight = True
+                for key, expected in assessment_fields.items():
+                    if key in parsed:
+                        if not self.safe_equal_matches_reanalysis(parsed[key], expected):
+                            highlight = False
+                            break
+                if highlight:
+                    has_match_highlight = True
+                    break
+            else:
+                if field_label in assessment_fields and assessment_fields[field_label] == match_value:
+                    has_match_highlight = True
+                    break
+
+        has_repeated_words = self.contains_repeated_words(pankti)
+        show_note = has_meaning_highlight or has_match_highlight or has_repeated_words
+
         # Display Pankti
         self.display_pankti_with_highlight(self.match_window, pankti, index)
 
-        # --- Explanation Section ---
-        explanation_frame = tk.Frame(self.match_window, bg='AntiqueWhite', 
-                                    relief='groove', bd=2)  # A tinted frame with a grooved border
-        explanation_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+        if show_note:
+            # --- Explanation Section ---
+            explanation_frame = tk.Frame(self.match_window, bg='AntiqueWhite',
+                                        relief='groove', bd=2)
+            explanation_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
 
-        heading_label = tk.Label(
-            explanation_frame, 
-            text="Important Note", 
-            font=("Arial", 14, 'bold'),
-            bg='AntiqueWhite'
-        )
-        heading_label.pack(pady=(5, 0))
+            heading_label = tk.Label(
+                explanation_frame,
+                text="Important Note",
+                font=("Arial", 14, 'bold'),
+                bg='AntiqueWhite'
+            )
+            heading_label.pack(pady=(5, 0))
 
-        explanation_text = (
-            "• Highlighted selections (displayed in MistyRose) indicate the meanings or grammar rules that "
-            "were previously confirmed in your assessment.\n"
-            "• This helps you quickly recognize which items reflect your earlier choices."
-        )
+            explanation_text = (
+                "• Highlighted selections (displayed in MistyRose) indicate the meanings or grammar rules that "
+                "were previously confirmed in your assessment.\n"
+                "• This helps you quickly recognize which items reflect your earlier choices."
+            )
 
-        body_label = tk.Label(
-            explanation_frame, 
-            text=explanation_text,
-            bg='AntiqueWhite', 
-            fg='black', 
-            font=('Arial', 12),
-            wraplength=900,    # Adjust wrap length to your window’s width
-            justify=tk.LEFT
-        )
-        body_label.pack(pady=(0, 10), padx=10)
+            body_label = tk.Label(
+                explanation_frame,
+                text=explanation_text,
+                bg='AntiqueWhite',
+                fg='black',
+                font=('Arial', 12),
+                wraplength=900,
+                justify=tk.LEFT
+            )
+            body_label.pack(pady=(0, 10), padx=10)
 
         # Main layout
         main_frame = tk.Frame(self.match_window, bg='light gray')
@@ -3784,6 +3813,11 @@ class GrammarApp:
         display.tag_add("highlight", f"1.{start_idx}", f"1.{end_idx}")
         display.tag_config("highlight", foreground="blue", font=('Arial', 32, 'bold'))
         display.config(state=tk.DISABLED)
+
+    def contains_repeated_words(self, pankti):
+        """Return True if *pankti* has repeated words, ignoring punctuation like '॥'."""
+        words = re.findall(r'\w+', pankti)
+        return len(words) != len(set(words))
 
     def display_meanings_section_reanalysis(self, parent_frame, word, index, meanings):
         """Display meanings as checkboxes for reanalysis with prior selection support."""
