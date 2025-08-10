@@ -5320,12 +5320,41 @@ class GrammarApp:
         matches_content = tk.Frame(matches_canvas, bg='light gray')
         matches_canvas.create_window((0, 0), window=matches_content, anchor='nw')
 
+        # Determine if the current word is repeated and gather prior grammar rules
+        prior_rules = set()
+        if self.current_word_index != first_index:
+            for idx in range(first_index, self.current_word_index):
+                if idx < len(self.accumulated_finalized_matches):
+                    for entry in self.accumulated_finalized_matches[idx]:
+                        rule_str = " | ".join([
+                            entry.get("Word", ""),
+                            entry.get("\ufeffVowel Ending", ""),
+                            entry.get("Number / ਵਚਨ", ""),
+                            entry.get("Grammar / ਵਯਾਕਰਣ", ""),
+                            entry.get("Gender / ਲਿੰਗ", ""),
+                            entry.get("Word Root", ""),
+                            entry.get("Type", ""),
+                        ])
+                        prior_rules.add(rule_str)
+
         # Display each match with a checkbox
         for match in unique_matches[:max_display]:
-            var = tk.BooleanVar()
-            tk.Checkbutton(matches_content, text=f"{match[0]} (Matching Characters: {match[1]})",
-                        variable=var, bg='light gray', selectcolor='light blue', anchor='w'
-                        ).pack(fill=tk.X, padx=10, pady=5)
+            match_str = match[0]
+            if self.current_word_index != first_index:
+                preselect = match_str in prior_rules
+                bg_color = "yellow" if preselect else "light gray"
+            else:
+                preselect = False
+                bg_color = "light gray"
+            var = tk.BooleanVar(value=preselect)
+            tk.Checkbutton(
+                matches_content,
+                text=f"{match_str} (Matching Characters: {match[1]})",
+                variable=var,
+                bg=bg_color,
+                selectcolor='light blue',
+                anchor='w'
+            ).pack(fill=tk.X, padx=10, pady=5)
             self.match_vars.append((var, match))
 
         matches_content.update_idletasks()
