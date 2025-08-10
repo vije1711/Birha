@@ -10,8 +10,6 @@ import pyperclip
 import tkinter as tk
 from tkinter import ttk
 import threading
-import ast
-import re
 from rapidfuzz import fuzz
 import numpy as np
 import textwrap
@@ -4017,12 +4015,12 @@ class GrammarApp:
                 data = match_string.split(" | ")
                 new_entry = {
                     "Word": data[0],
-                    "Vowel Ending": data[1],
+                    "\ufeffVowel Ending": data[1],
                     "Number / ਵਚਨ": data[2],
                     "Grammar / ਵਯਾਕਰਣ": data[3],
                     "Gender / ਲਿੰਗ": data[4],
                     "Word Root": data[5],
-                    "Word Type": data[6]
+                    "Type": data[6]
                 }
                 current_entries.append(new_entry)
                 any_selection = True
@@ -5053,6 +5051,17 @@ class GrammarApp:
         right = mlist[mid:]
         return {"left": left, "right": right}
 
+    def _rule_key_from_entry(self, d):
+        return " | ".join([
+            d.get("Word",""),
+            d.get("\ufeffVowel Ending",""),
+            d.get("Number / ਵਚਨ",""),
+            d.get("Grammar / ਵਯਾਕਰਣ",""),
+            d.get("Gender / ਲਿੰਗ",""),
+            d.get("Word Root",""),
+            d.get("Type",""),
+        ]).strip()
+
     def submit_matches(self):
         any_selection = False
         current_entries = []  # Local list for entries of the current word
@@ -5066,12 +5075,12 @@ class GrammarApp:
                 data = match_string.split(" | ")
                 new_entry = {
                     "Word": data[0],
-                    "Vowel Ending": data[1],
+                    "\ufeffVowel Ending": data[1],
                     "Number / ਵਚਨ": data[2],
                     "Grammar / ਵਯਾਕਰਣ": data[3],
                     "Gender / ਲਿੰਗ": data[4],
                     "Word Root": data[5],
-                    "Word Type": data[6]
+                    "Type": data[6],
                 }
                 current_entries.append(new_entry)
                 any_selection = True
@@ -5325,31 +5334,26 @@ class GrammarApp:
         if self.current_word_index != first_index:
             for idx in range(first_index, self.current_word_index):
                 if idx < len(self.accumulated_finalized_matches):
-                    for entry in self.accumulated_finalized_matches[idx]:
-                        rule_str = " | ".join([
-                            entry.get("Word", ""),
-                            entry.get("\ufeffVowel Ending", ""),
-                            entry.get("Number / ਵਚਨ", ""),
-                            entry.get("Grammar / ਵਯਾਕਰਣ", ""),
-                            entry.get("Gender / ਲਿੰਗ", ""),
-                            entry.get("Word Root", ""),
-                            entry.get("Type", ""),
-                        ])
-                        prior_rules.add(rule_str)
+                    prior_rules.update({
+                        self._rule_key_from_entry(entry)
+                        for entry in self.accumulated_finalized_matches[idx]
+                    })
 
         # Display each match with a checkbox
         for match in unique_matches[:max_display]:
-            match_str = match[0]
+            display_str = match[0]
+            core = re.sub(r'\s*\(Matching Characters:\s*\d+\)\s*$', '', display_str).strip()
             if self.current_word_index != first_index:
-                preselect = match_str in prior_rules
+                preselect = core in prior_rules
                 bg_color = "yellow" if preselect else "light gray"
             else:
                 preselect = False
                 bg_color = "light gray"
             var = tk.BooleanVar(value=preselect)
+            text_str = display_str if " (Matching Characters:" in display_str else f"{display_str} (Matching Characters: {match[1]})"
             tk.Checkbutton(
                 matches_content,
-                text=f"{match_str} (Matching Characters: {match[1]})",
+                text=text_str,
                 variable=var,
                 bg=bg_color,
                 selectcolor='light blue',
