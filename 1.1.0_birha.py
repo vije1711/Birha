@@ -111,7 +111,7 @@ def build_example_bases(
         raise ValueError("Pass ENDING_EXAMPLES and KEEP_CHAR")
 
 
-    df = (pd.read_csv(csv_path).fillna("")
+    df = (pd.read_csv(csv_path).rename(columns={"Vowel Ending": "\ufeffVowel Ending", "Word Type": "Type"}).fillna("")
             .assign(**{
                 "Word Root": lambda d: (
                     d["Word Root"]
@@ -122,11 +122,11 @@ def build_example_bases(
 
     # map: same 5-feature key → list of 1-glyph endings
     suffix_lookup = {}
-    small = df[~df["Vowel Ending"].apply(is_full_word)]
+    small = df[~df["\ufeffVowel Ending"].apply(is_full_word)]
     for _, r in small.iterrows():
         k = (r["Word Root"], r["Type"], r["Grammar / ਵਯਾਕਰਣ"],
              r["Gender / ਲਿੰਗ"], r["Number / ਵਚਨ"])
-        suffix_lookup.setdefault(k, []).append(r["Vowel Ending"].strip())
+        suffix_lookup.setdefault(k, []).append(r["\ufeffVowel Ending"].strip())
 
     result = {}
     for label, wordlist in ending_examples.items():
@@ -134,7 +134,7 @@ def build_example_bases(
         canon_set = set(canon) if isinstance(canon, (list, tuple, set)) else {canon}
         triples = []
         for full in wordlist:
-            row = df[(df["Vowel Ending"].str.strip() == full) &
+            row = df[(df["\ufeffVowel Ending"].str.strip() == full) &
                      (df["Word Root"] == label)]
             if row.empty:
                 triples.append((full, full, ""))
@@ -267,6 +267,13 @@ class GrammarApp:
         # ─── 4.  LAUNCH DASHBOARD ─────────────────────────────────────────
         # ------------------------------------------------------------------
         self.show_dashboard()
+    def _norm_get(self, d, key):
+        """Unified getter that tolerates legacy field names."""
+        if key == "\ufeffVowel Ending" or key == "Vowel Ending":
+            return d.get("\ufeffVowel Ending") or d.get("Vowel Ending")
+        if key == "Type" or key == "Word Type":
+            return d.get("Type") or d.get("Word Type")
+        return d.get(key)
 
     def show_dashboard(self):
         """Creates the dashboard interface directly in the main root window."""
@@ -1372,7 +1379,7 @@ class GrammarApp:
 
         # 4) Build the initial "detailed" entry dict:
         entry = {
-            "Vowel Ending":       word,
+            "\ufeffVowel Ending":       word,
             "Number / ਵਚਨ":       number,
             "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
             "Gender / ਲਿੰਗ":       gender,
@@ -1455,7 +1462,7 @@ class GrammarApp:
             return cb
 
         # 3) --------------  Five dropdowns  -------------------------
-        self.detailed_ve_var      = tk.StringVar(value=entry["Vowel Ending"])
+        self.detailed_ve_var      = tk.StringVar(value=self._norm_get(entry, "\ufeffVowel Ending"))
         self.detailed_number_var  = tk.StringVar(value=entry["Number / ਵਚਨ"])
         self.detailed_grammar_var = tk.StringVar(value=entry["Grammar / ਵਯਾਕਰਣ"])
         self.detailed_gender_var  = tk.StringVar(value=entry["Gender / ਲਿੰਗ"])
@@ -3290,14 +3297,14 @@ class GrammarApp:
             # Your existing 'values' building
             values = [
                 "",  # checkbox
-                safe(row.get('Word')),
-                safe(row.get('Vowel Ending')),
-                safe(row.get('Number / ਵਚਨ')),
-                safe(row.get('Grammar / ਵਯਾਕਰਣ')),
-                safe(row.get('Gender / ਲਿੰਗ')),
-                safe(row.get('Word Root')),
-                safe(row.get('Word Type')),
-                int(row.get('Word Index', -1))
+                safe(self._norm_get(row, "Word")),
+                safe(self._norm_get(row, "\ufeffVowel Ending")),
+                safe(self._norm_get(row, "Number / ਵਚਨ")),
+                safe(self._norm_get(row, "Grammar / ਵਯਾਕਰਣ")),
+                safe(self._norm_get(row, "Gender / ਲਿੰਗ")),
+                safe(self._norm_get(row, "Word Root")),
+                safe(self._norm_get(row, "Type")),
+                int(self._norm_get(row, "Word Index") or -1)
             ]
 
             # Determine odd/even row coloring
@@ -3433,12 +3440,12 @@ class GrammarApp:
                     # Store the past details in the dictionary using the word index as the key.
                     self.past_word_details[idx] = {
                         "Word": word,
-                        "Vowel Ending": latest_row.get("Vowel Ending", ""),
-                        "Number / ਵਚਨ": latest_row.get("Number / ਵਚਨ", ""),
-                        "Grammar / ਵਯਾਕਰਣ": latest_row.get("Grammar / ਵਯਾਕਰਣ", ""),
-                        "Gender / ਲਿੰਗ": latest_row.get("Gender / ਲਿੰਗ", ""),
-                        "Word Type": latest_row.get("Word Type", ""),
-                        "Word Root": latest_row.get("Word Root", ""),
+                        "\ufeffVowel Ending": self._norm_get(latest_row, "\ufeffVowel Ending") or "",
+                        "Number / ਵਚਨ": self._norm_get(latest_row, "Number / ਵਚਨ") or "",
+                        "Grammar / ਵਯਾਕਰਣ": self._norm_get(latest_row, "Grammar / ਵਯਾਕਰਣ") or "",
+                        "Gender / ਲਿੰਗ": self._norm_get(latest_row, "Gender / ਲਿੰਗ") or "",
+                        "Type": self._norm_get(latest_row, "Type") or "",
+                        "Word Root": self._norm_get(latest_row, "Word Root") or "",
                         "Word Index": idx,
                         "darpan_meanings": darpan_meanings
                     }
@@ -3969,8 +3976,8 @@ class GrammarApp:
         - "Word Root"
         - "Word Type"
         """
-        target_keys = ["Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", 
-                    "Gender / ਲਿੰਗ", "Word Root", "Word Type"]
+        target_keys = ["\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
+                    "Gender / ਲਿੰਗ", "Word Root", "Type"]
         return {key: grammar_assessment.get(key) for key in target_keys}
 
     def parse_composite(self, label):
@@ -3979,11 +3986,11 @@ class GrammarApp:
         This function splits the composite string into its individual parts
         and returns a dictionary mapping (in order) the following keys:
         "Word", "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-        "Gender / ਲਿੰਗ", "Word Root", "Word Type"
+        "Gender / ਲਿੰਗ", "Word Root", "Type"
         """
         parts = label.split(" | ")
-        keys = ["Word", "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-                "Gender / ਲਿੰਗ", "Word Root", "Word Type"]
+        keys = ["Word", "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
+                "Gender / ਲਿੰਗ", "Word Root", "Type"]
         return dict(zip(keys, parts))
 
     def back_to_user_input_reanalysis(self, pankti, index):
@@ -4118,8 +4125,8 @@ class GrammarApp:
             unique_entries = []
 
             keys = [
-                "Word", "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-                "Gender / ਲਿੰਗ", "Word Root", "Word Type", "Verse", 'Word Index'
+                "Word", "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
+                "Gender / ਲਿੰਗ", "Word Root", "Type", "Verse", 'Word Index'
             ]
 
             for entry in filtered_new_entries:
@@ -4387,12 +4394,12 @@ class GrammarApp:
                 if past_meanings:
                     clipboard_text += f"   - **Past Meanings:** {', '.join(past_meanings)}\n"
                 # Display grammar fields
-                clipboard_text += f"   - **Vowel Ending:** {assessment_details.get('Vowel Ending', 'N/A')}\n"
+                clipboard_text += f"   - **Vowel Ending:** {self._norm_get(assessment_details, '\\ufeffVowel Ending') or 'N/A'}\n"
                 clipboard_text += f"   - **Number / ਵਚਨ:** {assessment_details.get('Number / ਵਚਨ', 'N/A')}\n"
                 clipboard_text += f"   - **Grammar / ਵਯਾਕਰਣ:** {assessment_details.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}\n"
                 clipboard_text += f"   - **Gender / ਲਿੰਗ:** {assessment_details.get('Gender / ਲਿੰਗ', 'N/A')}\n"
                 clipboard_text += f"   - **Word Root:** {assessment_details.get('Word Root', 'N/A')}\n"
-                clipboard_text += f"   - **Word Type:** {assessment_details.get('Word Type', 'N/A')}\n"
+                clipboard_text += f"   - **Word Type:** {self._norm_get(assessment_details, 'Type') or 'N/A'}\n"
 
             # --- Grammar Options ---
             clipboard_text += "- **Grammar Options:**\n"
@@ -4402,15 +4409,15 @@ class GrammarApp:
                 for option_idx, match in enumerate(finalized_matches_list, start=1):
                     clipboard_text += (
                         f"  - **Option {option_idx}:**\n"
-                        f"      - **Word:** {match.get('Word', 'N/A')}\n"
-                        f"      - **Vowel Ending:** {match.get('Vowel Ending', 'N/A')}\n"
+                        f"      - **Word:** {self._norm_get(match, 'Word') or 'N/A'}\n"
+                        f"      - **Vowel Ending:** {self._norm_get(match, '\\ufeffVowel Ending') or 'N/A'}\n"
                         f"      - **Number / ਵਚਨ:** {match.get('Number / ਵਚਨ', 'N/A')}\n"
                         f"      - **Grammar / ਵਯਾਕਰਣ:** {match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}\n"
                         f"      - **Gender / ਲਿੰਗ:** {match.get('Gender / ਲਿੰਗ', 'N/A')}\n"
                         f"      - **Word Root:** {match.get('Word Root', 'N/A')}\n"
-                        f"      - **Type:** {match.get('Word Type', 'N/A')}\n"
+                        f"      - **Type:** {self._norm_get(match, 'Type') or 'N/A'}\n"
                         f"      - **Literal Translation (Option {option_idx}):** The word '{word}' functions as a "
-                        f"'{match.get('Word Type', 'N/A')}' with '{match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}' usage, "
+                        f"'{self._norm_get(match, 'Type') or 'N/A'}' with '{match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}' usage, "
                         f"in the '{match.get('Number / ਵਚਨ', 'N/A')}' form and '{match.get('Gender / ਲਿੰਗ', 'N/A')}' gender. Translation: …\n"
                     )
             else:
@@ -4510,15 +4517,15 @@ class GrammarApp:
         prompt_lines.append("The following grammar options are available:")
 
         fields = [
-            "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",   "Word Root","Word Type"
+            "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ",   "Word Root", "Type"
         ]
 
         for idx, entry in enumerate(word_entries, start=1):
             # coerce each field to str, converting NaN → ""
             parts = []
             for f in fields:
-                val = entry.get(f, "")
+                val = self._norm_get(entry, f) or ""
                 if pd.isna(val):
                     val = ""
                 parts.append(str(val))
@@ -4579,13 +4586,13 @@ class GrammarApp:
             return "" if pd.isna(val) else str(val)
 
         fields = [
-            "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",   "Word Root",         "Word Type"
+            "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ",   "Word Root", "Type"
         ]
 
         for idx, entry in enumerate(word_entries):
             summary = " | ".join(
-                as_str(entry.get(f, "")) for f in fields
+                as_str(self._norm_get(entry, f) or "") for f in fields
             )
 
             tk.Radiobutton(options_frame,
@@ -4624,8 +4631,8 @@ class GrammarApp:
         df_existing = self.load_existing_assessment_data(file_path)
 
         grammar_keys = [
-            'Vowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
-            'Gender / ਲਿੰਗ', 'Word Root', 'Word Type'
+            '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
+            'Gender / ਲਿੰਗ', 'Word Root', 'Type'
         ]
 
         # Update translation for all entries of the same verse
@@ -4641,7 +4648,7 @@ class GrammarApp:
         if not matching_rows.empty:
             latest_idx = matching_rows["Grammar Revision"].idxmax()
             latest_row = df_existing.loc[latest_idx]
-            differences = any(new_entry.get(key) != latest_row.get(key) for key in grammar_keys)
+            differences = any(new_entry.get(key) != self._norm_get(latest_row, key) for key in grammar_keys)
 
             if differences:
                 new_revision = matching_rows["Grammar Revision"].max() + 1
@@ -6581,6 +6588,10 @@ class GrammarApp:
                 return
             # Merge the metadata with the new assessment data
             new_entry = metadata_entry.copy()
+            new_entry["\ufeffVowel Ending"] = self._norm_get(new_entry, "\ufeffVowel Ending")
+            new_entry.pop("Vowel Ending", None)
+            new_entry["Type"] = self._norm_get(new_entry, "Type")
+            new_entry.pop("Word Type", None)
             new_entry["Translation"] = translation
             new_entry["Framework?"] = framework_var.get()
             new_entry["Explicit?"] = explicit_var.get()
@@ -6600,7 +6611,7 @@ class GrammarApp:
     def load_existing_assessment_data(self, file_path):
         expected_columns = [
             "Verse", "Translation", "Translation Revision",
-            "Word", "Selected Darpan Meaning", "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Gender / ਲਿੰਗ", "Word Root", "Word Type", "Grammar Revision", "Word Index",
+            "Word", "Selected Darpan Meaning", "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Gender / ਲਿੰਗ", "Word Root", "Type", "Grammar Revision", "Word Index",
             "S. No.", "Verse No.", "Stanza No.", "Text Set No.", "Raag (Fixed)", "Sub-Raag", "Writer (Fixed)",
             "Verse Configuration (Optional)", "Stanza Configuration (Optional)", "Bani Name", "Musical Note Configuration",
             "Special Type Demonstrator", "Verse Type", "Page Number",
@@ -6609,6 +6620,7 @@ class GrammarApp:
         if os.path.exists(file_path):
             try:
                 df = pd.read_excel(file_path)
+                df.rename(columns={"Vowel Ending": "\ufeffVowel Ending", "Word Type": "Type"}, inplace=True)
                 if df.empty or len(df.columns) == 0:
                     df = pd.DataFrame(columns=expected_columns)
                 else:
@@ -6636,8 +6648,8 @@ class GrammarApp:
         
         # Define the grammar keys to compare (excluding Translation, which is updated separately).
         grammar_keys = [
-            'Vowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
-            'Gender / ਲਿੰਗ', 'Word Root', 'Word Type'
+            '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
+            'Gender / ਲਿੰਗ', 'Word Root', 'Type'
         ]
         
         # Update the Translation for all rows in the same verse.
@@ -6656,7 +6668,7 @@ class GrammarApp:
             latest_row = df_existing.loc[latest_idx]
             
             # Check if any grammar field is different.
-            differences = any(new_entry.get(key) != latest_row.get(key) for key in grammar_keys)
+            differences = any(new_entry.get(key) != self._norm_get(latest_row, key) for key in grammar_keys)
             
             if differences:
                 # Compute new Grammar Revision number for the group.
@@ -6942,17 +6954,17 @@ class GrammarApp:
                 for option_idx, match in enumerate(finalized_matches_list, start=1):
                     clipboard_text += (
                         f"  - **Option {option_idx}:**\n"
-                        f"      - **Word:** {match.get('Word', 'N/A')}\n"
-                        f"      - **Vowel Ending:** {match.get('Vowel Ending', 'N/A')}\n"
+                        f"      - **Word:** {self._norm_get(match, 'Word') or 'N/A'}\n"
+                        f"      - **Vowel Ending:** {self._norm_get(match, '\\ufeffVowel Ending') or 'N/A'}\n"
                         f"      - **Number / ਵਚਨ:** {match.get('Number / ਵਚਨ', 'N/A')}\n"
                         f"      - **Grammar / ਵਯਾਕਰਣ:** {match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}\n"
                         f"      - **Gender / ਲਿੰਗ:** {match.get('Gender / ਲਿੰਗ', 'N/A')}\n"
                         f"      - **Word Root:** {match.get('Word Root', 'N/A')}\n"
-                        f"      - **Type:** {match.get('Word Type', 'N/A')}\n"
+                        f"      - **Type:** {self._norm_get(match, 'Type') or 'N/A'}\n"
                     )
                     clipboard_text += (
                         f"      - **Literal Translation (Option {option_idx}):** The word '{word}' functions as a "
-                        f"'{match.get('Word Type', 'N/A')}' with '{match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}' usage, in the "
+                        f"'{self._norm_get(match, 'Type') or 'N/A'}' with '{match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}' usage, in the "
                         f"'{match.get('Number / ਵਚਨ', 'N/A')}' form and '{match.get('Gender / ਲਿੰਗ', 'N/A')}' gender. Translation: …\n"
                     )
             else:
@@ -7013,12 +7025,12 @@ class GrammarApp:
         prompt_lines.append("The following grammar options are available:")
         for idx, entry in enumerate(word_entries, start=1):
             summary = " | ".join([
-                entry.get("Vowel Ending", ""),
-                entry.get("Number / ਵਚਨ", ""),
-                entry.get("Grammar / ਵਯਾਕਰਣ", ""),
-                entry.get("Gender / ਲਿੰਗ", ""),
-                entry.get("Word Root", ""),
-                entry.get("Word Type", "")
+                self._norm_get(entry, "\ufeffVowel Ending") or "",
+                self._norm_get(entry, "Number / ਵਚਨ") or "",
+                self._norm_get(entry, "Grammar / ਵਯਾਕਰਣ") or "",
+                self._norm_get(entry, "Gender / ਲਿੰਗ") or "",
+                self._norm_get(entry, "Word Root") or "",
+                self._norm_get(entry, "Type") or ""
             ])
             prompt_lines.append(f"Option {idx}: {summary}")
         prompt_text = "\n".join(prompt_lines)
@@ -7087,12 +7099,12 @@ class GrammarApp:
         # Create radio buttons with option text as "Option {number}: {summary}"
         for idx, entry in enumerate(word_entries):
             summary = " | ".join([
-                entry.get("Vowel Ending", ""),
-                entry.get("Number / ਵਚਨ", ""),
-                entry.get("Grammar / ਵਯਾਕਰਣ", ""),
-                entry.get("Gender / ਲਿੰਗ", ""),
-                entry.get("Word Root", ""),
-                entry.get("Word Type", "")
+                self._norm_get(entry, "\ufeffVowel Ending") or "",
+                self._norm_get(entry, "Number / ਵਚਨ") or "",
+                self._norm_get(entry, "Grammar / ਵਯਾਕਰਣ") or "",
+                self._norm_get(entry, "Gender / ਲਿੰਗ") or "",
+                self._norm_get(entry, "Word Root") or "",
+                self._norm_get(entry, "Type") or ""
             ])
             rb_text = f"Option {idx+1}: {summary}"
             rb = tk.Radiobutton(options_frame,
@@ -7157,15 +7169,24 @@ class GrammarApp:
 
             # Duplicate check: for each filtered entry, compare against existing data.
             for new_entry in filtered_new_entries:
+                new_word = self._norm_get(new_entry, "Word")
+                new_ve = self._norm_get(new_entry, "\ufeffVowel Ending")
+                new_num = self._norm_get(new_entry, "Number / ਵਚਨ")
+                new_grammar = self._norm_get(new_entry, "Grammar / ਵਯਾਕਰਣ")
+                new_gender = self._norm_get(new_entry, "Gender / ਲਿੰਗ")
+                new_root = self._norm_get(new_entry, "Word Root")
+                new_type = self._norm_get(new_entry, "Type")
+                new_verse = self._norm_get(new_entry, "Verse")
+
                 if any(
-                    new_entry["Word"] == existing_entry.get("Word") and
-                    new_entry["Vowel Ending"] == existing_entry.get("Vowel Ending") and
-                    new_entry["Number / ਵਚਨ"] == existing_entry.get("Number / ਵਚਨ") and
-                    new_entry["Grammar / ਵਯਾਕਰਣ"] == existing_entry.get("Grammar / ਵਯਾਕਰਣ") and
-                    new_entry["Gender / ਲਿੰਗ"] == existing_entry.get("Gender / ਲਿੰਗ") and
-                    new_entry["Word Root"] == existing_entry.get("Word Root") and
-                    new_entry["Word Type"] == existing_entry.get("Type") and
-                    new_entry["Verse"] == existing_entry.get("Verse")  # Comparing verses as well
+                    new_word == self._norm_get(existing_entry, "Word") and
+                    new_ve == self._norm_get(existing_entry, "\ufeffVowel Ending") and
+                    new_num == self._norm_get(existing_entry, "Number / ਵਚਨ") and
+                    new_grammar == self._norm_get(existing_entry, "Grammar / ਵਯਾਕਰਣ") and
+                    new_gender == self._norm_get(existing_entry, "Gender / ਲਿੰਗ") and
+                    new_root == self._norm_get(existing_entry, "Word Root") and
+                    new_type == self._norm_get(existing_entry, "Type") and
+                    new_verse == self._norm_get(existing_entry, "Verse")
                     for existing_entry in existing_data.to_dict('records')
                 ):
                     duplicate_entries.append(new_entry)
