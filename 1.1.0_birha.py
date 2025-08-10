@@ -289,13 +289,13 @@ class GrammarApp:
         self._repeat_note_shown.add(key)
 
         top = tk.Toplevel(self.root)
-        top.title("Important Note")
+        top.title("Important Note — Literal Analysis")
         top.configure(bg='AntiqueWhite')
         top.transient(self.root)
         top.grab_set()
 
         note_text = (
-            "This word appears multiple times in this verse. The highlighted grammar options reflect "
+            "In literal analysis: This word appears multiple times in this verse. The highlighted grammar options reflect "
             "your past selections for this word (or close matches) to encourage consistency. "
             "They’re suggestions, not mandates—adjust if the current context differs."
         )
@@ -4975,6 +4975,19 @@ class GrammarApp:
     def user_input(self, word, pankti):
         print(f"Opening input window for {word}")
         self.input_submitted = False
+        # normalize for repeat-note consistency
+        verse_key = unicodedata.normalize(
+            "NFC", re.sub(r"\s+", " ", pankti.replace('॥', '').strip())
+        )
+        raw_tokens = pankti.split()
+        word_norm = unicodedata.normalize("NFC", word.strip())
+        safe_idx = max(0, min(self.current_word_index, len(raw_tokens)))
+        occurrence_idx = sum(
+            1
+            for tok in raw_tokens[:safe_idx]
+            if unicodedata.normalize("NFC", tok.strip().replace('॥', '')) == word_norm
+        )
+        self._maybe_show_repeat_important_note(word_norm, occurrence_idx, verse_key)
 
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"Input for {word}")
@@ -6607,6 +6620,8 @@ class GrammarApp:
         """
         Runs grammar analysis after the user has selected or typed a final verse.
         """
+        self._repeat_note_shown = set()
+        self._suppress_repeat_notes_for_verse = False
         self.pankti_words = user_input.split()
         self.accumulate_pankti_data(user_input)
         self.current_word_index = 0
@@ -7209,7 +7224,9 @@ class GrammarApp:
         (including verse-level metadata) to an Excel file.
         """
         def _s(val):
-            return val.strip() if isinstance(val, str) else ("" if val is None else str(val).strip())
+            if val is None:
+                return ""
+            return unicodedata.normalize("NFC", str(val).strip())
 
         file_path = "1.2.1 assessment_data.xlsx"
         existing_data = self.load_existing_assessment_data(file_path)
@@ -7227,10 +7244,11 @@ class GrammarApp:
             self._repeat_note_shown = set()
             self._suppress_repeat_notes_for_verse = False
 
-            # Build a set of words for the current verse.
-            # (Adjust the cleaning/splitting logic if needed.)
-            cleaned_verse = verse_norm.replace('॥', '')
-            current_verse_words = cleaned_verse.split()
+            # normalize for repeat-note consistency
+            verse_key = unicodedata.normalize(
+                "NFC", re.sub(r"\s+", " ", verse_norm.replace('॥', '').strip())
+            )
+            current_verse_words = verse_key.split()
 
             # Normalize tokens once and use everywhere to avoid Unicode/spacing mismatches
             normalized_tokens = [_s(w) for w in current_verse_words]
@@ -7366,7 +7384,7 @@ class GrammarApp:
                             continue  # No entries for this occurrence.
 
                         if word_counts.get(word, 0) > 1 and occ_idx > 0:
-                            self._maybe_show_repeat_important_note(word, occ_idx, verse_norm)
+                            self._maybe_show_repeat_important_note(word, occ_idx, verse_key)
 
                         # Remove duplicate entries within this occurrence group (local deduplication).
                         dedup_entries = []
