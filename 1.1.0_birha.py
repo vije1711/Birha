@@ -7141,6 +7141,9 @@ class GrammarApp:
         checking for duplicates first. Then opens a modal prompt for assessment and saves the finalized data
         (including verse-level metadata) to an Excel file.
         """
+        def _s(val):
+            return val.strip() if isinstance(val, str) else ("" if val is None else str(val).strip())
+
         file_path = "1.2.1 assessment_data.xlsx"
         existing_data = self.load_existing_assessment_data(file_path)
         
@@ -7151,17 +7154,20 @@ class GrammarApp:
         for verse in self.selected_verses:
             # Update the current verse for processing.
             self.accumulated_pankti = verse
+            verse_norm = _s(verse)
 
             # Build a set of words for the current verse.
             # (Adjust the cleaning/splitting logic if needed.)
-            cleaned_verse = verse.replace('॥', '')
+            cleaned_verse = verse_norm.replace('॥', '')
             current_verse_words = cleaned_verse.split()
             selected_words = set(current_verse_words)
+            selected_words = selected_words if isinstance(selected_words, (set, list, tuple)) else set()
+            normalized_words = {_s(w) for w in selected_words}
 
             # Filter new_entries to only those whose "Word" is present in the current verse.
             filtered_new_entries = [
                 entry for entry in new_entries
-                if entry["Word"] in selected_words and entry.get("Verse", "").strip() == verse.strip()
+                if _s(entry.get("Word")) in normalized_words and _s(entry.get("Verse")) == verse_norm
             ]
 
             duplicate_entries = []
@@ -7202,19 +7208,19 @@ class GrammarApp:
 
             if unique_entries:
                 save = messagebox.askyesno(
-                    "Save Results", 
-                    f"Would you like to save the new entries for the following verse?\n\n{verse}"
+                    "Save Results",
+                    f"Would you like to save the new entries for the following verse?\n\n{verse_norm}"
                 )
                 if save:
                     # Open one assessment prompt for the current verse.
                     assessment_data = self.prompt_for_assessment_once()
 
                     # --- Extract verse metadata from candidate matches ---
-                    verse_to_match = self.accumulated_pankti.strip()
+                    verse_to_match = _s(self.accumulated_pankti)
                     candidate = None
                     if hasattr(self, 'candidate_matches') and self.chosen_match:
                         for cand in self.chosen_match:
-                            if cand.get("Verse", "").strip() == verse_to_match:
+                            if _s(cand.get("Verse")) == verse_to_match:
                                 candidate = cand
                                 break
                         if candidate is None:
@@ -7312,7 +7318,7 @@ class GrammarApp:
                         entry.update(assessment_data)
                         entry.update(verse_metadata)
                         self.save_assessment_data(entry)
-                    messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse)
+                    messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse_norm)
 
         # Restore the original accumulated_pankti after processing all verses.
         self.accumulated_pankti = original_accumulated_pankti
