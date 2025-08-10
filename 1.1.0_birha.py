@@ -5053,6 +5053,17 @@ class GrammarApp:
         right = mlist[mid:]
         return {"left": left, "right": right}
 
+    def _rule_key_from_entry(self, d):
+        return " | ".join([
+            d.get("Word",""),
+            d.get("\ufeffVowel Ending",""),
+            d.get("Number / ਵਚਨ",""),
+            d.get("Grammar / ਵਯਾਕਰਣ",""),
+            d.get("Gender / ਲਿੰਗ",""),
+            d.get("Word Root",""),
+            d.get("Type",""),
+        ]).strip()
+
     def submit_matches(self):
         any_selection = False
         current_entries = []  # Local list for entries of the current word
@@ -5325,23 +5336,17 @@ class GrammarApp:
         if self.current_word_index != first_index:
             for idx in range(first_index, self.current_word_index):
                 if idx < len(self.accumulated_finalized_matches):
-                    for entry in self.accumulated_finalized_matches[idx]:
-                        rule_str = " | ".join([
-                            entry.get("Word", ""),
-                            entry.get("\ufeffVowel Ending", ""),
-                            entry.get("Number / ਵਚਨ", ""),
-                            entry.get("Grammar / ਵਯਾਕਰਣ", ""),
-                            entry.get("Gender / ਲਿੰਗ", ""),
-                            entry.get("Word Root", ""),
-                            entry.get("Type", ""),
-                        ])
-                        prior_rules.add(rule_str)
+                    prior_rules.update({
+                        self._rule_key_from_entry(entry)
+                        for entry in self.accumulated_finalized_matches[idx]
+                    })
 
         # Display each match with a checkbox
         for match in unique_matches[:max_display]:
-            match_str = match[0]
+            display_str = match[0]
+            core = re.sub(r'\s*\(Matching Characters:\s*\d+\)\s*$', '', display_str).strip()
             if self.current_word_index != first_index:
-                preselect = match_str in prior_rules
+                preselect = core in prior_rules
                 bg_color = "yellow" if preselect else "light gray"
             else:
                 preselect = False
@@ -5349,7 +5354,7 @@ class GrammarApp:
             var = tk.BooleanVar(value=preselect)
             tk.Checkbutton(
                 matches_content,
-                text=f"{match_str} (Matching Characters: {match[1]})",
+                text=f"{display_str} (Matching Characters: {match[1]})",
                 variable=var,
                 bg=bg_color,
                 selectcolor='light blue',
