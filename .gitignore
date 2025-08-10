@@ -1,24 +1,5 @@
-# Byte-compiled / optimized / DLL files
+﻿.venv/
 __pycache__/
-*.py[cod]
-*.so
 *.pyc
-
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# Virtual environment
-.venv/
-env/
-venv/
-ENV/
-
-# VSCode settings
-.vscode/
-
-# System files
 .DS_Store
 Thumbs.db
-
-# Log files
-*.log

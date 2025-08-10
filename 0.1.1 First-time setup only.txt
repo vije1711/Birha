@@ -1,26 +1,49 @@
-# Python env (project)
+# --- Python env (project) ---
+# Create venv if it doesn't exist (safe to re-run)
+python -m venv .venv
+
+# Allow PS scripts in this session + activate venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
+
+# Upgrade pip and install deps (if the file exists)
 python -m pip install --upgrade pip
-pip install -r requirements.txt   # if the file exists
+if (Test-Path requirements.txt) { pip install -r requirements.txt }
+
+# Save exact deps for reproducibility
 pip freeze > requirements.txt
 
-# Git identity (ONE TIME per computer)
+# --- Git identity (ONE TIME per computer) ---
 git config --global user.name  "vije1711"
 git config --global user.email "vijendra.singh1711@gmail.com"
 
-# Repo hookup (run once per repo)
+# --- Ignore local junk (run once per repo) ---
+@'
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+'@ | Out-File -Encoding utf8 .gitignore
+
+# If .venv was ever tracked, untrack it (does NOT delete your venv)
+git rm -r --cached .venv 2>$null
+
+# --- Repo hookup (run once per repo) ---
 git init
-# if origin already exists, use: git remote set-url origin https://github.com/vije1711/Birha
-git remote add origin https://github.com/vije1711/Birha
+# If origin already exists, this will fail; use the set-url line instead.
+git remote add origin https://github.com/vije1711/Birha 2>$null
+# If you saw "remote origin already exists", use:
+# git remote set-url origin https://github.com/vije1711/Birha
+
 git fetch origin
 git pull origin main --allow-unrelated-histories
 
-# First commit/push
+# --- First commit/push ---
 git add -A
-git commit -m "Initial setup: venv requirements + files"
+git commit -m "Initial setup: venv, requirements, .gitignore"
 git branch -M main
 git push -u origin main
 
-# (optional) Open editor
+# --- (optional) Open editor ---
 code .
