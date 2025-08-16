@@ -5378,10 +5378,9 @@ class GrammarApp:
                     body.pack_forget()
                 body.config(text="")
         else:
-            if hasattr(self, "literal_note_frame") and self.literal_note_frame.winfo_exists():
-                self.literal_note_frame.destroy()
-            elif hasattr(self, "literal_note_frame") and self.literal_note_frame.master is not self.match_window:
-                self.literal_note_frame.destroy()
+            if hasattr(self, "literal_note_frame"):
+                if self.literal_note_frame.winfo_exists() or self.literal_note_frame.master is not self.match_window:
+                    self.literal_note_frame.destroy()
             if repeat_in_verse and key not in shown_set:
                 if not hasattr(self, "_repeat_note_shown"):
                     self._repeat_note_shown = set()
