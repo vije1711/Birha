@@ -258,6 +258,7 @@ class GrammarApp:
         self._repeat_note_shown = set()
         self._suppress_repeat_notes_for_verse = False
         self._use_inline_literal_banner = True
+        self._always_show_literal_banner_frame = False
 
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
@@ -5306,49 +5307,103 @@ class GrammarApp:
 
         # ----- Inline Important Note — Literal Analysis (conditional) -----
 
-        # Resolve verse text safely (prefer local pankti, else accumulated_pankti)
         verse_text = pankti
         verse_key = unicodedata.normalize("NFC", re.sub(r"\s+", " ", verse_text.replace('॥','').strip()))
 
-        # Default: no banner if we can't compute safely
         repeat_in_verse, key = False, (verse_key, "")
-
-        # Guard index and word lookup
         if hasattr(self, "pankti_words") and 0 <= self.current_word_index < len(self.pankti_words):
             word_norm = unicodedata.normalize("NFC", self.pankti_words[self.current_word_index].strip())
-
             raw_tokens = verse_text.split()
 
             def _norm_tok(t: str) -> str:
                 return unicodedata.normalize("NFC", t.strip().replace('॥',''))
 
-            repeat_in_verse = (sum(1 for tok in raw_tokens if _norm_tok(tok) == word_norm) >= 2)
+            repeat_in_verse = sum(1 for tok in raw_tokens if _norm_tok(tok) == word_norm) >= 2
             key = (verse_key, word_norm)
 
-        # Show banner only if verse contains repetition and not already shown for this (verse, word)
-        if repeat_in_verse and key not in getattr(self, "_repeat_note_shown", set()):
-            # Ensure tracking set exists, then mark as shown to prevent modal duplicate later
-            if not hasattr(self, "_repeat_note_shown"):
-                self._repeat_note_shown = set()
-            self._repeat_note_shown.add(key)
+        always_frame = getattr(self, "_always_show_literal_banner_frame", False)
+        shown_set = getattr(self, "_repeat_note_shown", set())
 
-            parent = self.match_window
-            note_frame = tk.Frame(parent, bg='AntiqueWhite', relief='groove', bd=2)
-            note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+        if always_frame:
+            reuse_ok = (
+                hasattr(self, "literal_note_frame")
+                and self.literal_note_frame.winfo_exists()
+                and self.literal_note_frame.master is self.match_window
+            )
+            if not reuse_ok:
+                if hasattr(self, "literal_note_frame") and self.literal_note_frame.winfo_exists():
+                    self.literal_note_frame.destroy()
+                self.literal_note_frame = tk.Frame(self.match_window, bg='AntiqueWhite', relief='groove', bd=2)
+                self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+                self.literal_note_title = tk.Label(
+                    self.literal_note_frame, text="Important Note — Literal Analysis",
+                    bg='AntiqueWhite', font=('Arial', 14, 'bold')
+                )
+                self.literal_note_title.pack(anchor='w', padx=10, pady=(5, 0))
+                self.literal_note_body = tk.Label(
+                    self.literal_note_frame,
+                    bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
+                )
+            else:
+                if not self.literal_note_frame.winfo_ismapped():
+                    self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+                if not hasattr(self, "literal_note_title") or not self.literal_note_title.winfo_exists():
+                    self.literal_note_title = tk.Label(
+                        self.literal_note_frame, text="Important Note — Literal Analysis",
+                        bg='AntiqueWhite', font=('Arial', 14, 'bold')
+                    )
+                    self.literal_note_title.pack(anchor='w', padx=10, pady=(5, 0))
+                elif not self.literal_note_title.winfo_ismapped():
+                    self.literal_note_title.pack(anchor='w', padx=10, pady=(5, 0))
+                if not hasattr(self, "literal_note_body") or not self.literal_note_body.winfo_exists():
+                    self.literal_note_body = tk.Label(
+                        self.literal_note_frame,
+                        bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
+                    )
 
-            tk.Label(
-                note_frame, text="Important Note — Literal Analysis",
-                bg='AntiqueWhite', font=('Arial', 14, 'bold')
-            ).pack(anchor='w', padx=10, pady=(5, 0))
+            body = self.literal_note_body
+            if repeat_in_verse and key not in shown_set:
+                if not hasattr(self, "_repeat_note_shown"):
+                    self._repeat_note_shown = set()
+                    shown_set = self._repeat_note_shown
+                shown_set.add(key)
+                body.config(text=("In literal analysis: This word appears multiple times in this verse. "
+                                  "The highlighted grammar options reflect your past selections for this word "
+                                  "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
+                                  "adjust if the current context differs."))
+                if not body.winfo_ismapped():
+                    body.pack(anchor='w', padx=10, pady=(0, 5))
+            else:
+                if body.winfo_ismapped():
+                    body.pack_forget()
+                body.config(text="")
+        else:
+            if hasattr(self, "literal_note_frame") and self.literal_note_frame.winfo_exists():
+                self.literal_note_frame.destroy()
+            elif hasattr(self, "literal_note_frame") and self.literal_note_frame.master is not self.match_window:
+                self.literal_note_frame.destroy()
+            if repeat_in_verse and key not in shown_set:
+                if not hasattr(self, "_repeat_note_shown"):
+                    self._repeat_note_shown = set()
+                    shown_set = self._repeat_note_shown
+                shown_set.add(key)
 
-            tk.Label(
-                note_frame,
-                text=("In literal analysis: This word appears multiple times in this verse. "
-                      "The highlighted grammar options reflect your past selections for this word "
-                      "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
-                      "adjust if the current context differs."),
-                bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
-            ).pack(anchor='w', padx=10, pady=(0, 5))
+                note_frame = tk.Frame(self.match_window, bg='AntiqueWhite', relief='groove', bd=2)
+                note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+
+                tk.Label(
+                    note_frame, text="Important Note — Literal Analysis",
+                    bg='AntiqueWhite', font=('Arial', 14, 'bold')
+                ).pack(anchor='w', padx=10, pady=(5, 0))
+
+                tk.Label(
+                    note_frame,
+                    text=("In literal analysis: This word appears multiple times in this verse. "
+                          "The highlighted grammar options reflect your past selections for this word "
+                          "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
+                          "adjust if the current context differs."),
+                    bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
+                ).pack(anchor='w', padx=10, pady=(0, 5))
         # ----- end inline note -----
 
         # ---------------------------
