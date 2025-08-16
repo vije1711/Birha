@@ -1,10 +1,10 @@
 # Birha Toolkit
 
-Birha is an experimental collection of utilities and datasets for studying the grammar of Gurbani, the Sikh holy scripture. The project centres around a Tkinter application (`1.1.0_birha.py`) that lets scholars analyse verses from the *Sri Guru Granth Sahib* (SGGS), match them against a grammar database and refine word-level entries.
+Birha is an experimental toolkit for studying the grammar of Gurbani, the Sikh holy scripture. The main entry point is a Tkinter application (`1.1.0_birha.py`) that provides a dashboard for analysing verses from the *Sri Guru Granth Sahib* (SGGS), updating grammar entries and reviewing literal translations.
 
-The repository currently contains:
+Data files included in the repository:
 
-- `1.1.0_birha.py` – Python application with a GUI for verse selection, grammar classification and literal meaning analysis.
+- `1.1.0_birha.py` – Python application with a GUI for verse analysis, grammar classification and literal meaning work.
 - `1.1.1_birha.csv` – core grammar database with information such as vowel endings, number, gender and source verses.
 - `1.1.2 Grammatical Meanings Dictionary.csv` – dictionary mapping Punjabi words to lists of meanings.
 - `1.1.3 sggs_extracted_with_page_numbers.xlsx` – spreadsheet of SGGS verses including page numbers used for lookups.
@@ -12,15 +12,14 @@ The repository currently contains:
 
 ## Requirements
 
-The application uses Python 3 and the following packages:
+The project targets Python 3.  Exact dependency versions are pinned in `requirements.txt` and can be installed with:
 
-- `pandas`
-- `numpy`
-- `rapidfuzz`
-- `pyperclip`
-- `tkinter` (bundled with most Python installations)
+```bash
+pip install -r requirements.txt
+```
 
-Install dependencies with `pip install pandas numpy rapidfuzz pyperclip`.
+This installs packages such as `pandas`, `numpy`, `rapidfuzz`, `pyperclip` and `openpyxl` (for Excel file support).  `tkinter`
+ships with most Python distributions.
 
 ## Usage
 
