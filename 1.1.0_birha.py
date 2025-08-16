@@ -257,6 +257,7 @@ class GrammarApp:
         # per-verse repeat-word note tracking
         self._repeat_note_shown = set()
         self._suppress_repeat_notes_for_verse = False
+        self._use_inline_literal_banner = True
 
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
@@ -4987,7 +4988,8 @@ class GrammarApp:
             for tok in raw_tokens[:safe_idx]
             if unicodedata.normalize("NFC", tok.strip().replace('॥', '')) == word_norm
         )
-        self._maybe_show_repeat_important_note(word_norm, occurrence_idx, verse_key)
+        if occurrence_idx > 0 and not getattr(self, "_use_inline_literal_banner", True):
+            self._maybe_show_repeat_important_note(word_norm, occurrence_idx, verse_key)
 
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"Input for {word}")
