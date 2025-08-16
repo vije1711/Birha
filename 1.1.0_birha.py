@@ -5307,7 +5307,7 @@ class GrammarApp:
         # ----- Inline Important Note — Literal Analysis (conditional) -----
 
         # Resolve verse text safely (prefer local pankti, else accumulated_pankti)
-        verse_text = locals().get("pankti", getattr(self, "accumulated_pankti", "")) or ""
+        verse_text = pankti
         verse_key = unicodedata.normalize("NFC", re.sub(r"\s+", " ", verse_text.replace('॥','').strip()))
 
         # Default: no banner if we can't compute safely
@@ -5327,18 +5327,14 @@ class GrammarApp:
             occurrence_idx = sum(1 for tok in raw_tokens[:safe_idx] if _norm_tok(tok) == word_norm)
             key = (verse_key, word_norm)
 
-        # Show banner only if repeated + not suppressed/seen
-        if (
-            occurrence_idx > 0
-            and not getattr(self, "_suppress_repeat_notes_for_verse", False)
-            and key not in getattr(self, "_repeat_note_shown", set())
-        ):
+        # Show banner only if repeated and not already shown for this (verse, word)
+        if occurrence_idx > 0 and key not in getattr(self, "_repeat_note_shown", set()):
             # Ensure tracking set exists, then mark as shown to prevent modal duplicate later
             if not hasattr(self, "_repeat_note_shown"):
                 self._repeat_note_shown = set()
             self._repeat_note_shown.add(key)
 
-            parent = getattr(self, "match_window", self.root)
+            parent = self.match_window
             note_frame = tk.Frame(parent, bg='AntiqueWhite', relief='groove', bd=2)
             note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
 
