@@ -7435,7 +7435,10 @@ class GrammarApp:
                             continue  # No entries for this occurrence.
 
                         if word_counts.get(word, 0) > 1 and occ_idx > 0:
-                            self._maybe_show_repeat_important_note(word, occ_idx, verse_key)
+                            if not getattr(self, "_use_inline_literal_banner", True):
+                                self._maybe_show_repeat_important_note(word, occ_idx, verse_key)
+                            else:
+                                self._repeat_note_shown.add((verse_key, word))
 
                         # Remove duplicate entries within this occurrence group (local deduplication).
                         dedup_entries = []
