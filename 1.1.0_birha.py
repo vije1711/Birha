@@ -5311,24 +5311,22 @@ class GrammarApp:
         verse_key = unicodedata.normalize("NFC", re.sub(r"\s+", " ", verse_text.replace('॥','').strip()))
 
         # Default: no banner if we can't compute safely
-        occurrence_idx, key = 0, (verse_key, "")
+        repeat_in_verse, key = False, (verse_key, "")
 
         # Guard index and word lookup
         if hasattr(self, "pankti_words") and 0 <= self.current_word_index < len(self.pankti_words):
             word_norm = unicodedata.normalize("NFC", self.pankti_words[self.current_word_index].strip())
 
-            # Count previous occurrences on the same token stream used for current_word_index
             raw_tokens = verse_text.split()
-            safe_idx = max(0, min(self.current_word_index, len(raw_tokens)))
 
             def _norm_tok(t: str) -> str:
                 return unicodedata.normalize("NFC", t.strip().replace('॥',''))
 
-            occurrence_idx = sum(1 for tok in raw_tokens[:safe_idx] if _norm_tok(tok) == word_norm)
+            repeat_in_verse = (sum(1 for tok in raw_tokens if _norm_tok(tok) == word_norm) >= 2)
             key = (verse_key, word_norm)
 
-        # Show banner only if repeated and not already shown for this (verse, word)
-        if occurrence_idx > 0 and key not in getattr(self, "_repeat_note_shown", set()):
+        # Show banner only if verse contains repetition and not already shown for this (verse, word)
+        if repeat_in_verse and key not in getattr(self, "_repeat_note_shown", set()):
             # Ensure tracking set exists, then mark as shown to prevent modal duplicate later
             if not hasattr(self, "_repeat_note_shown"):
                 self._repeat_note_shown = set()
