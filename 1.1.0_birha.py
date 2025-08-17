@@ -259,14 +259,6 @@ class GrammarApp:
         self._suppress_repeat_notes_for_verse = False
         self._use_inline_literal_banner = True
         self._always_show_literal_banner_frame = False
-        self._last_literal_verse_key = None
-
-        self._LITERAL_NOTE_TEXT = (
-            "In literal analysis: This word appears multiple times in this verse. "
-            "The highlighted grammar options reflect your past selections for this word "
-            "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
-            "adjust if the current context differs."
-        )
 
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
@@ -289,78 +281,11 @@ class GrammarApp:
             return d.get("Type") or d.get("Word Type")
         return d.get(key)
 
-    # TODO: Reuse in user_input(...) and prompt_save_results(...) for consistent comparisons.
-    def _norm_tok(self, t: str) -> str:
-        """Normalize token via NFC; drop dandas, zero-width spaces, ZWJ/ZWNJ, trailing digits & punctuation."""
-        t = unicodedata.normalize("NFC", t.strip())
-        t = re.sub(r"[।॥]", "", t)  # danda/double-danda
-        # remove ZERO WIDTH SPACE, ZWNJ, ZWJ
-        t = t.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
-        t = re.sub(r"[\d\u0A66-\u0A6F.,;:!?\"'—–-]+$", "", t)  # trailing digits (Latin+Gurmukhi) & punct
-        return t
-
-    def _verse_key(self, verse_text: str) -> str:
-        """NFC + collapse spaces + remove danda variations; used for verse-scoped de-dupe keys."""
-        cleaned = re.sub(r"[।॥]", "", verse_text).strip()
-        cleaned = re.sub(r"\s+", " ", cleaned)
-        return unicodedata.normalize("NFC", cleaned)
-
-    def _banner_wraplength(self, win=None) -> int:
-        """Return a wraplength tuned to the window width (clamped 600–900)."""
-        try:
-            target = win or (self.match_window if hasattr(self, "match_window") else None)
-            if target and target.winfo_exists():
-                target.update_idletasks()
-                w = target.winfo_width()
-                return max(600, min(900, w - 120))
-        except Exception:
-            pass
-        return 900
-
-    def _modal_wraplength(self, win=None) -> int:
-        """Return a wraplength tuned for the small modal (clamped 360–520)."""
-        try:
-            target = win or (self.root if hasattr(self, "root") else getattr(self, "match_window", None))
-            if target and target.winfo_exists():
-                target.update_idletasks()
-                w = target.winfo_width()
-                return max(360, min(520, w - 200))
-        except Exception:
-            pass
-        return 400
-
-    def _on_match_window_resize(self, event=None):
-        """Resize handler to reflow the inline banner text, if present."""
-        try:
-            if hasattr(self, "literal_note_body") and self.literal_note_body and self.literal_note_body.winfo_exists():
-                self.literal_note_body.config(wraplength=self._banner_wraplength(self.match_window))
-        except Exception:
-            pass
-
-    def _has_repeat(self, words, norm_target: str) -> bool:
-        """Return True iff norm_target appears at least twice in words (using _norm_tok)."""
-        if not norm_target:
-            return False
-        hits = 0
-        for tok in words:
-            nt = self._norm_tok(tok)
-            if not nt:
-                continue
-            if nt == norm_target:
-                hits += 1
-                if hits >= 2:
-                    return True
-        return False
-
     def _maybe_show_repeat_important_note(self, word, occurrence_idx, verse_norm):
         """Show an explanatory note for repeated words within a verse."""
         if occurrence_idx < 1 or self._suppress_repeat_notes_for_verse:
             return
-        norm_word = self._norm_tok(word)
-        if not norm_word:
-            return
-        norm_verse = self._verse_key(verse_norm)
-        key = (norm_verse, norm_word)
+        key = (verse_norm, word)
         if key in self._repeat_note_shown:
             return
         self._repeat_note_shown.add(key)
@@ -371,20 +296,19 @@ class GrammarApp:
         top.transient(self.root)
         top.grab_set()
 
-        body_lbl = tk.Label(
+        note_text = (
+            "In literal analysis: This word appears multiple times in this verse. The highlighted grammar options reflect "
+            "your past selections for this word (or close matches) to encourage consistency. "
+            "They’re suggestions, not mandates—adjust if the current context differs."
+        )
+        tk.Label(
             top,
-            text=self._LITERAL_NOTE_TEXT,
+            text=note_text,
             bg='AntiqueWhite',
-            wraplength=self._modal_wraplength(top),
+            wraplength=400,
             justify=tk.LEFT,
             font=('Arial', 12)
-        )
-        body_lbl.pack(padx=20, pady=(15,5))
-        # Reflow text on modal resize
-        try:
-            top.bind("<Configure>", lambda e: body_lbl.config(wraplength=self._modal_wraplength(top)))
-        except Exception:
-            pass
+        ).pack(padx=20, pady=(15,5))
 
         dont_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
@@ -395,18 +319,10 @@ class GrammarApp:
             font=('Arial', 11)
         ).pack(pady=(0,10))
 
-        def _commit_and_close():
-            try:
-                if dont_var.get():
-                    self._suppress_repeat_notes_for_verse = True
-            except Exception:
-                pass
-            top.destroy()
-
         ok_btn = tk.Button(
             top,
             text="OK",
-            command=_commit_and_close,
+            command=top.destroy,
             font=('Arial', 12, 'bold'),
             bg='navy',
             fg='white',
@@ -414,15 +330,9 @@ class GrammarApp:
             pady=5
         )
         ok_btn.pack(pady=(0,15))
-        try:
-            ok_btn.focus_set()
-            top.bind("<Return>", lambda e: _commit_and_close(), add="+")
-            top.bind("<Escape>", lambda e: _commit_and_close(), add="+")
-        except Exception:
-            pass
 
         def _on_close():
-            _commit_and_close()
+            top.destroy()
         top.protocol("WM_DELETE_WINDOW", _on_close)
 
         top.update_idletasks()
@@ -431,6 +341,8 @@ class GrammarApp:
         y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
         top.geometry(f"{w}x{h}+{x}+{y}")
         top.wait_window()
+        if dont_var.get():
+            self._suppress_repeat_notes_for_verse = True
 
     def show_dashboard(self):
         """Creates the dashboard interface directly in the main root window."""
@@ -5358,22 +5270,6 @@ class GrammarApp:
         self.match_window.title("Select Matches and Meanings")
         self.match_window.configure(bg='light gray')
         self.match_window.state('zoomed')
-        # New window ⇒ allow a fresh one-time resize binding
-        self._inline_resize_bound = False
-        try:
-            # If the window is destroyed via an atypical path, ensure the next window can rebind
-            # and clear any lingering inline banner references.
-            def _on_destroy(_e=None):
-                try:
-                    self._inline_resize_bound = False
-                    self.literal_note_frame = None
-                    self.literal_note_title = None
-                    self.literal_note_body  = None
-                except Exception:
-                    pass
-            self.match_window.bind("<Destroy>", _on_destroy, add="+")
-        except Exception:
-            pass
 
         # Reset check-variable lists for matches and meanings
         self.match_vars = []      # For matching rule checkboxes
@@ -5397,19 +5293,13 @@ class GrammarApp:
 
         # Compute the character offset for the word at self.current_word_index
         words = pankti.split()
-        # Align the navigation token stream with the displayed verse tokens so
-        # highlighting, indexing, and repeat detection use the same sequence.
-        self.pankti_words = words
-        max_idx = len(words) - 1
-        self.current_word_index = max(0, min(self.current_word_index, max_idx))
-        idx = self.current_word_index
         start_idx = 0
         for i, w in enumerate(words):
-            if i == idx:
+            if i == self.current_word_index:
                 break
             # +1 accounts for the space between words
             start_idx += len(w) + 1
-        end_idx = start_idx + len(words[idx])
+        end_idx = start_idx + len(words[self.current_word_index])
 
         pankti_display.tag_add("highlight", f"1.{start_idx}", f"1.{end_idx}")
         pankti_display.tag_config("highlight", foreground="red", font=('Arial', 32, 'bold'))
@@ -5418,25 +5308,23 @@ class GrammarApp:
         # ----- Inline Important Note — Literal Analysis (conditional) -----
 
         verse_text = pankti
-        verse_key = self._verse_key(verse_text)
-        # Reset per-verse de-duplication so banner shows at most once per (verse_key, word_norm).
-        if self._last_literal_verse_key != verse_key:
-            self._repeat_note_shown = set()
-            self._last_literal_verse_key = verse_key
-            # Respect user's prior choice only within the same verse; reset on verse change.
-            self._suppress_repeat_notes_for_verse = False
+        verse_key = unicodedata.normalize("NFC", re.sub(r"\s+", " ", verse_text.replace('॥','').strip()))
 
-        word_norm = self._norm_tok(words[idx])
-        # Normalized token collapsed (punctuation/marks only) → _has_repeat returns False.
-        repeat_in_verse = self._has_repeat(words, word_norm)
-        key = (verse_key, word_norm)
+        repeat_in_verse, key = False, (verse_key, "")
+        if hasattr(self, "pankti_words") and 0 <= self.current_word_index < len(self.pankti_words):
+            word_norm = unicodedata.normalize("NFC", self.pankti_words[self.current_word_index].strip())
+            raw_tokens = verse_text.split()
+
+            def _norm_tok(t: str) -> str:
+                return unicodedata.normalize("NFC", t.strip().replace('॥',''))
+
+            repeat_in_verse = sum(1 for tok in raw_tokens if _norm_tok(tok) == word_norm) >= 2
+            key = (verse_key, word_norm)
 
         always_frame = getattr(self, "_always_show_literal_banner_frame", False)
         shown_set = getattr(self, "_repeat_note_shown", set())
-        inline_enabled = getattr(self, "_use_inline_literal_banner", True)
-        inline_allowed = inline_enabled and not getattr(self, "_suppress_repeat_notes_for_verse", False)
 
-        if always_frame and inline_allowed:
+        if always_frame:
             reuse_ok = (
                 hasattr(self, "literal_note_frame")
                 and self.literal_note_frame.winfo_exists()
@@ -5446,6 +5334,7 @@ class GrammarApp:
                 if hasattr(self, "literal_note_frame") and self.literal_note_frame.winfo_exists():
                     self.literal_note_frame.destroy()
                 self.literal_note_frame = tk.Frame(self.match_window, bg='AntiqueWhite', relief='groove', bd=2)
+                self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
                 self.literal_note_title = tk.Label(
                     self.literal_note_frame, text="Important Note — Literal Analysis",
                     bg='AntiqueWhite', font=('Arial', 14, 'bold')
@@ -5453,9 +5342,11 @@ class GrammarApp:
                 self.literal_note_title.pack(anchor='w', padx=10, pady=(5, 0))
                 self.literal_note_body = tk.Label(
                     self.literal_note_frame,
-                    bg='AntiqueWhite', wraplength=self._banner_wraplength(self.match_window), justify=tk.LEFT, font=('Arial', 12)
+                    bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
                 )
             else:
+                if not self.literal_note_frame.winfo_ismapped():
+                    self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
                 if not hasattr(self, "literal_note_title") or not self.literal_note_title.winfo_exists():
                     self.literal_note_title = tk.Label(
                         self.literal_note_frame, text="Important Note — Literal Analysis",
@@ -5467,10 +5358,8 @@ class GrammarApp:
                 if not hasattr(self, "literal_note_body") or not self.literal_note_body.winfo_exists():
                     self.literal_note_body = tk.Label(
                         self.literal_note_frame,
-                        bg='AntiqueWhite', wraplength=self._banner_wraplength(self.match_window), justify=tk.LEFT, font=('Arial', 12)
+                        bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
                     )
-            if not self.literal_note_frame.winfo_ismapped():
-                self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
 
             body = self.literal_note_body
             if repeat_in_verse and key not in shown_set:
@@ -5478,72 +5367,42 @@ class GrammarApp:
                     self._repeat_note_shown = set()
                     shown_set = self._repeat_note_shown
                 shown_set.add(key)
-                body.config(text=self._LITERAL_NOTE_TEXT, wraplength=self._banner_wraplength(self.match_window))
+                body.config(text=("In literal analysis: This word appears multiple times in this verse. "
+                                  "The highlighted grammar options reflect your past selections for this word "
+                                  "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
+                                  "adjust if the current context differs."))
                 if not body.winfo_ismapped():
                     body.pack(anchor='w', padx=10, pady=(0, 5))
             else:
                 if body.winfo_ismapped():
                     body.pack_forget()
                 body.config(text="")
-            # Reflow text on main window resize (bind once per window)
-            try:
-                if not hasattr(self, "_inline_resize_bound") or not self._inline_resize_bound:
-                    self.match_window.bind("<Configure>", self._on_match_window_resize, add="+")
-                    self._inline_resize_bound = True
-            except Exception:
-                pass
         else:
-            # If inline banners are disabled or suppressed, skip the default-mode banner path entirely.
-            if not inline_allowed:
-                # Proactively clean up any stale frame (either existing or wrong parent)
-                if hasattr(self, "literal_note_frame"):
-                    if self.literal_note_frame and (self.literal_note_frame.winfo_exists() or
-                                                    self.literal_note_frame.master is not self.match_window):
-                        self.literal_note_frame.destroy()
-                        self.literal_note_frame = None
-                        self.literal_note_title = None
-                        self.literal_note_body = None
-                # Continue with the rest of the UI; no inline banner to render.
-            else:
-                if hasattr(self, "literal_note_frame"):
-                    if self.literal_note_frame.winfo_exists() or self.literal_note_frame.master is not self.match_window:
-                        self.literal_note_frame.destroy()
-                        # avoid dangling references
-                        self.literal_note_frame = None
-                        self.literal_note_title = None
-                        self.literal_note_body = None
-                if repeat_in_verse and key not in shown_set:
-                    if not hasattr(self, "_repeat_note_shown"):
-                        self._repeat_note_shown = set()
-                        shown_set = self._repeat_note_shown
-                    shown_set.add(key)
+            if hasattr(self, "literal_note_frame"):
+                if self.literal_note_frame.winfo_exists() or self.literal_note_frame.master is not self.match_window:
+                    self.literal_note_frame.destroy()
+            if repeat_in_verse and key not in shown_set:
+                if not hasattr(self, "_repeat_note_shown"):
+                    self._repeat_note_shown = set()
+                    shown_set = self._repeat_note_shown
+                shown_set.add(key)
 
-                    note_frame = tk.Frame(self.match_window, bg='AntiqueWhite', relief='groove', bd=2)
-                    note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+                note_frame = tk.Frame(self.match_window, bg='AntiqueWhite', relief='groove', bd=2)
+                note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
 
-                    title_lbl = tk.Label(
-                        note_frame, text="Important Note — Literal Analysis",
-                        bg='AntiqueWhite', font=('Arial', 14, 'bold')
-                    )
-                    title_lbl.pack(anchor='w', padx=10, pady=(5, 0))
+                tk.Label(
+                    note_frame, text="Important Note — Literal Analysis",
+                    bg='AntiqueWhite', font=('Arial', 14, 'bold')
+                ).pack(anchor='w', padx=10, pady=(5, 0))
 
-                    lbl = tk.Label(
-                        note_frame,
-                        text=self._LITERAL_NOTE_TEXT,
-                        bg='AntiqueWhite', wraplength=self._banner_wraplength(self.match_window), justify=tk.LEFT, font=('Arial', 12)
-                    )
-                    lbl.pack(anchor='w', padx=10, pady=(0, 5))
-                    # Store references for resize handler and cleanup
-                    self.literal_note_frame = note_frame
-                    self.literal_note_title = title_lbl
-                    self.literal_note_body = lbl
-                    # Reflow text on main window resize (bind once per window)
-                    try:
-                        if not hasattr(self, "_inline_resize_bound") or not self._inline_resize_bound:
-                            self.match_window.bind("<Configure>", self._on_match_window_resize, add="+")
-                            self._inline_resize_bound = True
-                    except Exception:
-                        pass
+                tk.Label(
+                    note_frame,
+                    text=("In literal analysis: This word appears multiple times in this verse. "
+                          "The highlighted grammar options reflect your past selections for this word "
+                          "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
+                          "adjust if the current context differs."),
+                    bg='AntiqueWhite', wraplength=900, justify=tk.LEFT, font=('Arial', 12)
+                ).pack(anchor='w', padx=10, pady=(0, 5))
         # ----- end inline note -----
 
         # ---------------------------
