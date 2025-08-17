@@ -5429,14 +5429,13 @@ class GrammarApp:
         word_norm = self._norm_tok(words[idx])
         # Normalized token collapsed (punctuation/marks only) → _has_repeat returns False.
         repeat_in_verse = self._has_repeat(words, word_norm)
-        key = (verse_key, word_norm)
 
-        always_frame = getattr(self, "_always_show_literal_banner_frame", False)
-        shown_set = getattr(self, "_repeat_note_shown", set())
+        # Inline banner should appear whenever the word repeats in this verse
+        # (unless user suppressed notes for this verse).
         inline_enabled = getattr(self, "_use_inline_literal_banner", True)
         inline_allowed = inline_enabled and not getattr(self, "_suppress_repeat_notes_for_verse", False)
 
-        if always_frame and inline_allowed:
+        if inline_allowed and repeat_in_verse:
             reuse_ok = (
                 hasattr(self, "literal_note_frame") and self.literal_note_frame
                 and self.literal_note_frame.winfo_exists()
@@ -5469,22 +5468,23 @@ class GrammarApp:
                         self.literal_note_frame,
                         bg='AntiqueWhite', wraplength=self._banner_wraplength(self.match_window), justify=tk.LEFT, font=('Arial', 12)
                     )
+            # Pack the frame only when we actually have a repeat to show
             if not self.literal_note_frame.winfo_ismapped():
                 self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
 
+            # Configure the body text and ensure it's visible
             body = self.literal_note_body
-            if repeat_in_verse and key not in shown_set:
-                if not hasattr(self, "_repeat_note_shown"):
-                    self._repeat_note_shown = set()
-                    shown_set = self._repeat_note_shown
-                shown_set.add(key)
-                body.config(text=self._LITERAL_NOTE_TEXT, wraplength=self._banner_wraplength(self.match_window))
-                if not body.winfo_ismapped():
-                    body.pack(anchor='w', padx=10, pady=(0, 5))
-            else:
-                if body.winfo_ismapped():
-                    body.pack_forget()
-                body.config(text="")
+            body.config(
+                text=self._LITERAL_NOTE_TEXT,
+                wraplength=self._banner_wraplength(self.match_window)
+            )
+            if not body.winfo_ismapped():
+                body.pack(anchor='w', padx=10, pady=(0, 5))
+            # ensure correct wrap on first paint
+            try:
+                self._on_match_window_resize()
+            except Exception:
+                pass
             # Reflow text on main window resize (bind once per window)
             try:
                 if not hasattr(self, "_inline_resize_bound") or not self._inline_resize_bound:
@@ -5493,57 +5493,14 @@ class GrammarApp:
             except Exception:
                 pass
         else:
-            # If inline banners are disabled or suppressed, skip the default-mode banner path entirely.
-            if not inline_allowed:
-                # Proactively clean up any stale frame (either existing or wrong parent)
-                if hasattr(self, "literal_note_frame") and self.literal_note_frame:
-                    if (self.literal_note_frame.winfo_exists() or
-                                                    self.literal_note_frame.master is not self.match_window):
-                        self.literal_note_frame.destroy()
-                        self.literal_note_frame = None
-                        self.literal_note_title = None
-                        self.literal_note_body = None
-                # Continue with the rest of the UI; no inline banner to render.
-            else:
-                if hasattr(self, "literal_note_frame") and self.literal_note_frame:
-                    if self.literal_note_frame.winfo_exists() or self.literal_note_frame.master is not self.match_window:
-                        self.literal_note_frame.destroy()
-                        # avoid dangling references
-                        self.literal_note_frame = None
-                        self.literal_note_title = None
-                        self.literal_note_body = None
-                if repeat_in_verse and key not in shown_set:
-                    if not hasattr(self, "_repeat_note_shown"):
-                        self._repeat_note_shown = set()
-                        shown_set = self._repeat_note_shown
-                    shown_set.add(key)
-
-                    note_frame = tk.Frame(self.match_window, bg='AntiqueWhite', relief='groove', bd=2)
-                    note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
-
-                    title_lbl = tk.Label(
-                        note_frame, text="Important Note — Literal Analysis",
-                        bg='AntiqueWhite', font=('Arial', 14, 'bold')
-                    )
-                    title_lbl.pack(anchor='w', padx=10, pady=(5, 0))
-
-                    lbl = tk.Label(
-                        note_frame,
-                        text=self._LITERAL_NOTE_TEXT,
-                        bg='AntiqueWhite', wraplength=self._banner_wraplength(self.match_window), justify=tk.LEFT, font=('Arial', 12)
-                    )
-                    lbl.pack(anchor='w', padx=10, pady=(0, 5))
-                    # Store references for resize handler and cleanup
-                    self.literal_note_frame = note_frame
-                    self.literal_note_title = title_lbl
-                    self.literal_note_body = lbl
-                    # Reflow text on main window resize (bind once per window)
-                    try:
-                        if not hasattr(self, "_inline_resize_bound") or not self._inline_resize_bound:
-                            self.match_window.bind("<Configure>", self._on_match_window_resize, add="+")
-                            self._inline_resize_bound = True
-                    except Exception:
-                        pass
+            # If inline banners are disabled or there is no repeat, clean up any stale frame.
+            if hasattr(self, "literal_note_frame") and self.literal_note_frame:
+                if (self.literal_note_frame.winfo_exists() or
+                        self.literal_note_frame.master is not self.match_window):
+                    self.literal_note_frame.destroy()
+                self.literal_note_frame = None
+                self.literal_note_title = None
+                self.literal_note_body  = None
         # ----- end inline note -----
 
         # ---------------------------
