@@ -1594,31 +1594,17 @@ class GrammarApp:
         verse_text = getattr(self, "current_pankti", "")
         verse_key = self._verse_key(verse_text)
         if getattr(self, "_last_dropdown_verse_key", None) != verse_key:
-            self._repeat_note_shown = set()
             self._first_repeat_token = None
             self._last_dropdown_verse_key = verse_key
-            self._suppress_repeat_notes_for_verse = False
-            # Avoid stale UI from previous verse:
-            if hasattr(self, "literal_note_frame") and self.literal_note_frame:
-                try:
-                    if self.literal_note_frame.winfo_exists():
-                        self.literal_note_frame.destroy()
-                except Exception:
-                    pass
-                self.literal_note_frame = None
-                self.literal_note_title = None
-                self.literal_note_body = None
 
         words = list(getattr(self, "pankti_words", []))
         if not words and verse_text:
             words = verse_text.split()
-        cached_words = getattr(self, "_raw_words_cache", None)
         norm_words = getattr(self, "_norm_words_cache", None)
-        if cached_words != words:
+        if norm_words is None or len(norm_words) != len(words):
             norm_words = [self._norm_tok(w) for w in words]
             # keep cache in sync for other flows that read it
             self._norm_words_cache = norm_words
-            self._raw_words_cache = words
 
         idx = index
         display_word = words[idx] if idx < len(words) else word
@@ -1688,15 +1674,15 @@ class GrammarApp:
                     self.literal_note_body.pack(anchor="w", padx=10, pady=(0, 5))
             if not self.literal_note_frame.winfo_ismapped():
                 self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
-            # Special copy must include the active word:
-            special_text = (
+            banner_text = (
                 f"In literal analysis: The word “{display_word}” appears multiple times in this verse. "
                 "The highlighted grammar options reflect your past selections for this word (or close matches) "
                 "to encourage consistency. They’re suggestions, not mandates—adjust if the current context differs."
             )
-            if self.literal_note_body and self.literal_note_body.winfo_exists():
-                self.literal_note_body.config(
-                    text=special_text,
+            body = self.literal_note_body
+            if body and body.winfo_exists():
+                body.config(
+                    text=banner_text,
                     wraplength=self._banner_wraplength(self.match_window),
                 )
             try:
@@ -1743,35 +1729,22 @@ class GrammarApp:
                 )
             if not self.literal_note_frame.winfo_ismapped():
                 self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
-            if self.literal_note_body and self.literal_note_body.winfo_exists():
-                # Always refresh generic text to avoid stale special copy
-                self.literal_note_body.config(
+            body = self.literal_note_body
+            if body and body.winfo_exists():
+                body.config(
                     text=self._LITERAL_NOTE_TEXT,
                     wraplength=self._banner_wraplength(self.match_window),
                 )
-            try:
-                self._on_match_window_resize()
-            except Exception:
-                pass
-            try:
-                if not getattr(self, "_inline_resize_bound", False):
-                    self.match_window.bind(
-                        "<Configure>", self._on_match_window_resize, add="+"
-                    )
-                    self._inline_resize_bound = True
-            except Exception:
-                pass
         else:
-            if not inline_allowed or not has_repeat:
-                if hasattr(self, "literal_note_frame") and self.literal_note_frame:
-                    if (
-                        self.literal_note_frame.winfo_exists()
-                        or self.literal_note_frame.master is not self.match_window
-                    ):
-                        self.literal_note_frame.destroy()
-                    self.literal_note_frame = None
-                    self.literal_note_title = None
-                    self.literal_note_body = None
+            if hasattr(self, "literal_note_frame") and self.literal_note_frame:
+                if (
+                    self.literal_note_frame.winfo_exists()
+                    or self.literal_note_frame.master is not self.match_window
+                ):
+                    self.literal_note_frame.destroy()
+                self.literal_note_frame = None
+                self.literal_note_title = None
+                self.literal_note_body = None
 
         # 2) --------------  Build the window  -----------------------
         win = tk.Toplevel(self.root)
