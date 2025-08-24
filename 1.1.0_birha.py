@@ -360,7 +360,7 @@ class GrammarApp:
         if not norm_word:
             return
         norm_verse = self._verse_key(verse_norm)
-        key = (norm_verse, norm_word)
+        key = (norm_verse, norm_word, "second")
         if key in self._repeat_note_shown:
             return
         self._repeat_note_shown.add(key)
@@ -5426,16 +5426,23 @@ class GrammarApp:
             # Respect user's prior choice only within the same verse; reset on verse change.
             self._suppress_repeat_notes_for_verse = False
 
-        word_norm = self._norm_tok(words[idx])
-        # Normalized token collapsed (punctuation/marks only) → _has_repeat returns False.
-        repeat_in_verse = self._has_repeat(words, word_norm)
+        display_word = self.pankti_words[idx] if idx < len(self.pankti_words) else words[idx]
+        word_norm = self._norm_tok(display_word)
+        # Guard: skip triggering for empty/vanished normalized tokens.
+        if word_norm:
+            total_occurrences = sum(self._norm_tok(w) == word_norm for w in words)
+            seen_before       = sum(self._norm_tok(w) == word_norm for w in words[:idx])
+            trigger_now       = (total_occurrences >= 2 and seen_before >= 1)
+            key               = (verse_key, word_norm, "second")
+        else:
+            trigger_now = False
+            key = None
 
-        # Inline banner should appear whenever the word repeats in this verse
-        # (unless user suppressed notes for this verse).
         inline_enabled = getattr(self, "_use_inline_literal_banner", True)
         inline_allowed = inline_enabled and not getattr(self, "_suppress_repeat_notes_for_verse", False)
 
-        if inline_allowed and repeat_in_verse:
+        if inline_allowed and trigger_now and key and key not in self._repeat_note_shown:
+            self._repeat_note_shown.add(key)
             reuse_ok = (
                 hasattr(self, "literal_note_frame") and self.literal_note_frame
                 and self.literal_note_frame.winfo_exists()
@@ -5473,13 +5480,19 @@ class GrammarApp:
                 self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
 
             # Configure the body text and ensure it's visible
-            body = self.literal_note_body
-            body.config(
-                text=self._LITERAL_NOTE_TEXT,
-                wraplength=self._banner_wraplength(self.match_window)
+            banner_text = (
+                f"In literal analysis: The word “{display_word}” appears multiple times in this verse. "
+                "The highlighted grammar options reflect your past selections for this word (or close matches) "
+                "to encourage consistency. They’re suggestions, not mandates—adjust if the current context differs."
             )
-            if not body.winfo_ismapped():
-                body.pack(anchor='w', padx=10, pady=(0, 5))
+            body = self.literal_note_body
+            if body and body.winfo_exists():
+                body.config(
+                    text=banner_text,
+                    wraplength=self._banner_wraplength(self.match_window)
+                )
+                if not body.winfo_ismapped():
+                    body.pack(anchor='w', padx=10, pady=(0, 5))
             # ensure correct wrap on first paint
             try:
                 self._on_match_window_resize()
@@ -7588,7 +7601,7 @@ class GrammarApp:
                             if not getattr(self, "_use_inline_literal_banner", True):
                                 self._maybe_show_repeat_important_note(word, occ_idx, verse_key)
                             else:
-                                self._repeat_note_shown.add((verse_key, word))
+                                self._repeat_note_shown.add((verse_key, word, "second"))
 
                         # Remove duplicate entries within this occurrence group (local deduplication).
                         dedup_entries = []
