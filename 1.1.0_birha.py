@@ -337,20 +337,15 @@ class GrammarApp:
         except Exception:
             pass
 
-    def _has_repeat(self, words, norm_target: str) -> bool:
-        """Return True iff norm_target appears at least twice in words (using _norm_tok)."""
+    def _has_repeat(self, norm_words, norm_target: str) -> bool:
+        """Return True iff *norm_target* appears at least twice in ``norm_words``.
+
+        ``norm_words`` is expected to be a list of pre-normalized tokens so this
+        helper can operate without re-normalizing each time it is called.
+        """
         if not norm_target:
             return False
-        hits = 0
-        for tok in words:
-            nt = self._norm_tok(tok)
-            if not nt:
-                continue
-            if nt == norm_target:
-                hits += 1
-                if hits >= 2:
-                    return True
-        return False
+        return norm_words.count(norm_target) >= 2
 
     def _maybe_show_repeat_important_note(self, word, occurrence_idx, verse_norm):
         """Show an explanatory note for repeated words within a verse."""
@@ -5399,7 +5394,10 @@ class GrammarApp:
         words = pankti.split()
         # Align the navigation token stream with the displayed verse tokens so
         # highlighting, indexing, and repeat detection use the same sequence.
+        if getattr(self, "pankti_words", None) != words:
+            self._norm_words_cache = [self._norm_tok(w) for w in words]
         self.pankti_words = words
+        norm_words = getattr(self, "_norm_words_cache", [])
         max_idx = len(words) - 1
         self.current_word_index = max(0, min(self.current_word_index, max_idx))
         idx = self.current_word_index
@@ -5426,14 +5424,20 @@ class GrammarApp:
             # Respect user's prior choice only within the same verse; reset on verse change.
             self._suppress_repeat_notes_for_verse = False
 
-        display_word = self.pankti_words[idx] if idx < len(self.pankti_words) else words[idx]
-        word_norm = self._norm_tok(display_word)
+        display_word = (
+            self.pankti_words[idx] if idx < len(self.pankti_words) else words[idx]
+        )
+        word_norm = (
+            norm_words[idx] if idx < len(norm_words) else self._norm_tok(display_word)
+        )
         # Guard: skip triggering for empty/vanished normalized tokens.
         if word_norm:
-            total_occurrences = sum(self._norm_tok(w) == word_norm for w in words)
-            seen_before       = sum(self._norm_tok(w) == word_norm for w in words[:idx])
-            trigger_now       = (total_occurrences >= 2 and seen_before >= 1)
-            key               = (verse_key, word_norm, "second")
+            total_occurrences = norm_words.count(word_norm)
+            seen_before = norm_words[:idx].count(word_norm)
+            trigger_now = (
+                self._has_repeat(norm_words, word_norm) and seen_before >= 1
+            )
+            key = (verse_key, word_norm, "second")
         else:
             trigger_now = False
             key = None
