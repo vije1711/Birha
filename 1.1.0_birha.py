@@ -339,6 +339,52 @@ class GrammarApp:
         except Exception:
             pass
 
+    def _ensure_literal_banner(self, text: str):
+        """Create/reuse and render the inline literal-analysis banner."""
+        reuse_ok = (
+            hasattr(self, "literal_note_frame")
+            and self.literal_note_frame
+            and self.literal_note_frame.winfo_exists()
+            and self.literal_note_frame.master is self.match_window
+        )
+        if not reuse_ok:
+            if hasattr(self, "literal_note_frame") and getattr(self, "literal_note_frame", None):
+                try:
+                    if self.literal_note_frame.winfo_exists():
+                        self.literal_note_frame.destroy()
+                except Exception:
+                    pass
+            self.literal_note_frame = tk.Frame(
+                self.match_window, bg="AntiqueWhite", relief="groove", bd=2
+            )
+            self.literal_note_title = tk.Label(
+                self.literal_note_frame,
+                text="Important Note — Literal Analysis",
+                bg="AntiqueWhite",
+                font=("Arial", 14, "bold"),
+            )
+            self.literal_note_title.pack(anchor="w", padx=10, pady=(5, 0))
+            self.literal_note_body = tk.Label(
+                self.literal_note_frame,
+                bg="AntiqueWhite",
+                wraplength=self._banner_wraplength(self.match_window),
+                justify=tk.LEFT,
+                font=("Arial", 12),
+            )
+        if not self.literal_note_frame.winfo_ismapped():
+            self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
+        if not self.literal_note_body.winfo_ismapped():
+            self.literal_note_body.pack(anchor="w", padx=10, pady=(0, 5))
+        self.literal_note_body.config(
+            text=text, wraplength=self._banner_wraplength(self.match_window)
+        )
+        try:
+            if not getattr(self, "_inline_resize_bound", False):
+                self.match_window.bind("<Configure>", self._on_match_window_resize, add="+")
+                self._inline_resize_bound = True
+        except Exception:
+            pass
+
     def _has_repeat(self, norm_words, norm_target: str) -> bool:
         """Return True iff *norm_target* appears at least twice in ``norm_words``.
 
@@ -1594,28 +1640,40 @@ class GrammarApp:
         verse_text = getattr(self, "current_pankti", "")
         verse_key = self._verse_key(verse_text)
         if getattr(self, "_last_dropdown_verse_key", None) != verse_key:
+            self._repeat_note_shown = set()
             self._first_repeat_token = None
             self._last_dropdown_verse_key = verse_key
+            self._suppress_repeat_notes_for_verse = False
+            # kill any stale frame
+            if hasattr(self, "literal_note_frame") and self.literal_note_frame:
+                try:
+                    if self.literal_note_frame.winfo_exists():
+                        self.literal_note_frame.destroy()
+                except Exception:
+                    pass
+                self.literal_note_frame = None
+                self.literal_note_title = None
+                self.literal_note_body = None
 
         words = list(getattr(self, "pankti_words", []))
         if not words and verse_text:
             words = verse_text.split()
-        norm_words = getattr(self, "_norm_words_cache", None)
-        if norm_words is None or len(norm_words) != len(words):
+        cached_words = getattr(self, "_raw_words_cache", None)
+        if cached_words != words:
             norm_words = [self._norm_tok(w) for w in words]
-            # keep cache in sync for other flows that read it
             self._norm_words_cache = norm_words
+            self._raw_words_cache = words
+        else:
+            norm_words = getattr(self, "_norm_words_cache", []) or [self._norm_tok(w) for w in words]
 
         idx = index
         display_word = words[idx] if idx < len(words) else word
         word_norm = norm_words[idx] if idx < len(norm_words) else self._norm_tok(display_word)
-
-        # If the normalized token vanished (punctuation/ZW space), never treat it as a repeat.
-        has_repeat = self._has_repeat(norm_words, word_norm) if word_norm else False
+        # guard empty tokens; ignore vanished punctuation/ZW chars
+        has_repeat = bool(word_norm) and norm_words.count(word_norm) >= 2
         if has_repeat and self._first_repeat_token is None and word_norm:
             self._first_repeat_token = word_norm
-
-        seen_before = norm_words[:idx].count(word_norm)
+        seen_before = norm_words[:idx].count(word_norm) if word_norm else 0
         key = (verse_key, word_norm, "second")
         is_special_hit = (
             has_repeat
@@ -1638,113 +1696,25 @@ class GrammarApp:
 
         if inline_allowed and is_special_hit:
             self._repeat_note_shown.add(key)
-            reuse_ok = (
-                hasattr(self, "literal_note_frame") and self.literal_note_frame
-                and self.literal_note_frame.winfo_exists()
-                and self.literal_note_frame.master is self.match_window
-            )
-            if not reuse_ok:
-                if (
-                    hasattr(self, "literal_note_frame")
-                    and self.literal_note_frame
-                    and self.literal_note_frame.winfo_exists()
-                ):
-                    self.literal_note_frame.destroy()
-                self.literal_note_frame = tk.Frame(
-                    self.match_window, bg="AntiqueWhite", relief="groove", bd=2
-                )
-                self.literal_note_title = tk.Label(
-                    self.literal_note_frame,
-                    text="Important Note — Literal Analysis",
-                    bg="AntiqueWhite",
-                    font=("Arial", 14, "bold"),
-                )
-                self.literal_note_title.pack(anchor="w", padx=10, pady=(5, 0))
-                self.literal_note_body = tk.Label(
-                    self.literal_note_frame,
-                    bg="AntiqueWhite",
-                    wraplength=self._banner_wraplength(self.match_window),
-                    justify=tk.LEFT,
-                    font=("Arial", 12),
-                )
-            else:
-                if not self.literal_note_title.winfo_ismapped():
-                    self.literal_note_title.pack(anchor="w", padx=10, pady=(5, 0))
-                if not self.literal_note_body.winfo_ismapped():
-                    self.literal_note_body.pack(anchor="w", padx=10, pady=(0, 5))
-            if not self.literal_note_frame.winfo_ismapped():
-                self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
-            banner_text = (
+            special_text = (
                 f"In literal analysis: The word “{display_word}” appears multiple times in this verse. "
                 "The highlighted grammar options reflect your past selections for this word (or close matches) "
                 "to encourage consistency. They’re suggestions, not mandates—adjust if the current context differs."
             )
-            body = self.literal_note_body
-            if body and body.winfo_exists():
-                body.config(
-                    text=banner_text,
-                    wraplength=self._banner_wraplength(self.match_window),
-                )
-            try:
-                self._on_match_window_resize()
-            except Exception:
-                pass
-            try:
-                if not getattr(self, "_inline_resize_bound", False):
-                    self.match_window.bind(
-                        "<Configure>", self._on_match_window_resize, add="+"
-                    )
-                    self._inline_resize_bound = True
-            except Exception:
-                pass
+            self._ensure_literal_banner(special_text)
         elif inline_allowed and has_repeat and not suppress_first_occurrence_of_first_token:
-            reuse_ok = (
-                hasattr(self, "literal_note_frame") and self.literal_note_frame
-                and self.literal_note_frame.winfo_exists()
-                and self.literal_note_frame.master is self.match_window
-            )
-            if not reuse_ok:
-                if (
-                    hasattr(self, "literal_note_frame")
-                    and self.literal_note_frame
-                    and self.literal_note_frame.winfo_exists()
-                ):
-                    self.literal_note_frame.destroy()
-                self.literal_note_frame = tk.Frame(
-                    self.match_window, bg="AntiqueWhite", relief="groove", bd=2
-                )
-                self.literal_note_title = tk.Label(
-                    self.literal_note_frame,
-                    text="Important Note — Literal Analysis",
-                    bg="AntiqueWhite",
-                    font=("Arial", 14, "bold"),
-                )
-                self.literal_note_title.pack(anchor="w", padx=10, pady=(5, 0))
-                self.literal_note_body = tk.Label(
-                    self.literal_note_frame,
-                    bg="AntiqueWhite",
-                    wraplength=self._banner_wraplength(self.match_window),
-                    justify=tk.LEFT,
-                    font=("Arial", 12),
-                )
-            if not self.literal_note_frame.winfo_ismapped():
-                self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
-            body = self.literal_note_body
-            if body and body.winfo_exists():
-                body.config(
-                    text=self._LITERAL_NOTE_TEXT,
-                    wraplength=self._banner_wraplength(self.match_window),
-                )
+            self._ensure_literal_banner(self._LITERAL_NOTE_TEXT)
         else:
-            if hasattr(self, "literal_note_frame") and self.literal_note_frame:
-                if (
-                    self.literal_note_frame.winfo_exists()
-                    or self.literal_note_frame.master is not self.match_window
-                ):
-                    self.literal_note_frame.destroy()
-                self.literal_note_frame = None
-                self.literal_note_title = None
-                self.literal_note_body = None
+            if not inline_allowed or not has_repeat:
+                if hasattr(self, "literal_note_frame") and self.literal_note_frame:
+                    try:
+                        if self.literal_note_frame.winfo_exists():
+                            self.literal_note_frame.destroy()
+                    except Exception:
+                        pass
+                    self.literal_note_frame = None
+                    self.literal_note_title = None
+                    self.literal_note_body = None
 
         # 2) --------------  Build the window  -----------------------
         win = tk.Toplevel(self.root)
