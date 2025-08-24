@@ -3990,7 +3990,7 @@ class GrammarApp:
         heading_label.pack(pady=(5, 0))
 
         explanation_text = (
-            "• Highlighted selections (displayed in Yellow) indicate the meanings or grammar rules that "
+            "• Highlighted selections (displayed in MistyRose) indicate the meanings or grammar rules that "
             "were previously confirmed in your assessment.\n"
             "• This helps you quickly recognize which items reflect your earlier choices."
         )
@@ -5576,7 +5576,7 @@ class GrammarApp:
                 self.literal_note_body.pack(pady=(0, 10), padx=10)
 
             explanation_text = (
-                "• Highlighted selections (displayed in MistyRose) indicate the meanings or grammar rules that "
+                "• Highlighted selections (displayed in Yellow) indicate the meanings or grammar rules that "
                 "were previously confirmed in your assessment.\n"
                 "• This helps you quickly recognize which items reflect your earlier choices."
             )
