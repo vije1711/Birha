@@ -1629,6 +1629,13 @@ class GrammarApp:
             and not getattr(self, "_suppress_repeat_notes_for_verse", False)
         )
 
+        suppress_first_occurrence_of_first_token = (
+            has_repeat
+            and self._first_repeat_token is not None
+            and word_norm == self._first_repeat_token
+            and seen_before == 0
+        )
+
         if inline_allowed and is_special_hit:
             self._repeat_note_shown.add(key)
             reuse_ok = (
@@ -1690,28 +1697,7 @@ class GrammarApp:
                     self._inline_resize_bound = True
             except Exception:
                 pass
-
-        # --- Feature‑1 fallback: show generic repeat banner for repeated words,
-        #     EXCEPT for the first repeated token's *first* occurrence. The special
-        #     banner above will handle that token's *second* sighting.
-        #
-        #     Suppress generic banner iff:
-        #       • this token is the first repeated token for the verse, and
-        #       • we are at its first sighting (seen_before == 0).
-        #
-        #     Otherwise, show the generic banner.
-        suppress_first_occurrence_of_first_token = (
-            has_repeat
-            and self._first_repeat_token is not None
-            and word_norm == self._first_repeat_token
-            and seen_before == 0
-        )
-        if (
-            inline_allowed
-            and has_repeat
-            and not is_special_hit
-            and not suppress_first_occurrence_of_first_token
-        ):
+        elif inline_allowed and has_repeat and not suppress_first_occurrence_of_first_token:
             reuse_ok = (
                 hasattr(self, "literal_note_frame") and self.literal_note_frame
                 and self.literal_note_frame.winfo_exists()
@@ -1745,14 +1731,11 @@ class GrammarApp:
                 self.literal_note_frame.pack(fill=tk.X, padx=20, pady=(5, 10))
             body = self.literal_note_body
             if body and body.winfo_exists():
-                # Always refresh generic text to avoid stale special copy
                 body.config(
                     text=self._LITERAL_NOTE_TEXT,
                     wraplength=self._banner_wraplength(self.match_window),
                 )
-
-        # Cleanup only when no repeat (or banners are suppressed)
-        if not inline_allowed or not has_repeat:
+        else:
             if hasattr(self, "literal_note_frame") and self.literal_note_frame:
                 if (
                     self.literal_note_frame.winfo_exists()
