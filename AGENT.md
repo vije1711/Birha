@@ -38,3 +38,8 @@ Use the following sections in every review:
 - **Verification**: outline quick-check commands.
 
 Tone: kind, specific, actionable.
+
+## Code Style
+AGENT.md governs workflow, review, and convergence only.
+Follow PEP8 and any repo-specific configs (ruff, flake8, pyproject.toml).
+Codex must respect those external settings for formatting and linting; do not mirror rules here.
