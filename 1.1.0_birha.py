@@ -50,8 +50,32 @@ def _normalize_simple(text: str) -> str:
         s = str(text)
     except Exception:
         return ""
+    try:
+        s = unicodedata.normalize('NFC', s)
+    except Exception:
+        pass
     s = s.strip().lower()
     return " ".join(s.split())
+
+def _normalize_verse_key(text: str) -> str:
+    """Robust comparable key for verse text.
+    - Unicode normalize, lowercase
+    - Remove danda marks (।, ॥) and digits (ASCII + Gurmukhi)
+    - Collapse whitespace
+    """
+    try:
+        s = str(text)
+    except Exception:
+        return ""
+    try:
+        s = unicodedata.normalize('NFC', s)
+    except Exception:
+        pass
+    s = s.lower()
+    s = s.replace('॥', ' ').replace('।', ' ')
+    s = re.sub(r"[\u0A66-\u0A6F0-9]+", " ", s)
+    s = " ".join(s.split())
+    return s
 
 def _parse_page_value(val):
     try:
@@ -89,7 +113,14 @@ def _normalize_record(rec: dict) -> dict:
         'excel_verses': keys.get('excel_verses') if 'excel_verses' in keys else keys.get('excel_verse'),
         'pages': keys.get('pages') if 'pages' in keys else keys.get('page'),
     }
-    out['norm_excel'] = _normalize_simple(out.get('excel_verses') or out.get('verse') or '')
+    ex = out.get('excel_verses') or out.get('verse') or ''
+    if isinstance(ex, (list, tuple)):
+        try:
+            ex = " ".join(map(str, ex))
+        except Exception:
+            ex = str(ex)
+    out['norm_excel'] = _normalize_simple(ex)
+    out['norm_excel_key'] = _normalize_verse_key(ex)
     out['norm_page'] = _parse_page_value(out.get('pages'))
     return out
 
@@ -140,14 +171,33 @@ def _find_arth_for(self, verse_text: str, page_num):
     if not getattr(self, '_arth_records', None):
         return None
     target_norm_verse = _normalize_simple(verse_text)
+    target_norm_key = _normalize_verse_key(verse_text)
     target_page = _parse_page_value(page_num)
+    # Pass 1: strict match on normalized text or key + page
     for rec in self._arth_records:
-        if rec['norm_excel'] == target_norm_verse:
-            if target_page is None or rec['norm_page'] == target_page:
+        if rec.get('norm_excel') == target_norm_verse or rec.get('norm_excel_key') == target_norm_key:
+            if target_page is None or rec.get('norm_page') == target_page:
                 return rec
+    # Pass 2: verse-only strict match
     for rec in self._arth_records:
-        if rec['norm_excel'] == target_norm_verse:
+        if rec.get('norm_excel') == target_norm_verse or rec.get('norm_excel_key') == target_norm_key:
             return rec
+    # Pass 3: fuzzy match on verse key (prefer page matches)
+    try:
+        best = None
+        best_score = 0
+        for rec in self._arth_records:
+            key = rec.get('norm_excel_key') or ''
+            score = fuzz.token_sort_ratio(target_norm_key, key)
+            if target_page is not None and rec.get('norm_page') == target_page:
+                score += 5
+            if score > best_score:
+                best_score = score
+                best = rec
+        if best and best_score >= 85:
+            return best
+    except Exception:
+        pass
     return None
 
 # Helper to determine whether a given string is a full Punjabi word
