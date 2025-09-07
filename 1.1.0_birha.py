@@ -44,6 +44,97 @@ def _compute_whats_new_id():
 
 WHATS_NEW_ID = _compute_whats_new_id()
 
+# Structured Darpan sources: JSON/CSV loader helpers
+def _normalize_simple(text: str) -> str:
+    try:
+        s = str(text)
+    except Exception:
+        return ""
+    s = s.strip().lower()
+    return " ".join(s.split())
+
+def _parse_page_value(val):
+    try:
+        if val is None:
+            return None
+        if isinstance(val, int):
+            return str(val)
+        if isinstance(val, float):
+            if math.isnan(val):
+                return None
+            return str(int(val))
+        s = str(val).strip()
+        for tok in s.replace(',', ' ').split():
+            if tok.isdigit():
+                return tok
+        return s or None
+    except Exception:
+        return None
+
+def _normalize_record(rec: dict) -> dict:
+    try:
+        items = rec.items()
+    except Exception:
+        try:
+            items = dict(rec).items()
+        except Exception:
+            items = []
+    keys = {str(k).lower(): v for k, v in items}
+    out = {
+        'verse': keys.get('verse', ''),
+        'padarth': keys.get('padarth', ''),
+        'arth': keys.get('arth', ''),
+        'chhand': keys.get('chhand', ''),
+        'bhav': keys.get('bhav', ''),
+        'excel_verses': keys.get('excel_verses') if 'excel_verses' in keys else keys.get('excel_verse'),
+        'pages': keys.get('pages') if 'pages' in keys else keys.get('page'),
+    }
+    out['norm_excel'] = _normalize_simple(out.get('excel_verses') or out.get('verse') or '')
+    out['norm_page'] = _parse_page_value(out.get('pages'))
+    return out
+
+def _load_arth_sources_once(self):
+    if getattr(self, '_arth_loaded', False):
+        return
+    self._arth_loaded = True
+    self._arth_records = []
+    # JSON source
+    try:
+        with open('1.1.4 Verse_Padarth_Arth_with_pages.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            items = list(data.values())[0] if isinstance(data, dict) else data
+            if isinstance(items, list):
+                for rec in items:
+                    if isinstance(rec, dict):
+                        self._arth_records.append(_normalize_record(rec))
+    except Exception:
+        pass
+    # CSV source
+    try:
+        df = pd.read_csv('1.1.5 Verse_Padarth_Arth_with_pages.csv')
+        for _, row in df.iterrows():
+            self._arth_records.append(_normalize_record(row.to_dict()))
+    except Exception:
+        pass
+
+def _find_arth_for(self, verse_text: str, page_num):
+    try:
+        _load_arth_sources_once(self)
+    except Exception:
+        return None
+    if not getattr(self, '_arth_records', None):
+        return None
+    target_norm_verse = _normalize_simple(verse_text)
+    target_page = _parse_page_value(page_num)
+    for rec in self._arth_records:
+        if rec['norm_excel'] == target_norm_verse:
+            if target_page is None or rec['norm_page'] == target_page:
+                return rec
+    for rec in self._arth_records:
+        if rec['norm_excel'] == target_norm_verse:
+            return rec
+    return None
+
 # Helper to determine whether a given string is a full Punjabi word
 def is_full_word(s: str) -> bool:
     """Return ``True`` if *s* looks like a complete Punjabi word."""
@@ -1076,6 +1167,37 @@ class GrammarApp:
             height=8, padx=5, pady=5
         )
         self._translation_text.pack(fill=tk.BOTH, expand=False)
+
+        # Try to auto-populate translation from structured sources
+        try:
+            meta = getattr(self, 'selected_verse_meta', {}) or {}
+            verse_text = self.selected_verse_text if hasattr(self, 'selected_verse_text') else ''
+            page_num = meta.get('Page Number')
+            record = self._find_arth_for(verse_text, page_num)
+            if record:
+                # Build a readable block with available fields
+                parts = []
+                v = record.get('verse') or record.get('Verse') or ''
+                if v:
+                    parts.append("Verse:\n" + str(v).strip())
+                p = record.get('padarth') or record.get('Padarth') or ''
+                if p:
+                    parts.append("Padarth:\n" + str(p).strip())
+                a = record.get('arth') or record.get('Arth') or ''
+                if a:
+                    parts.append("Arth:\n" + str(a).strip())
+                ch = record.get('chhand') or record.get('Chhand') or ''
+                if ch:
+                    parts.append("Chhand:\n" + str(ch).strip())
+                bh = record.get('bhav') or record.get('Bhav') or ''
+                if bh:
+                    parts.append("Bhav:\n" + str(bh).strip())
+                if parts:
+                    self._translation_text.delete('1.0', tk.END)
+                    self._translation_text.insert('1.0', "\n\n".join(parts) + "\n")
+        except Exception:
+            # Fail gracefully; leave the text box empty for manual input
+            pass
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
