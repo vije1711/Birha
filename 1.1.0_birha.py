@@ -710,6 +710,7 @@ class GrammarApp:
         self._selected_verse_idx.set(-1)
 
         # 2) render each card
+        total_cards = len(filtered)
         for idx, m in enumerate(filtered):
             row, col = divmod(idx, 2)
             card = tk.Frame(
@@ -720,22 +721,11 @@ class GrammarApp:
                 padx=8,
                 pady=8
             )
-            card.grid(
-                row=row,
-                column=col,
-                padx=10, pady=10,
-                sticky="nsew"
-            )
-
-            # a little radiobutton at top-left for selection
-            rb = tk.Radiobutton(
-                card,
-                variable=self._selected_verse_idx,
-                value=idx,
-                bg="white",
-                activebackground="white"
-            )
-            rb.place(x=4, y=4)
+            # If odd number of cards and this is the last one, span both columns for visual centering
+            if (total_cards % 2 == 1) and (idx == total_cards - 1):
+                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+            else:
+                card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
             # the verse itself, wrapped
             tk.Label(
@@ -745,7 +735,21 @@ class GrammarApp:
                 wraplength=500,
                 justify="center",
                 bg="white"
-            ).pack(pady=(8,4))
+            ).pack(pady=(14,4))
+
+            # a little radiobutton at top-left for selection (created after the label and raised)
+            rb = tk.Radiobutton(
+                card,
+                variable=self._selected_verse_idx,
+                value=idx,
+                bg="white",
+                activebackground="white"
+            )
+            rb.place(x=6, y=6)
+            try:
+                rb.lift()
+            except Exception:
+                pass
 
             # metadata line
             # build a list of (label, key) pairs
