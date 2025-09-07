@@ -24,6 +24,25 @@ import webbrowser
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
 
+# Debug flag for translation auto-fill matching. Enable via env var BIRHA_DEBUG_AUTOFILL=1
+DEBUG_AUTOFILL = False
+try:
+    DEBUG_AUTOFILL = str(os.getenv('BIRHA_DEBUG_AUTOFILL', '0')).strip().lower() in {'1', 'true', 'yes', 'on'}
+except Exception:
+    DEBUG_AUTOFILL = False
+
+def _dbg_autofill(self, msg: str):
+    try:
+        if DEBUG_AUTOFILL or bool(getattr(self, '_debug_autofill', False)):
+            print(msg)
+    except Exception:
+        # Best-effort logging only
+        if DEBUG_AUTOFILL:
+            try:
+                print(msg)
+            except Exception:
+                pass
+
 # ID used to gate the one-time "What's New" prompt.
 # Prefer the latest UI tag from Git if available; otherwise, fall back.
 def _compute_whats_new_id():
@@ -114,29 +133,57 @@ def _normalize_record(rec: dict) -> dict:
         'excel_verses': keys.get('excel_verses') if 'excel_verses' in keys else keys.get('excel_verse'),
         'pages': keys.get('pages') if 'pages' in keys else keys.get('page'),
     }
+    # Preserve whether source explicitly provided fragment list
+    has_excel_verses_field = 'excel_verses' in keys
     ex = out.get('excel_verses') or out.get('verse') or ''
     norm_parts = []
     norm_key_parts = []
+    parts_source = []
     if isinstance(ex, (list, tuple)):
-        parts = []
-        for part in ex:
-            try:
-                part_str = str(part)
-            except Exception:
-                continue
-            norm_parts.append(_normalize_simple(part_str))
-            norm_key_parts.append(_normalize_verse_key(part_str))
-            parts.append(part_str)
-        ex = " ".join(parts)
+        parts_source = [p for p in ex]
     else:
+        # Attempt to parse JSON-style list encoded as a string
+        parsed = None
+        if isinstance(ex, str):
+            s_ex = ex.strip()
+            if s_ex.startswith('[') and s_ex.endswith(']'):
+                try:
+                    j = json.loads(s_ex)
+                    if isinstance(j, list):
+                        parsed = j
+                except Exception:
+                    parsed = None
+        if isinstance(parsed, list):
+            parts_source = parsed
+        else:
+            # Split multiline text into fragments; conservatively allow semicolon as delimiter when excel_verses present
+            try:
+                s = str(ex)
+            except Exception:
+                s = ""
+            split_lines = [seg.strip() for seg in re.split(r"[\r\n]+", s) if str(seg).strip()]
+            if len(split_lines) >= 2:
+                parts_source = split_lines
+            else:
+                if has_excel_verses_field and (';' in s):
+                    semi = [seg.strip() for seg in s.split(';') if seg and seg.strip()]
+                    if len(semi) >= 2:
+                        parts_source = semi
+                if not parts_source:
+                    parts_source = [s]
+
+    for part in parts_source:
         try:
-            part_str = str(ex)
+            part_str = str(part)
         except Exception:
             part_str = ""
         norm_parts.append(_normalize_simple(part_str))
         norm_key_parts.append(_normalize_verse_key(part_str))
-    out['norm_excel'] = _normalize_simple(ex)
-    out['norm_excel_key'] = _normalize_verse_key(ex)
+
+    # For an overall verse key, join fragments into a single string
+    ex_join = " ".join([str(p) for p in parts_source]) if parts_source else str(ex)
+    out['norm_excel'] = _normalize_simple(ex_join)
+    out['norm_excel_key'] = _normalize_verse_key(ex_join)
     out['norm_excel_parts'] = norm_parts
     out['norm_excel_key_parts'] = norm_key_parts
     out['norm_page'] = _parse_page_value(out.get('pages'))
@@ -180,6 +227,7 @@ def _load_arth_sources_once(self):
         if key not in seen:
             seen[key] = rec
     self._arth_records = list(seen.values())
+    _dbg_autofill(self, f"[AutoFill] Loaded {len(records)} records, dedup -> {len(self._arth_records)} by (norm_excel, norm_page)")
 
 def _find_arth_for(self, verse_text: str, page_num):
     try:
@@ -195,41 +243,85 @@ def _find_arth_for(self, verse_text: str, page_num):
     for rec in self._arth_records:
         parts = rec.get('norm_excel_parts', [])
         key_parts = rec.get('norm_excel_key_parts', [])
-        if (
-            target_norm_verse == rec.get('norm_excel')
-            or target_norm_verse in parts
-            or target_norm_key == rec.get('norm_excel_key')
-            or target_norm_key in key_parts
-        ):
+        matched_by = None
+        matched_fragment = None
+        if target_norm_verse == rec.get('norm_excel'):
+            matched_by = 'norm_excel'
+        elif target_norm_verse in parts:
+            matched_by = 'norm_excel_parts'
+            try:
+                idx = parts.index(target_norm_verse)
+                matched_fragment = rec.get('excel_verses', [None])[idx] if isinstance(rec.get('excel_verses'), list) else None
+            except Exception:
+                matched_fragment = None
+        elif target_norm_key == rec.get('norm_excel_key'):
+            matched_by = 'norm_excel_key'
+        elif target_norm_key in key_parts:
+            matched_by = 'norm_excel_key_parts'
+            try:
+                idx = key_parts.index(target_norm_key)
+                matched_fragment = rec.get('excel_verses', [None])[idx] if isinstance(rec.get('excel_verses'), list) else None
+            except Exception:
+                matched_fragment = None
+        if matched_by:
             if target_page is None or rec.get('norm_page') == target_page:
+                _dbg_autofill(self, f"[AutoFill] Pass=1 strict match by {matched_by} (page_ok={target_page is None or rec.get('norm_page') == target_page}); fragment={matched_fragment!r}")
                 return rec
     # Pass 2: verse-only strict match
     for rec in self._arth_records:
         parts = rec.get('norm_excel_parts', [])
         key_parts = rec.get('norm_excel_key_parts', [])
-        if (
-            target_norm_verse == rec.get('norm_excel')
-            or target_norm_verse in parts
-            or target_norm_key == rec.get('norm_excel_key')
-            or target_norm_key in key_parts
-        ):
+        matched_by = None
+        matched_fragment = None
+        if target_norm_verse == rec.get('norm_excel'):
+            matched_by = 'norm_excel'
+        elif target_norm_verse in parts:
+            matched_by = 'norm_excel_parts'
+            try:
+                idx = parts.index(target_norm_verse)
+                matched_fragment = rec.get('excel_verses', [None])[idx] if isinstance(rec.get('excel_verses'), list) else None
+            except Exception:
+                matched_fragment = None
+        elif target_norm_key == rec.get('norm_excel_key'):
+            matched_by = 'norm_excel_key'
+        elif target_norm_key in key_parts:
+            matched_by = 'norm_excel_key_parts'
+            try:
+                idx = key_parts.index(target_norm_key)
+                matched_fragment = rec.get('excel_verses', [None])[idx] if isinstance(rec.get('excel_verses'), list) else None
+            except Exception:
+                matched_fragment = None
+        if matched_by:
+            _dbg_autofill(self, f"[AutoFill] Pass=2 strict (no page) match by {matched_by}; fragment={matched_fragment!r}")
             return rec
     # Pass 3: fuzzy match on verse key (prefer page matches)
     try:
         best = None
         best_score = 0
+        best_detail = None
         for rec in self._arth_records:
             keys = rec.get('norm_excel_key_parts', []) + [rec.get('norm_excel_key') or '']
-            score = max((fuzz.partial_ratio(target_norm_key, k) for k in keys), default=0)
+            frag_scores = []
+            for k in keys:
+                try:
+                    frag_scores.append((k, fuzz.partial_ratio(target_norm_key, k)))
+                except Exception:
+                    frag_scores.append((k, 0))
+            if frag_scores:
+                k_best, score = max(frag_scores, key=lambda t: t[1])
+            else:
+                k_best, score = ('', 0)
             if target_page is not None and rec.get('norm_page') == target_page:
                 score += 5
             if score > best_score:
                 best_score = score
                 best = rec
+                best_detail = (k_best, score)
         if best and best_score >= 85:
+            _dbg_autofill(self, f"[AutoFill] Pass=3 fuzzy match score={best_score}; page_bonus={(target_page is not None and best.get('norm_page') == target_page)}; fragment_key_used={best_detail[0]!r}")
             return best
-    except Exception:
-        pass
+    except Exception as e:
+        _dbg_autofill(self, f"[AutoFill] Fuzzy pass error: {e}")
     return None
 
 # Helper to determine whether a given string is a full Punjabi word
