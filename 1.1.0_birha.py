@@ -97,25 +97,40 @@ def _load_arth_sources_once(self):
     if getattr(self, '_arth_loaded', False):
         return
     self._arth_loaded = True
-    self._arth_records = []
-    # JSON source
-    try:
-        with open('1.1.4 Verse_Padarth_Arth_with_pages.json', 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            items = list(data.values())[0] if isinstance(data, dict) else data
-            if isinstance(items, list):
-                for rec in items:
-                    if isinstance(rec, dict):
-                        self._arth_records.append(_normalize_record(rec))
-    except Exception:
-        pass
-    # CSV source
-    try:
-        df = pd.read_csv('1.1.5 Verse_Padarth_Arth_with_pages.csv')
-        for _, row in df.iterrows():
-            self._arth_records.append(_normalize_record(row.to_dict()))
-    except Exception:
-        pass
+    records = []
+    # JSON sources (try multiple known filenames)
+    for json_path in [
+        '1.1.3 sggs_extracted_with_page_numbers.json',
+        '1.1.4 Verse_Padarth_Arth_with_pages.json',
+    ]:
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                items = list(data.values())[0] if isinstance(data, dict) else data
+                if isinstance(items, list):
+                    for rec in items:
+                        if isinstance(rec, dict):
+                            records.append(_normalize_record(rec))
+        except Exception:
+            continue
+    # CSV sources (try multiple known filenames)
+    for csv_path in [
+        '1.1.4 Verse_Padarth_Arth_with_pages.csv',
+        '1.1.5 Verse_Padarth_Arth_with_pages.csv',
+    ]:
+        try:
+            df = pd.read_csv(csv_path)
+            for _, row in df.iterrows():
+                records.append(_normalize_record(row.to_dict()))
+        except Exception:
+            continue
+    # Deduplicate by (norm_excel, norm_page)
+    seen = {}
+    for rec in records:
+        key = (rec.get('norm_excel') or '', rec.get('norm_page') or '')
+        if key not in seen:
+            seen[key] = rec
+    self._arth_records = list(seen.values())
 
 def _find_arth_for(self, verse_text: str, page_num):
     try:
