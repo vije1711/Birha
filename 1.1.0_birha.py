@@ -6579,6 +6579,7 @@ class GrammarApp:
             pass
 
         # 8) Populate cards mirroring _populate_cards, but keep selection via radio buttons
+        total_cards = len(candidate_matches)
         for idx, match in enumerate(candidate_matches):
             # Normalize match into a dict-like mapping
             if isinstance(match, dict):
@@ -6610,7 +6611,11 @@ class GrammarApp:
                 padx=8,
                 pady=8
             )
-            card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+            # If odd number of cards and this is the last one, span both columns for visual centering
+            if (total_cards % 2 == 1) and (idx == total_cards - 1):
+                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+            else:
+                card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
             # Verse label
             tk.Label(
