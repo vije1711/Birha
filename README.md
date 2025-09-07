@@ -68,3 +68,9 @@ The dashboard opens with buttons to start verse analysis, update the grammar dat
 
 Active work in progress. Names/formats of datasets and UI flows may change as the grammar resources evolve.
 
+
+## UI Updates
+
+- 2025-09-07: Align SGGS match view with search cards; center layout; prevent radio overlap; equal column widths; center last odd card without stretching.
+  - Affects: show_sggs_matches_option, _populate_cards.
+  - Visual only; selection and behavior unchanged.
