@@ -14,6 +14,7 @@ from rapidfuzz import fuzz
 import numpy as np
 import textwrap
 import webbrowser
+import subprocess
 import json
 import webbrowser
 
@@ -23,8 +24,25 @@ import webbrowser
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
 
-# ID used to gate the one-time "What's New" prompt
-WHATS_NEW_ID = "ui-2025-09-07-cards-layout"
+# ID used to gate the one-time "What's New" prompt.
+# Prefer the latest UI tag from Git if available; otherwise, fall back.
+def _compute_whats_new_id():
+    try:
+        # Get UI tags sorted by create date (newest first)
+        result = subprocess.run(
+            ["git", "tag", "--list", "ui-*", "--sort=-creatordate"],
+            capture_output=True, text=True, check=False
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                tag = line.strip()
+                if tag:
+                    return tag
+    except Exception:
+        pass
+    return "ui-2025-09-07-cards-layout"
+
+WHATS_NEW_ID = _compute_whats_new_id()
 
 # Helper to determine whether a given string is a full Punjabi word
 def is_full_word(s: str) -> bool:
@@ -672,8 +690,8 @@ class GrammarApp:
             lbl.pack(anchor='w', pady=2)
             lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
 
-        link(links, 'View UI tag: ui-2025-09-07-cards-layout',
-             'https://github.com/vije1711/Birha/tree/ui-2025-09-07-cards-layout')
+        link(links, f"View UI tag: {WHATS_NEW_ID}",
+             f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
         link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
 
         btns = tk.Frame(win, bg='light gray')
