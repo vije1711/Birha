@@ -702,7 +702,7 @@ class GrammarApp:
         # 1) run search & filter
         query = self._verse_var.get().strip()
         headers, all_matches = self.match_sggs_verse(query)
-        filtered = [m for m in all_matches if m.get("Score",0) >= 60.0][:10]
+        filtered = [m for m in all_matches if m.get("Score",0) >= 25.0][:10]
         # remember these for the “Next →” step
         self._last_filtered = filtered
 
@@ -6435,7 +6435,7 @@ class GrammarApp:
         self.root.attributes("-disabled", False)
         self.stop_progress()
 
-    def match_sggs_verse(self, user_input, max_results=10, min_score=60):
+    def match_sggs_verse(self, user_input, max_results=10, min_score=25):
         """
         Fuzzy-match the user's input (pankti) against the SGGS 'Verse' column.
         Return a tuple (headers, candidate_matches) where headers is the list
