@@ -74,3 +74,9 @@ Active work in progress. Names/formats of datasets and UI flows may change as th
 - 2025-09-07: Align SGGS match view with search cards; center layout; prevent radio overlap; equal column widths; center last odd card without stretching.
   - Affects: show_sggs_matches_option, _populate_cards.
   - Visual only; selection and behavior unchanged.
+
+## Releases
+
+- UI cards layout: see tag ui-2025-09-07-cards-layout
+  - Tag view: https://github.com/vije1711/Birha/tree/ui-2025-09-07-cards-layout
+  - Releases page: https://github.com/vije1711/Birha/releases
