@@ -1183,36 +1183,29 @@ class GrammarApp:
         )
         self._translation_text.pack(fill=tk.BOTH, expand=False)
 
+        # Status + Refresh row under the translation box
+        status_row = tk.Frame(tf, bg='light gray')
+        status_row.pack(fill=tk.X, pady=(6, 0))
+        self._translation_status_var = tk.StringVar(value="")
+        tk.Label(
+            status_row,
+            textvariable=self._translation_status_var,
+            font=("Arial", 10, "italic"),
+            bg='light gray', fg='#333333'
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            status_row,
+            text="Refresh from data files",
+            font=("Arial", 10),
+            bg='gray', fg='white',
+            command=self._refresh_translation_from_data
+        ).pack(side=tk.RIGHT)
+
         # Try to auto-populate translation from structured sources
-        try:
-            meta = getattr(self, 'selected_verse_meta', {}) or {}
-            verse_text = self.selected_verse_text if hasattr(self, 'selected_verse_text') else ''
-            page_num = meta.get('Page Number')
-            record = self._find_arth_for(verse_text, page_num)
-            if record:
-                # Build a readable block with available fields
-                parts = []
-                v = record.get('verse') or record.get('Verse') or ''
-                if v:
-                    parts.append("Verse:\n" + str(v).strip())
-                p = record.get('padarth') or record.get('Padarth') or ''
-                if p:
-                    parts.append("Padarth:\n" + str(p).strip())
-                a = record.get('arth') or record.get('Arth') or ''
-                if a:
-                    parts.append("Arth:\n" + str(a).strip())
-                ch = record.get('chhand') or record.get('Chhand') or ''
-                if ch:
-                    parts.append("Chhand:\n" + str(ch).strip())
-                bh = record.get('bhav') or record.get('Bhav') or ''
-                if bh:
-                    parts.append("Bhav:\n" + str(bh).strip())
-                if parts:
-                    self._translation_text.delete('1.0', tk.END)
-                    self._translation_text.insert('1.0', "\n\n".join(parts) + "\n")
-        except Exception:
-            # Fail gracefully; leave the text box empty for manual input
-            pass
+        filled = self._populate_translation_from_structured()
+        self._translation_status_var.set(
+            "Auto-filled from structured data" if filled else "Manual input"
+        )
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
@@ -1298,6 +1291,47 @@ class GrammarApp:
             command=lambda: self._on_translation_submitted(win),
             padx=15, pady=8
         ).pack(side=tk.RIGHT)
+
+    def _populate_translation_from_structured(self) -> bool:
+        """Attempt to fill the translation Text from structured JSON/CSV. Returns True if filled."""
+        try:
+            meta = getattr(self, 'selected_verse_meta', {}) or {}
+            verse_text = self.selected_verse_text if hasattr(self, 'selected_verse_text') else ''
+            page_num = meta.get('Page Number')
+            record = _find_arth_for(self, verse_text, page_num)
+            if not record:
+                return False
+            parts = []
+            v = record.get('verse') or record.get('Verse') or ''
+            if v:
+                parts.append("Verse:\n" + str(v).strip())
+            p = record.get('padarth') or record.get('Padarth') or ''
+            if p:
+                parts.append("Padarth:\n" + str(p).strip())
+            a = record.get('arth') or record.get('Arth') or ''
+            if a:
+                parts.append("Arth:\n" + str(a).strip())
+            ch = record.get('chhand') or record.get('Chhand') or ''
+            if ch:
+                parts.append("Chhand:\n" + str(ch).strip())
+            bh = record.get('bhav') or record.get('Bhav') or ''
+            if bh:
+                parts.append("Bhav:\n" + str(bh).strip())
+            if not parts:
+                return False
+            self._translation_text.delete('1.0', tk.END)
+            self._translation_text.insert('1.0', "\n\n".join(parts) + "\n")
+            return True
+        except Exception:
+            return False
+
+    def _refresh_translation_from_data(self):
+        """Handler for the Refresh button to try loading from data files again."""
+        filled = self._populate_translation_from_structured()
+        if hasattr(self, '_translation_status_var'):
+            self._translation_status_var.set(
+                "Auto-filled from structured data" if filled else "No structured data match found"
+            )
 
     def proceed_to_word_assessment(self, idx):
         # grab the metadata dict from the last search
