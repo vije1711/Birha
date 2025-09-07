@@ -14,12 +14,17 @@ from rapidfuzz import fuzz
 import numpy as np
 import textwrap
 import webbrowser
+import json
+import webbrowser
 
 
 # ────────────────────────────────────────────────────────────────
 # GLOBAL HELPER  –  build live noun-morphology lookup
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
+
+# ID used to gate the one-time "What's New" prompt
+WHATS_NEW_ID = "ui-2025-09-07-cards-layout"
 
 # Helper to determine whether a given string is a full Punjabi word
 def is_full_word(s: str) -> bool:
@@ -553,6 +558,12 @@ class GrammarApp:
         )
         whats_new_btn.pack(pady=(20, 10))
 
+        # One-time prompt to announce recent UI changes
+        try:
+            self.root.after(800, self.maybe_prompt_whats_new)
+        except Exception:
+            pass
+
     def show_whats_new(self):
         """Display a small dialog with links to the latest UI updates and releases."""
         win = tk.Toplevel(self.root)
@@ -563,6 +574,62 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
+
+    # ---------------------------
+    # One-time "What's New" helpers
+    # ---------------------------
+    def _state_file_path(self):
+        try:
+            base = os.path.join(os.path.expanduser("~"), ".birha")
+            os.makedirs(base, exist_ok=True)
+            return os.path.join(base, "state.json")
+        except Exception:
+            # Fallback to current working directory if home is not accessible
+            return os.path.join(os.getcwd(), ".birha_state.json")
+
+    def _load_state(self):
+        path = self._state_file_path()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_state(self, state: dict):
+        path = self._state_file_path()
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(state, f)
+        except Exception:
+            pass
+
+    def maybe_prompt_whats_new(self):
+        # Avoid multiple prompts per session
+        if getattr(self, "_whats_new_checked", False):
+            return
+        self._whats_new_checked = True
+
+        state = self._load_state()
+        if state.get("last_whats_new") != WHATS_NEW_ID:
+            # Ask the user if they'd like to view details, then record as shown
+            self.root.after(100, lambda: self._do_prompt_whats_new(state))
+
+    def _do_prompt_whats_new(self, state: dict):
+        try:
+            if messagebox.askyesno(
+                "What’s New",
+                (
+                    "We’ve improved verse selection cards: centered layout, equal column widths, "
+                    "and radios no longer overlap text. View details now?"
+                ),
+            ):
+                self.show_whats_new()
+        finally:
+            try:
+                state["last_whats_new"] = WHATS_NEW_ID
+                self._save_state(state)
+            except Exception:
+                pass
 
         header = tk.Label(
             win,
