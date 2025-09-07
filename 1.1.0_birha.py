@@ -696,7 +696,7 @@ class GrammarApp:
         state = self._load_state()
         if state.get("last_whats_new") != WHATS_NEW_ID:
             # Ask the user if they'd like to view details, then record as shown
-            self.root.after(100, lambda: self._do_prompt_whats_new(state))
+            self.root.after(100, lambda: self._do_prompt_whats_new_fixed(state))
 
     def _do_prompt_whats_new(self, state: dict):
         try:
@@ -8290,3 +8290,21 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
     root.mainloop()
+    def _do_prompt_whats_new_fixed(self, state: dict):
+        """Prompt the user about recent UI changes with ASCII-safe quotes."""
+        try:
+            if messagebox.askyesno(
+                "What's New",
+                (
+                    "We've improved verse selection cards: centered layout, equal column widths, ",
+                    "and radios no longer overlap text. View details now?"
+                ),
+            ):
+                self.show_whats_new()
+        finally:
+            try:
+                state["last_whats_new"] = WHATS_NEW_ID
+                self._save_state(state)
+            except Exception:
+                pass
+        return
