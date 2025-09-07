@@ -1263,6 +1263,14 @@ class GrammarApp:
             font=("Arial", 10),
             command=self._on_strict_toggle
         ).pack(side=tk.LEFT, padx=(10, 0))
+        # Why didn't this match? diagnostics
+        tk.Button(
+            status_row,
+            text="Why?",
+            font=("Arial", 10),
+            bg='#666666', fg='white',
+            command=self._show_translation_match_diagnostics
+        ).pack(side=tk.LEFT, padx=(6, 0))
         tk.Button(
             status_row,
             text="Refresh from data files",
@@ -1416,6 +1424,86 @@ class GrammarApp:
     def _on_strict_toggle(self):
         # Re-attempt population whenever strictness is toggled
         self._refresh_translation_from_data()
+
+    def _gather_translation_diagnostics(self, top_n=10):
+        try:
+            _load_arth_sources_once(self)
+            if not getattr(self, '_arth_records', None):
+                return False, "No structured data loaded.", []
+            verse_text = getattr(self, 'selected_verse_text', '') or ''
+            meta = getattr(self, 'selected_verse_meta', {}) or {}
+            target_page = _parse_page_value(meta.get('Page Number'))
+            key = _normalize_verse_key(verse_text)
+            rows = []
+            for rec in self._arth_records:
+                rec_key = rec.get('norm_excel_key') or ''
+                score = fuzz.token_sort_ratio(key, rec_key)
+                page_ok = (target_page is not None and rec.get('norm_page') == target_page)
+                # small preference boost for page match
+                disp_score = score + (5 if page_ok else 0)
+                preview = str(rec.get('verse') or rec.get('excel_verses') or '')
+                preview = preview.replace('\n', ' ').strip()
+                if len(preview) > 140:
+                    preview = preview[:137] + '...'
+                rows.append({
+                    'score': disp_score,
+                    'raw_score': score,
+                    'page': rec.get('norm_page'),
+                    'page_match': bool(page_ok),
+                    'source': rec.get('source'),
+                    'preview': preview,
+                })
+            rows.sort(key=lambda r: r['score'], reverse=True)
+            return True, f"Target page={target_page or 'NA'}", rows[:top_n]
+        except Exception as e:
+            return False, f"Error: {e}", []
+
+    def _show_translation_match_diagnostics(self):
+        ok, info, rows = self._gather_translation_diagnostics(top_n=12)
+        win = tk.Toplevel(self.root)
+        win.title("Translation Match Diagnostics")
+        win.configure(bg='light gray')
+        tk.Label(
+            win,
+            text=f"Diagnostics — {info}",
+            font=("Arial", 12, "bold"),
+            bg='dark slate gray', fg='white', pady=6
+        ).pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+
+        txt = scrolledtext.ScrolledText(body, wrap=tk.WORD, font=("Consolas", 11), height=12)
+        txt.pack(fill=tk.BOTH, expand=True)
+
+        lines = []
+        if not ok:
+            lines.append(info)
+        else:
+            # Target info
+            verse_text = getattr(self, 'selected_verse_text', '') or ''
+            meta = getattr(self, 'selected_verse_meta', {}) or {}
+            target_page = _parse_page_value(meta.get('Page Number'))
+            lines.append(f"Target verse: {verse_text}")
+            lines.append(f"Target page: {target_page or 'NA'}")
+            lines.append("")
+            lines.append("Top candidates:")
+            for i, r in enumerate(rows, 1):
+                pm = '✓' if r['page_match'] else ' '
+                src = r.get('source') or 'unknown'
+                lines.append(f"{i:2}. score={int(r['score'])} (raw={int(r['raw_score'])}) page={r['page'] or 'NA'}{('*' if r['page_match'] else '')} src={src}")
+                lines.append(f"    {r['preview']}")
+        txt.insert('1.0', "\n".join(lines))
+        txt.config(state=tk.DISABLED)
+
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(fill=tk.X, padx=12, pady=(6, 10))
+        def copy_diag():
+            self.root.clipboard_clear()
+            self.root.clipboard_append("\n".join(lines))
+            messagebox.showinfo("Copied", "Diagnostics copied to clipboard.")
+        tk.Button(btns, text="Copy", command=copy_diag, bg="#007acc", fg="white", font=("Arial", 10, "bold"), padx=10, pady=4).pack(side=tk.LEFT)
+        tk.Button(btns, text="Close", command=win.destroy, bg="gray", fg="white", font=("Arial", 10, "bold"), padx=10, pady=4).pack(side=tk.RIGHT)
 
     def proceed_to_word_assessment(self, idx):
         # grab the metadata dict from the last search
