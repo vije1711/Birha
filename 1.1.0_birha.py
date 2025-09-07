@@ -6567,8 +6567,13 @@ class GrammarApp:
         cards_window = canvas.create_window((0, 0), window=cards_frame, anchor="n")
 
         # two equal-width columns
-        cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
-        cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
+        # Enforce equal column widths using a uniform group
+        try:
+            cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
+            cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
+        except Exception:
+            cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
+            cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
 
         def _on_cards_configure(event):
             canvas.configure(scrollregion=canvas.bbox("all"))
@@ -6639,7 +6644,7 @@ class GrammarApp:
                 wraplength=500,
                 justify="center",
                 bg="white"
-            ).pack(pady=(14,4))
+            ).pack(pady=(14,4), padx=(28,8))
 
             # Radio button at top-left for selection (placed after verse to ensure on top)
             rb = tk.Radiobutton(
