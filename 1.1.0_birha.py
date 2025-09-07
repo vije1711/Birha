@@ -723,7 +723,8 @@ class GrammarApp:
             )
             # If odd number of cards and this is the last one, span both columns for visual centering
             if (total_cards % 2 == 1) and (idx == total_cards - 1):
-                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+                # Do not stretch the final full-width card; keep it centered with natural width
+                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="n")
             else:
                 card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
