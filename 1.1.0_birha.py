@@ -593,6 +593,72 @@ class GrammarApp:
         except Exception:
             pass
 
+        header = tk.Label(
+            win,
+            text="What's New",
+            font=('Arial', 16, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=8
+        )
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+
+        tk.Label(
+            body,
+            text=(
+                "Recent UI improvements: two-column card parity in matches view, "
+                "centered layout, equal column widths, radios never overlap text, and a centered final "
+                "card without stretching when there's an odd number of results."
+            ),
+            font=('Arial', 12),
+            bg='light gray',
+            wraplength=800,
+            justify='left'
+        ).pack(anchor='w', pady=(0, 10))
+
+        links = tk.Frame(body, bg='light gray')
+        links.pack(anchor='w', pady=(0, 8))
+
+        def link(label_parent, text, url):
+            lbl = tk.Label(
+                label_parent,
+                text=text,
+                font=('Arial', 12, 'underline'),
+                fg='blue',
+                bg='light gray',
+                cursor='hand2'
+            )
+            lbl.pack(anchor='w', pady=2)
+            lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
+
+        link(links, f"View UI tag: {WHATS_NEW_ID}",
+             f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
+        link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
+
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(fill=tk.X, padx=20, pady=(0, 16))
+        tk.Button(
+            btns,
+            text='Close',
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=16, pady=6,
+            command=win.destroy
+        ).pack(side=tk.RIGHT)
+
+        # Center over root
+        win.update_idletasks()
+        try:
+            w, h = win.winfo_width(), win.winfo_height()
+            x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
+            y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
+            win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
+
     # ---------------------------
     # One-time "What's New" helpers
     # ---------------------------
@@ -648,6 +714,7 @@ class GrammarApp:
                 self._save_state(state)
             except Exception:
                 pass
+        return
 
         header = tk.Label(
             win,
