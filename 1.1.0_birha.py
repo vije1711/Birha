@@ -6539,87 +6539,119 @@ class GrammarApp:
         )
         header_label.pack(fill=tk.X)
 
-        # 7) Scrollable frame for radio buttons
-        frame = tk.Frame(self.sggs_option_window, bg='light gray')
-        frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        # 7) Scrollable 2-column cards layout (visual parity with _populate_cards)
+        middle = tk.Frame(self.sggs_option_window, bg='light gray')
+        middle.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
-        canvas = tk.Canvas(frame, bg='light gray', borderwidth=0)
-        vsb = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        scroll_frame = tk.Frame(canvas, bg='light gray')
-
+        canvas = tk.Canvas(middle, bg='light gray', highlightthickness=0)
+        vsb    = tk.Scrollbar(middle, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=vsb.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
 
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        cards_frame = tk.Frame(canvas, bg='light gray')
+        cards_window = canvas.create_window((0, 0), window=cards_frame, anchor="n")
 
-        # 8) Populate the scroll_frame with radio buttons
+        # two equal-width columns
+        cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
+        cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
+
+        def _on_cards_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        cards_frame.bind("<Configure>", _on_cards_configure)
+
+        def _on_canvas_resize(event):
+            canvas.coords(cards_window, event.width // 2, 0)
+        canvas.bind("<Configure>", _on_canvas_resize)
+
+        # 8) Populate cards mirroring _populate_cards, but keep selection via radio buttons
         for idx, match in enumerate(candidate_matches):
-            # We now expect match to be a dict. But if there's a chance
-            # it might be something else, you can still do an isinstance check:
+            # Normalize match into a dict-like mapping
             if isinstance(match, dict):
-                # Get the score value
-                raw_score = match.get('Score', '?')
-                # Attempt to convert it to float and format with 2 decimals
-                try:
-                    score_float = float(raw_score)
-                    score_str = f"{score_float:.2f}"
-                except ValueError:
-                    # If it's not a valid float (e.g. '?'), just show it as is
-                    score_str = str(raw_score)
-                verse = match.get('Verse', '')
-                raag = match.get('Raag (Fixed)', '')
-                writer = match.get('Writer (Fixed)', '')
-                bani = match.get('Bani Name', '')
-                page = match.get('Page Number', '')
+                m = match
             else:
-                # Fallback if it's not a dict, adjust indices to your structure
-                score = match[7] if len(match) > 7 else '?'
-                verse = match[1] if len(match) > 1 else ''
-                raag = match[2] if len(match) > 2 else ''
-                writer = match[3] if len(match) > 3 else ''
-                bani = match[4] if len(match) > 4 else ''
-                page = match[5] if len(match) > 5 else ''
+                # Fallback mapping for list/tuple structures (preserve prior behavior)
+                score_val = match[7] if len(match) > 7 else '?'
+                verse_val = match[1] if len(match) > 1 else ''
+                raag_val  = match[2] if len(match) > 2 else ''
+                writer_val= match[3] if len(match) > 3 else ''
+                bani_val  = match[4] if len(match) > 4 else ''
+                page_val  = match[5] if len(match) > 5 else ''
+                m = {
+                    'Score': score_val,
+                    'Verse': verse_val,
+                    'Raag (Fixed)': raag_val,
+                    'Writer (Fixed)': writer_val,
+                    'Bani Name': bani_val,
+                    'Page Number': page_val,
+                }
 
-            # Convert them to strings and handle 'nan' or empty strings
-            def clean_value(val):
-                if not val or str(val).lower() == 'nan':
-                    return ''
-                return str(val)
-
-            raag = clean_value(raag)
-            writer = clean_value(writer)
-            bani = clean_value(bani)
-            page = clean_value(page)
-
-            # Build the info line with only non-empty fields
-            info_parts = []
-            if raag:
-                info_parts.append(f"Raag: {raag}")
-            if writer:
-                info_parts.append(f"Writer: {writer}")
-            if bani:
-                info_parts.append(f"Bani: {bani}")
-            if page:
-                info_parts.append(f"Page: {page}")
-            info_line = " | ".join(info_parts)
-
-            # Build the label text
-            label_text = f"Match #{idx+1} - Score: {score_str}%\nVerse: {verse}"
-            if info_line:
-                label_text += f"\n{info_line}"
-
-            rb = tk.Radiobutton(
-                scroll_frame, text=label_text,
-                variable=self.sggs_option_var, value=idx,
-                bg='light gray', anchor='w', justify=tk.LEFT,
-                wraplength=800,  # adjust as needed
-                font=('Arial', 12), selectcolor='light blue'
+            # Build each card
+            row, col = divmod(idx, 2)
+            card = tk.Frame(
+                cards_frame,
+                bd=1,
+                relief="solid",
+                bg="white",
+                padx=8,
+                pady=8
             )
-            rb.pack(fill=tk.X, padx=10, pady=5)
+            card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
-        scroll_frame.update_idletasks()
-        canvas.config(scrollregion=canvas.bbox("all"))
+            # Radio button at top-left for selection
+            rb = tk.Radiobutton(
+                card,
+                variable=self.sggs_option_var,
+                value=idx,
+                bg="white",
+                activebackground="white",
+                selectcolor='light blue'
+            )
+            rb.place(x=4, y=4)
+
+            # Verse label
+            tk.Label(
+                card,
+                text=str(m.get("Verse", "")).strip(),
+                font=("Arial", 14, "bold"),
+                wraplength=500,
+                justify="center",
+                bg="white"
+            ).pack(pady=(8,4))
+
+            # Metadata line (Raag, Writer, Bani, Page) + Match%
+            fields = [
+                ("Raag",   "Raag (Fixed)"),
+                ("Writer", "Writer (Fixed)"),
+                ("Bani",   "Bani Name"),
+                ("Page",   "Page Number"),
+            ]
+            meta_parts = []
+            for label, key in fields:
+                v = m.get(key)
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    continue
+                if str(v).lower() == 'nan':
+                    continue
+                meta_parts.append(f"{label}: {v}")
+
+            # score formatting
+            try:
+                score_val = float(m.get('Score', 0))
+            except Exception:
+                score_val = 0.0
+            meta_parts.append(f"Match: {score_val:.1f}%")
+
+            tk.Label(
+                card,
+                text="   |   ".join(meta_parts),
+                font=("Arial", 12),
+                bg="white"
+            ).pack()
+
+        # Ensure scrollregion correct
+        cards_frame.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
         # 9) Buttons
         btn_frame = tk.Frame(self.sggs_option_window, bg='light gray')
