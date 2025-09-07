@@ -6561,8 +6561,22 @@ class GrammarApp:
         cards_frame.bind("<Configure>", _on_cards_configure)
 
         def _on_canvas_resize(event):
+            # Keep the cards frame horizontally centered within the visible canvas
             canvas.coords(cards_window, event.width // 2, 0)
+            # Optionally make the window at least as wide as the canvas to avoid left-hugging
+            try:
+                canvas.itemconfigure(cards_window, width=event.width)
+            except Exception:
+                pass
         canvas.bind("<Configure>", _on_canvas_resize)
+
+        # Ensure initial centering after first layout
+        canvas.update_idletasks()
+        try:
+            canvas.coords(cards_window, canvas.winfo_width() // 2, 0)
+            canvas.itemconfigure(cards_window, width=canvas.winfo_width())
+        except Exception:
+            pass
 
         # 8) Populate cards mirroring _populate_cards, but keep selection via radio buttons
         for idx, match in enumerate(candidate_matches):
@@ -6598,17 +6612,6 @@ class GrammarApp:
             )
             card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
-            # Radio button at top-left for selection
-            rb = tk.Radiobutton(
-                card,
-                variable=self.sggs_option_var,
-                value=idx,
-                bg="white",
-                activebackground="white",
-                selectcolor='light blue'
-            )
-            rb.place(x=4, y=4)
-
             # Verse label
             tk.Label(
                 card,
@@ -6617,7 +6620,22 @@ class GrammarApp:
                 wraplength=500,
                 justify="center",
                 bg="white"
-            ).pack(pady=(8,4))
+            ).pack(pady=(14,4))
+
+            # Radio button at top-left for selection (placed after verse to ensure on top)
+            rb = tk.Radiobutton(
+                card,
+                variable=self.sggs_option_var,
+                value=idx,
+                bg="white",
+                activebackground="white",
+                selectcolor='light blue'
+            )
+            rb.place(x=6, y=6)
+            try:
+                rb.lift()
+            except Exception:
+                pass
 
             # Metadata line (Raag, Writer, Bani, Page) + Match%
             fields = [
