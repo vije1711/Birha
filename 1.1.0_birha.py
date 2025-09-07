@@ -115,13 +115,30 @@ def _normalize_record(rec: dict) -> dict:
         'pages': keys.get('pages') if 'pages' in keys else keys.get('page'),
     }
     ex = out.get('excel_verses') or out.get('verse') or ''
+    norm_parts = []
+    norm_key_parts = []
     if isinstance(ex, (list, tuple)):
+        parts = []
+        for part in ex:
+            try:
+                part_str = str(part)
+            except Exception:
+                continue
+            norm_parts.append(_normalize_simple(part_str))
+            norm_key_parts.append(_normalize_verse_key(part_str))
+            parts.append(part_str)
+        ex = " ".join(parts)
+    else:
         try:
-            ex = " ".join(map(str, ex))
+            part_str = str(ex)
         except Exception:
-            ex = str(ex)
+            part_str = ""
+        norm_parts.append(_normalize_simple(part_str))
+        norm_key_parts.append(_normalize_verse_key(part_str))
     out['norm_excel'] = _normalize_simple(ex)
     out['norm_excel_key'] = _normalize_verse_key(ex)
+    out['norm_excel_parts'] = norm_parts
+    out['norm_excel_key_parts'] = norm_key_parts
     out['norm_page'] = _parse_page_value(out.get('pages'))
     return out
 
@@ -176,20 +193,34 @@ def _find_arth_for(self, verse_text: str, page_num):
     target_page = _parse_page_value(page_num)
     # Pass 1: strict match on normalized text or key + page
     for rec in self._arth_records:
-        if rec.get('norm_excel') == target_norm_verse or rec.get('norm_excel_key') == target_norm_key:
+        parts = rec.get('norm_excel_parts', [])
+        key_parts = rec.get('norm_excel_key_parts', [])
+        if (
+            target_norm_verse == rec.get('norm_excel')
+            or target_norm_verse in parts
+            or target_norm_key == rec.get('norm_excel_key')
+            or target_norm_key in key_parts
+        ):
             if target_page is None or rec.get('norm_page') == target_page:
                 return rec
     # Pass 2: verse-only strict match
     for rec in self._arth_records:
-        if rec.get('norm_excel') == target_norm_verse or rec.get('norm_excel_key') == target_norm_key:
+        parts = rec.get('norm_excel_parts', [])
+        key_parts = rec.get('norm_excel_key_parts', [])
+        if (
+            target_norm_verse == rec.get('norm_excel')
+            or target_norm_verse in parts
+            or target_norm_key == rec.get('norm_excel_key')
+            or target_norm_key in key_parts
+        ):
             return rec
     # Pass 3: fuzzy match on verse key (prefer page matches)
     try:
         best = None
         best_score = 0
         for rec in self._arth_records:
-            key = rec.get('norm_excel_key') or ''
-            score = fuzz.token_sort_ratio(target_norm_key, key)
+            keys = rec.get('norm_excel_key_parts', []) + [rec.get('norm_excel_key') or '']
+            score = max((fuzz.partial_ratio(target_norm_key, k) for k in keys), default=0)
             if target_page is not None and rec.get('norm_page') == target_page:
                 score += 5
             if score > best_score:
@@ -1253,10 +1284,8 @@ class GrammarApp:
         ).pack(side=tk.RIGHT)
 
         # Try to auto-populate translation from structured sources
-        filled = self._populate_translation_from_structured()
-        self._translation_status_var.set(
-            "Auto-filled from structured data" if filled else "Manual input"
-        )
+        filled, status = self._populate_translation_from_structured()
+        self._translation_status_var.set(status)
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
@@ -1343,15 +1372,17 @@ class GrammarApp:
             padx=15, pady=8
         ).pack(side=tk.RIGHT)
 
-    def _populate_translation_from_structured(self) -> bool:
-        """Attempt to fill the translation Text from structured JSON/CSV. Returns True if filled."""
+    def _populate_translation_from_structured(self):
+        """Attempt to fill the translation Text from structured JSON/CSV.
+        Returns ``(filled, status_message)``.
+        """
         try:
             meta = getattr(self, 'selected_verse_meta', {}) or {}
             verse_text = self.selected_verse_text if hasattr(self, 'selected_verse_text') else ''
             page_num = meta.get('Page Number')
             record = _find_arth_for(self, verse_text, page_num)
             if not record:
-                return False
+                return False, "Manual input"
             parts = []
             v = record.get('verse') or record.get('Verse') or ''
             if v:
@@ -1369,20 +1400,18 @@ class GrammarApp:
             if bh:
                 parts.append("Bhav:\n" + str(bh).strip())
             if not parts:
-                return False
+                return False, "Manual input"
             self._translation_text.delete('1.0', tk.END)
             self._translation_text.insert('1.0', "\n\n".join(parts) + "\n")
-            return True
+            return True, "Auto-filled from structured data"
         except Exception:
-            return False
+            return False, "Manual input"
 
     def _refresh_translation_from_data(self):
         """Handler for the Refresh button to try loading from data files again."""
-        filled = self._populate_translation_from_structured()
+        filled, status = self._populate_translation_from_structured()
         if hasattr(self, '_translation_status_var'):
-            self._translation_status_var.set(
-                "Auto-filled from structured data" if filled else "No structured data match found"
-            )
+            self._translation_status_var.set(status if filled else "No structured data match found")
 
     def proceed_to_word_assessment(self, idx):
         # grab the metadata dict from the last search
