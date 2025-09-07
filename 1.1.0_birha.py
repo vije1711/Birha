@@ -699,6 +699,15 @@ class GrammarApp:
         for w in self._cards_frame.winfo_children():
             w.destroy()
 
+        # Ensure equal column widths using a uniform group to avoid asymmetry
+        try:
+            self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
+            self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
+        except Exception:
+            # Fallback in case uniform isn't supported, keep prior settings
+            self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
+            self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
+
         # 1) run search & filter
         query = self._verse_var.get().strip()
         headers, all_matches = self.match_sggs_verse(query)
@@ -736,7 +745,7 @@ class GrammarApp:
                 wraplength=500,
                 justify="center",
                 bg="white"
-            ).pack(pady=(14,4))
+            ).pack(pady=(14,4), padx=(28,8))
 
             # a little radiobutton at top-left for selection (created after the label and raised)
             rb = tk.Radiobutton(
