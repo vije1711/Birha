@@ -76,6 +76,23 @@ class TestAppendOrOverwrite(unittest.TestCase):
             roots = sorted([row.get("Word Root") for row in rows])
             self.assertEqual(roots, ["root1", "root2"])
 
+            # Append with same vowel but new Reference Verse
+            new3 = dict(base)
+            new3["Reference Verse"] = "verse y"
+            new3["Word Root"] = "root3"
+            self.inst._append_birha_csv_row(new3, path)
+
+            with open(path, "r", encoding="utf-8-sig", newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            self.assertEqual(len(rows), 3)
+            refs_for_vowel = sorted(
+                r.get("Reference Verse")
+                for r in rows
+                if r.get("\ufeffVowel Ending", r.get("Vowel Ending", "")) == "abc"
+            )
+            self.assertEqual(refs_for_vowel, ["verse x", "verse y"])
+
 
 if __name__ == "__main__":
     unittest.main()

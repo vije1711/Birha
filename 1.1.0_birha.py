@@ -3869,6 +3869,7 @@ class GrammarApp:
         # Overwrite vs append behavior based on composite key (Vowel Ending + Reference Verse)
         key_vowel = row.get('\ufeffVowel Ending', '')
         key_ref   = row.get('Reference Verse', '')
+        composite_key = (key_vowel, key_ref)
 
         file_exists = os.path.exists(path)
         file_empty = False
@@ -3890,9 +3891,11 @@ class GrammarApp:
         # Find a matching row by keys
         match_idx = None
         for i, r in enumerate(existing_rows):
-            rv = r.get('Reference Verse', '')
-            vv = r.get('\ufeffVowel Ending', r.get('Vowel Ending', ''))
-            if vv == key_vowel and rv == key_ref:
+            existing_key = (
+                r.get('\ufeffVowel Ending', r.get('Vowel Ending', '')),
+                r.get('Reference Verse', '')
+            )
+            if existing_key == composite_key:
                 match_idx = i
                 break
 
