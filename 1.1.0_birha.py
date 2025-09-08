@@ -60,6 +60,69 @@ def _compute_whats_new_id():
                     return tag
     except Exception:
         pass
+
+
+def extract_darpan_meaning_from_translation(text: str) -> str:
+    """Extract a combined Darpan Meaning string from a labeled translation blob.
+
+    Expects labeled sections with exact labels at line starts:
+    Verse:, Padarth:, Arth:, Chhand:, Bhav:
+
+    - Discard Verse and Padarth entirely
+    - Concatenate Arth, Chhand, Bhav (in that order if present)
+    - Preserve intra-block line breaks; collapse excessive whitespace
+    - Return empty string if none present
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+
+    # Normalize newlines
+    s = text.replace('\r\n', '\n').replace('\r', '\n')
+    # Find labeled blocks
+    label_re = re.compile(r'^(Verse|Padarth|Arth|Chhand|Bhav):\s*$', re.MULTILINE)
+    matches = list(label_re.finditer(s))
+    blocks = {}
+    if matches:
+        for i, m in enumerate(matches):
+            label = m.group(1)
+            start = m.end()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(s)
+            content = s[start:end]
+            blocks[label] = content
+    else:
+        # No labeled headers; nothing to extract per spec
+        return ""
+
+    def clean_block(txt: str) -> str:
+        # Trim leading/trailing blank lines, strip trailing spaces per line
+        lines = [ln.rstrip() for ln in (txt or "").split('\n')]
+        # Drop leading/trailing empty lines
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if not lines:
+            return ""
+        # Collapse runs of more than one empty line into a single empty line
+        collapsed = []
+        empty_run = 0
+        for ln in lines:
+            if ln.strip():
+                empty_run = 0
+                # Collapse excessive internal whitespace to single spaces (but preserve Gurmukhi script marks)
+                collapsed.append(re.sub(r"[\t\x20\u00A0]+", " ", ln).strip())
+            else:
+                empty_run += 1
+                if empty_run == 1:
+                    collapsed.append("")
+        return "\n".join(collapsed)
+
+    parts = []
+    for key in ("Arth", "Chhand", "Bhav"):
+        val = clean_block(blocks.get(key, ""))
+        if val:
+            parts.append(val)
+    return "\n\n".join(parts)
     return "ui-2025-09-07-cards-layout"
 
 WHATS_NEW_ID = _compute_whats_new_id()
@@ -2229,11 +2292,8 @@ class GrammarApp:
         verse       = self.selected_verse_text
         translation = self.current_translation
 
-        # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
-        meanings = next(
-            (e["meanings"] for e in self.grammar_meanings if e["word"] == word),
-            []
-        )
+        # 3) Build Darpan Meaning from the structured translation content (Arth/Chhand/Bhav only)
+        dm_from_translation = extract_darpan_meaning_from_translation(self.current_translation or "")
 
         # 4) Build the initial "detailed" entry dict:
         entry = {
@@ -2246,7 +2306,7 @@ class GrammarApp:
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
             "Darpan Translation":  translation,
-            "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
+            "Darpan Meaning":      dm_from_translation,
             "ChatGPT Commentary":  ""    # to be pasted later
         }
 
