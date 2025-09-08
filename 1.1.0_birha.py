@@ -8,6 +8,7 @@ import math
 import unicodedata
 import pyperclip
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk
 import threading
 from rapidfuzz import fuzz
@@ -1323,54 +1324,78 @@ class GrammarApp:
     def show_translation_input(self):
         win = tk.Toplevel(self.root)
         win.title("Paste Darpan Translation")
-        win.configure(bg='light gray')
+        win.configure(bg='#f9f9f9')
         # bump default size up so buttons are always visible
         win.state("zoomed")
         win.transient(self.root)
         win.grab_set()
 
-        # — Heading —
+        # Preferred UI font (Nirmala UI on Windows for Gurmukhi, else Arial)
+        try:
+            if not hasattr(self, '_ui_font_family'):
+                families = set(tkfont.families())
+                self._ui_font_family = "Nirmala UI" if "Nirmala UI" in families else "Arial"
+        except Exception:
+            # Fallback gracefully if font families query fails
+            if not hasattr(self, '_ui_font_family'):
+                self._ui_font_family = "Arial"
+
+        # - Heading -
         tk.Label(
             win,
             text=self.selected_verse_text,
-            font=("Arial", 20, "bold"),
-            bg="light gray",
+            font=(self._ui_font_family, 20, "bold"),
+            bg="#f9f9f9",
             wraplength=900,
             justify="center",
             pady=10
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
-        # — Translation area —
+        # - Translation area -
         tf = tk.LabelFrame(
             win,
             text="Established Darpan Translation",
-            font=("Arial", 14, "bold"),
-            bg='light gray',
+            font=(self._ui_font_family, 14, "bold"),
+            bg='#f9f9f9',
             fg='black',
-            padx=10, pady=10
+            padx=15, pady=15,
+            bd=1, relief=tk.GROOVE
         )
-        tf.pack(fill=tk.BOTH, expand=False, padx=20, pady=(0,15))
+        tf.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0,15))
 
+        # Translation Text + Scrollbar
+        scroll_y = tk.Scrollbar(tf, orient="vertical")
         self._translation_text = tk.Text(
-            tf, wrap=tk.WORD, font=("Arial", 13),
-            height=8, padx=5, pady=5
+            tf,
+            wrap=tk.WORD,
+            font=(self._ui_font_family, 13),
+            height=14,
+            padx=8,
+            pady=8,
+            bg="white",
+            highlightthickness=1,
+            highlightbackground="#e0e0e0"
         )
-        self._translation_text.pack(fill=tk.BOTH, expand=False)
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Status + Refresh row under the translation box
-        status_row = tk.Frame(tf, bg='light gray')
+        status_row = tk.Frame(tf, bg='#f9f9f9')
         status_row.pack(fill=tk.X, pady=(6, 0))
         self._translation_status_var = tk.StringVar(value="")
-        tk.Label(
+        self._translation_status_label = tk.Label(
             status_row,
             textvariable=self._translation_status_var,
-            font=("Arial", 10, "italic"),
-            bg='light gray', fg='#333333'
-        ).pack(side=tk.LEFT)
+            font=(self._ui_font_family, 10, "italic"),
+            bg='#f9f9f9', fg='#333333'
+        )
+        self._translation_status_label.pack(side=tk.LEFT)
         tk.Button(
             status_row,
             text="Refresh from data files",
-            font=("Arial", 10),
+            font=(self._ui_font_family, 10),
             bg='gray', fg='white',
             command=self._refresh_translation_from_data
         ).pack(side=tk.RIGHT)
@@ -1378,13 +1403,24 @@ class GrammarApp:
         # Try to auto-populate translation from structured sources
         filled, status = self._populate_translation_from_structured()
         self._translation_status_var.set(status)
+        # Update status color and style based on source
+        try:
+            self._update_translation_status_style(filled, status)
+        except Exception:
+            pass
+        # Apply heading formatting if we auto-filled content
+        if filled:
+            try:
+                self._apply_translation_text_formatting()
+            except Exception:
+                pass
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
             win,
             text="Select Words to Assess Grammar",
-            font=("Arial", 14, "bold"),
-            bg='light gray',
+            font=(self._ui_font_family, 14, "bold"),
+            bg='#f9f9f9',
             fg='black',
             padx=10, pady=10
         )
@@ -1396,15 +1432,15 @@ class GrammarApp:
             wf,
             text="Select/Deselect All Words",
             variable=self._select_all_words_var,
-            bg="light gray",
-            font=("Arial", 12, "italic"),
+            bg="#f9f9f9",
+            font=(self._ui_font_family, 12, "italic"),
             command=self._toggle_all_word_selection
         ).pack(anchor="w", pady=(0,10))
 
         # scrollable word grid
-        canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
+        canvas = tk.Canvas(wf, bg='#f9f9f9', highlightthickness=0)
         scrollbar = tk.Scrollbar(wf, orient="vertical", command=canvas.yview)
-        word_frame = tk.Frame(canvas, bg='light gray')
+        word_frame = tk.Frame(canvas, bg='#f9f9f9')
         canvas.configure(yscrollcommand=scrollbar.set)
 
         scrollbar.pack(side="right", fill="y")
@@ -1504,6 +1540,56 @@ class GrammarApp:
         filled, status = self._populate_translation_from_structured()
         if hasattr(self, '_translation_status_var'):
             self._translation_status_var.set(status if filled else "No structured data match found")
+        try:
+            self._update_translation_status_style(filled, status if filled else "No structured data match found")
+            if filled:
+                self._apply_translation_text_formatting()
+        except Exception:
+            pass
+
+    def _apply_translation_text_formatting(self):
+        """Apply heading styling to Verse/Padarth/Arth/etc. inside the translation Text widget."""
+        if not hasattr(self, '_translation_text'):
+            return
+        try:
+            # Configure tags
+            self._translation_text.tag_configure('heading', font=(self._ui_font_family, 13, 'bold'))
+            # Optional: mild extra spacing between blocks
+            self._translation_text.tag_configure('block', spacing1=3, spacing3=3)
+            self._translation_text.tag_add('block', '1.0', 'end-1c')
+
+            headings = ["Verse", "Padarth", "Arth", "Chhand", "Bhav"]
+            for h in headings:
+                idx = '1.0'
+                needle = f"{h}:"
+                while True:
+                    idx = self._translation_text.search(needle, idx, stopindex='end')
+                    if not idx:
+                        break
+                    end = f"{idx}+{len(needle)}c"
+                    self._translation_text.tag_add('heading', idx, end)
+                    idx = end
+        except Exception:
+            # Formatting is non-critical
+            pass
+
+    def _update_translation_status_style(self, filled: bool, status_text: str):
+        """Set status label color and style based on whether content was auto-filled or manual."""
+        if not hasattr(self, '_translation_status_label'):
+            return
+        try:
+            if filled and 'Auto-filled' in (status_text or ''):
+                # Success: green italics
+                self._translation_status_label.configure(
+                    fg='#2e7d32', font=(self._ui_font_family, 10, 'italic')
+                )
+            else:
+                # Manual/Not found: orange italics
+                self._translation_status_label.configure(
+                    fg='#ff8f00', font=(self._ui_font_family, 10, 'italic')
+                )
+        except Exception:
+            pass
 
     def proceed_to_word_assessment(self, idx):
         # grab the metadata dict from the last search
