@@ -64,6 +64,67 @@ def _compute_whats_new_id():
 
 WHATS_NEW_ID = _compute_whats_new_id()
 
+def extract_darpan_translation(text: str) -> str:
+    """Extract the Darpan Translation content from a labeled text.
+
+    Rules:
+    - Recognize exact labels at start of a line: "Verse:", "Padarth:", "Arth:", "Chhand:", "Bhav:".
+    - Discard Verse and Padarth blocks entirely.
+    - Concatenate remaining blocks in the order: Arth, Chhand, Bhav (if present).
+    - Preserve line breaks but collapse excessive in-line whitespace (spaces/tabs).
+    - If none of Arth/Chhand/Bhav are found, return the original text unchanged.
+
+    This function is pure and has no side effects.
+    """
+    try:
+        original = "" if text is None else str(text)
+    except Exception:
+        original = ""
+
+    labels = ("Verse", "Padarth", "Arth", "Chhand", "Bhav")
+    label_re = re.compile(r"^(Verse|Padarth|Arth|Chhand|Bhav):\s*$")
+    blocks = {k: [] for k in labels}
+    current = None
+
+    for raw_line in original.splitlines():
+        m = label_re.match(raw_line.strip())
+        if m:
+            current = m.group(1)
+            continue
+        if current is not None:
+            blocks[current].append(raw_line)
+
+    def _clean_join(lines):
+        cleaned_lines = []
+        for ln in lines:
+            s = ln.strip()
+            if s == "":
+                cleaned_lines.append("")
+            else:
+                s = re.sub(r"[ \t]+", " ", s)
+                cleaned_lines.append(s)
+        # Trim leading/trailing empties
+        first = 0
+        last = len(cleaned_lines) - 1
+        while first <= last and cleaned_lines[first] == "":
+            first += 1
+        while last >= first and cleaned_lines[last] == "":
+            last -= 1
+        if first > last:
+            return ""
+        return "\n".join(cleaned_lines[first:last + 1])
+
+    parts = []
+    for key in ("Arth", "Chhand", "Bhav"):
+        block_text = _clean_join(blocks.get(key, []))
+        if block_text:
+            parts.append(block_text)
+
+    if not parts:
+        return original
+
+    return "\n\n".join(parts)
+
 # Structured Darpan sources: JSON/CSV loader helpers
 def _normalize_simple(text: str) -> str:
     try:
@@ -2226,8 +2287,9 @@ class GrammarApp:
         pos    = self.pos_var.get()
 
         # 2) Gather verse + translation context:
-        verse       = self.selected_verse_text
-        translation = self.current_translation
+        verse            = self.selected_verse_text
+        raw_translation  = self.current_translation
+        translation      = extract_darpan_translation(raw_translation)
 
         # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
         meanings = next(
