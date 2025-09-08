@@ -1347,14 +1347,14 @@ class GrammarApp:
             font=("Arial", 14, "bold"),
             bg='light gray',
             fg='black',
-            padx=10, pady=10
+            padx=10, pady=5
         )
         # allow translation area to take the extra space
         tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
         self._translation_text = tk.Text(
             tf, wrap=tk.WORD, font=("Arial", 13),
-            height=8, padx=5, pady=5
+            height=8, padx=5, pady=10
         )
         # let the text box expand and keep the status row at the bottom
         self._translation_text.pack(fill=tk.BOTH, expand=True)
@@ -1385,6 +1385,28 @@ class GrammarApp:
         # Try to auto-populate translation from structured sources
         filled, status = self._populate_translation_from_structured()
         self._translation_status_var.set(status)
+
+        # Reduce the translation frame height by ~5% once to keep bottom buttons visible
+        def _reduce_tf_height_once():
+            try:
+                if getattr(self, '_tf_height_reduced_once', False):
+                    return
+                tf.update_idletasks()
+                curr = tf.winfo_height()
+                if curr <= 0:
+                    win.after(120, _reduce_tf_height_once)
+                    return
+                target = max(1, int(curr * 0.95))
+                try:
+                    tf.pack_propagate(False)
+                except Exception:
+                    pass
+                tf.configure(height=target)
+                self._tf_height_reduced_once = True
+            except Exception:
+                # If anything goes wrong, just skip the reduction
+                pass
+        win.after(150, _reduce_tf_height_once)
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
