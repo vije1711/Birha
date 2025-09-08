@@ -1384,21 +1384,28 @@ class GrammarApp:
         # Status + Refresh row under the translation box
         status_row = tk.Frame(tf, bg='#f9f9f9')
         status_row.pack(fill=tk.X, pady=(6, 0))
+        # Use grid to keep label on left and button on right consistently
+        status_row.columnconfigure(0, weight=1)
+        status_row.columnconfigure(1, weight=0)
+
         self._translation_status_var = tk.StringVar(value="")
         self._translation_status_label = tk.Label(
             status_row,
             textvariable=self._translation_status_var,
             font=(self._ui_font_family, 10, "italic"),
-            bg='#f9f9f9', fg='#333333'
+            bg='#f9f9f9', fg='#333333',
+            anchor='w'
         )
-        self._translation_status_label.pack(side=tk.LEFT)
-        tk.Button(
+        self._translation_status_label.grid(row=0, column=0, sticky='w', padx=(0, 8))
+
+        refresh_btn = tk.Button(
             status_row,
             text="Refresh from data files",
             font=(self._ui_font_family, 10),
             bg='gray', fg='white',
             command=self._refresh_translation_from_data
-        ).pack(side=tk.RIGHT)
+        )
+        refresh_btn.grid(row=0, column=1, sticky='e')
 
         # Try to auto-populate translation from structured sources
         filled, status = self._populate_translation_from_structured()
