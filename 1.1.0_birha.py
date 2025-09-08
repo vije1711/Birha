@@ -641,9 +641,65 @@ class GrammarApp:
         try:
             if hasattr(self, "literal_note_body") and self.literal_note_body and self.literal_note_body.winfo_exists():
                 self.literal_note_body.config(wraplength=self._banner_wraplength(self.match_window))
-        except Exception:
-            pass
+    except Exception:
+        pass
 
+
+def extract_translation_body(text: str) -> str:
+    """Extract combined Arth + Chhand + Bhav from a labeled translation string.
+
+    - Recognizes exact labels at line starts: Verse:, Padarth:, Arth:, Chhand:, Bhav:
+    - Excludes Verse and Padarth entirely
+    - Concatenates Arth, then Chhand, then Bhav if present
+    - Preserves single line breaks; collapses excess whitespace and repeated blank lines
+    - Returns empty string if none of the three sections are present
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+
+    s = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Match section headers at start of line
+    label_re = re.compile(r"^(Verse|Padarth|Arth|Chhand|Bhav):\s*$", re.MULTILINE)
+    matches = list(label_re.finditer(s))
+    if not matches:
+        return ""
+
+    # Slice blocks between headers
+    blocks: dict[str, str] = {}
+    for i, m in enumerate(matches):
+        label = m.group(1)
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(s)
+        blocks[label] = s[start:end]
+
+    def clean_block(txt: str) -> str:
+        lines = [ln.rstrip() for ln in (txt or "").split("\n")]
+        # Trim leading/trailing empties
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if not lines:
+            return ""
+        out: list[str] = []
+        empty_run = 0
+        for ln in lines:
+            if ln.strip():
+                empty_run = 0
+                # Collapse internal horizontal whitespace but keep visible spacing
+                out.append(re.sub(r"[\t\x20\u00A0]+", " ", ln).strip())
+            else:
+                empty_run += 1
+                if empty_run == 1:
+                    out.append("")
+        return "\n".join(out)
+
+    parts: list[str] = []
+    for key in ("Arth", "Chhand", "Bhav"):
+        val = clean_block(blocks.get(key, ""))
+        if val:
+            parts.append(val)
+    return "\n\n".join(parts)
     def _ensure_literal_banner(self, text: str):
         """Create/reuse and render the inline literal-analysis banner."""
         reuse_ok = (
@@ -2226,8 +2282,8 @@ class GrammarApp:
         pos    = self.pos_var.get()
 
         # 2) Gather verse + translation context:
-        verse       = self.selected_verse_text
-        translation = self.current_translation
+        verse              = self.selected_verse_text
+        translation_body   = extract_translation_body(self.current_translation or "")
 
         # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
         meanings = next(
@@ -2245,7 +2301,7 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
-            "Darpan Translation":  translation,
+            "Darpan Translation":  translation_body,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
             "ChatGPT Commentary":  ""    # to be pasted later
         }
