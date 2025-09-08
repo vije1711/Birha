@@ -3866,7 +3866,10 @@ class GrammarApp:
             if k in mapping:
                 row[mapping[k]] = v if v is not None else ""
 
-        # Ensure file exists with headers. Write BOM ONLY on first creation, then append with utf-8.
+        # Overwrite vs append behavior based on composite key (Vowel Ending + Reference Verse)
+        key_vowel = row.get('\ufeffVowel Ending', '')
+        key_ref   = row.get('Reference Verse', '')
+
         file_exists = os.path.exists(path)
         file_empty = False
         if file_exists:
@@ -3875,29 +3878,67 @@ class GrammarApp:
             except Exception:
                 file_empty = False
 
-        # Create file with BOM + header if missing or empty
-        if (not file_exists) or file_empty:
+        existing_rows = []
+        if file_exists and not file_empty:
+            try:
+                with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+                    reader = csv.DictReader(f)
+                    existing_rows = list(reader)
+            except Exception:
+                existing_rows = []
+
+        # Find a matching row by keys
+        match_idx = None
+        for i, r in enumerate(existing_rows):
+            rv = r.get('Reference Verse', '')
+            vv = r.get('\ufeffVowel Ending', r.get('Vowel Ending', ''))
+            if vv == key_vowel and rv == key_ref:
+                match_idx = i
+                break
+
+        if match_idx is not None:
+            # Replace the existing row and rewrite file to preserve structure
+            existing_rows[match_idx] = {h: row.get(h, '') for h in headers}
             with open(path, 'w', encoding='utf-8', newline='') as f:
                 try:
-                    # Write BOM explicitly once so first header retains BOM for compatibility
                     f.write('\ufeff')
                 except Exception:
                     pass
                 writer = csv.DictWriter(f, fieldnames=headers)
                 writer.writeheader()
+                for r in existing_rows:
+                    out = {h: '' for h in headers}
+                    for k, v in (r or {}).items():
+                        if k in out:
+                            out[k] = v
+                        elif k == 'Vowel Ending':
+                            out['\ufeffVowel Ending'] = v
+                    writer.writerow(out)
                 try:
                     f.flush(); os.fsync(f.fileno())
                 except Exception:
                     pass
-
-        # Append the row without BOM using plain UTF-8
-        with open(path, 'a', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=headers)
-            writer.writerow(row)
-            try:
-                f.flush(); os.fsync(f.fileno())
-            except Exception:
-                pass
+        else:
+            # Create file with header if missing, then append
+            if (not file_exists) or file_empty:
+                with open(path, 'w', encoding='utf-8', newline='') as f:
+                    try:
+                        f.write('\ufeff')
+                    except Exception:
+                        pass
+                    writer = csv.DictWriter(f, fieldnames=headers)
+                    writer.writeheader()
+                    try:
+                        f.flush(); os.fsync(f.fileno())
+                    except Exception:
+                        pass
+            with open(path, 'a', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writerow(row)
+                try:
+                    f.flush(); os.fsync(f.fileno())
+                except Exception:
+                    pass
 
 
 
