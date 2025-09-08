@@ -544,8 +544,10 @@ def build_noun_map(csv_path="1.1.1_birha.csv"):
     The loader also normalises stray spaces & typo-variants so look-ups never fail
     due to invisible characters.
     """
+    raw = pd.read_csv(csv_path)
+    raw.columns = raw.columns.str.replace("\ufeff", "").str.strip()
     df = (
-        pd.read_csv(csv_path)
+        raw
           .query("Type.str.startswith('Noun')", engine="python")
           .fillna("NA")
           .rename(columns={
