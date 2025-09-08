@@ -1333,17 +1333,28 @@ class GrammarApp:
         # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
         try:
             if not hasattr(self, '_gurmukhi_font_family'):
-                families = {f for f in tkfont.families()}
-                # Prefer Nirmala UI, then Raavi, then fall back to Arial
-                if 'Nirmala UI' in families:
-                    self._gurmukhi_font_family = 'Nirmala UI'
-                elif 'Raavi' in families:
-                    self._gurmukhi_font_family = 'Raavi'
-                else:
-                    self._gurmukhi_font_family = 'Arial'
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    # fall back to Tk's default family rather than Arial to keep system fallback working
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
         except Exception:
             if not hasattr(self, '_gurmukhi_font_family'):
-                self._gurmukhi_font_family = 'Arial'
+                # last resort: don't force a specific family; rely on Tk's default
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
 
         # - Heading -
         tk.Label(
@@ -1354,7 +1365,7 @@ class GrammarApp:
             bg="light gray",
             wraplength=900,
             justify="center",
-            pady=(14, 12)
+            pady=(18, 12)
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
         # - Translation area -
@@ -1371,7 +1382,7 @@ class GrammarApp:
 
         self._translation_text = tk.Text(
             tf, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
-            height=8, padx=7, pady=12
+            height=10, padx=8, pady=12
         )
         # let the text box expand and keep the status row at the bottom
         self._translation_text.pack(fill=tk.BOTH, expand=True)
