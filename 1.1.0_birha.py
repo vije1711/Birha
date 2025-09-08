@@ -1419,7 +1419,7 @@ class GrammarApp:
         self._word_selection_vars = []
 
         # 1) grab the verse text, remove any trailing danda symbols:
-        verse_text = self.selected_verse_text.strip().rstrip('॥ ').strip()
+        verse_text = self.selected_verse_text.split('॥', 1)[0].strip()
 
         # 2) split into words (now “॥” won’t appear as its own token)
         words = verse_text.split()
