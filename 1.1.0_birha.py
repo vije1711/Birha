@@ -4004,6 +4004,18 @@ class GrammarApp:
         dlg.configure(bg='white')
         dlg.transient(self.root)
         dlg.grab_set()
+        try:
+            dlg.minsize(720, 420)
+            dlg.resizable(True, True)
+        except Exception:
+            pass
+
+        # Layout: info (row 0), scrollable preview (row 1), buttons (row 2)
+        try:
+            dlg.grid_columnconfigure(0, weight=1)
+            dlg.grid_rowconfigure(1, weight=1)
+        except Exception:
+            pass
 
         info = tk.Label(
             dlg,
@@ -4012,26 +4024,52 @@ class GrammarApp:
                 "Review the differences and choose an action."
             ),
             bg='white',
-            justify='left'
+            justify='left',
+            anchor='w'
         )
-        info.grid(row=0, column=0, columnspan=3, sticky='w', padx=12, pady=(10, 8))
+        info.grid(row=0, column=0, sticky='ew', padx=12, pady=(10, 8))
+
+        # Scrollable container
+        container = tk.Frame(dlg, bg='white')
+        container.grid(row=1, column=0, sticky='nsew')
+        try:
+            container.grid_columnconfigure(0, weight=1)
+            container.grid_rowconfigure(0, weight=1)
+        except Exception:
+            pass
+
+        canvas = tk.Canvas(container, bg='white', highlightthickness=0)
+        vsb = tk.Scrollbar(container, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+
+        table = tk.Frame(canvas, bg='white')
+        table_id = canvas.create_window((0, 0), window=table, anchor='nw')
+
+        def _on_table_config(_evt=None):
+            try:
+                canvas.configure(scrollregion=canvas.bbox('all'))
+                canvas.itemconfig(table_id, width=canvas.winfo_width())
+            except Exception:
+                pass
+        table.bind('<Configure>', _on_table_config)
 
         hdr_style = {"bg": "#f0f0f0", "fg": "black"}
-        tk.Label(dlg, text="Field", **hdr_style).grid(row=1, column=0, sticky='nsew', padx=6, pady=4)
-        tk.Label(dlg, text="Existing", **hdr_style).grid(row=1, column=1, sticky='nsew', padx=6, pady=4)
-        tk.Label(dlg, text="New", **hdr_style).grid(row=1, column=2, sticky='nsew', padx=6, pady=4)
+        tk.Label(table, text="Field", **hdr_style).grid(row=0, column=0, sticky='nsew', padx=6, pady=4)
+        tk.Label(table, text="Existing", **hdr_style).grid(row=0, column=1, sticky='nsew', padx=6, pady=4)
+        tk.Label(table, text="New", **hdr_style).grid(row=0, column=2, sticky='nsew', padx=6, pady=4)
 
         # Populate rows with simple difference highlighting
-        base_r = 2
-        for idx, h in enumerate(headers):
+        for idx, h in enumerate(headers, start=1):
             e_val = str(existing.get(h, existing.get('Vowel Ending', ''))) if h == '\ufeffVowel Ending' else str(existing.get(h, ''))
             n_val = str(new_row.get(h, ''))
             diff = (e_val != n_val)
             bg_e = '#ffe6e6' if diff else 'white'
             bg_n = '#e6ffe6' if diff else 'white'
-            tk.Label(dlg, text=h, anchor='w', bg='white').grid(row=base_r + idx, column=0, sticky='nsew', padx=6, pady=2)
-            tk.Label(dlg, text=e_val, anchor='w', bg=bg_e).grid(row=base_r + idx, column=1, sticky='nsew', padx=6, pady=2)
-            tk.Label(dlg, text=n_val, anchor='w', bg=bg_n).grid(row=base_r + idx, column=2, sticky='nsew', padx=6, pady=2)
+            tk.Label(table, text=h, anchor='w', bg='white').grid(row=idx, column=0, sticky='nsew', padx=6, pady=2)
+            tk.Label(table, text=e_val, anchor='w', bg=bg_e).grid(row=idx, column=1, sticky='nsew', padx=6, pady=2)
+            tk.Label(table, text=n_val, anchor='w', bg=bg_n).grid(row=idx, column=2, sticky='nsew', padx=6, pady=2)
 
         # Buttons
         result = {"choice": None}
@@ -4045,7 +4083,7 @@ class GrammarApp:
             dlg.destroy()
 
         btn_frame = tk.Frame(dlg, bg='white')
-        btn_frame.grid(row=base_r + len(headers), column=0, columnspan=3, pady=12)
+        btn_frame.grid(row=2, column=0, pady=12)
 
         btn_over = tk.Button(btn_frame, text="Overwrite", bg='dark cyan', fg='white', command=lambda: choose('overwrite'))
         btn_over.pack(side=tk.LEFT, padx=6)
@@ -4053,17 +4091,18 @@ class GrammarApp:
         try:
             btn_over.focus_set()
             dlg.bind('<Return>', lambda e: choose('overwrite'))
+            dlg.bind('<Escape>', lambda e: choose('cancel'))
         except Exception:
             pass
 
         tk.Button(btn_frame, text="Append as New", command=lambda: choose('append')).pack(side=tk.LEFT, padx=6)
         tk.Button(btn_frame, text="Cancel", command=lambda: choose('cancel')).pack(side=tk.LEFT, padx=6)
 
-        # Make dialog moderately sized
+        # Initial size
         try:
             dlg.update_idletasks()
-            w = min(900, max(700, dlg.winfo_width()))
-            h = min(600, max(400, dlg.winfo_height()))
+            w = max(720, min(1000, dlg.winfo_width()))
+            h = max(420, min(800, dlg.winfo_height()))
             dlg.geometry(f"{w}x{h}")
         except Exception:
             pass
