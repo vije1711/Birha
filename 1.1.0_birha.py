@@ -77,6 +77,56 @@ def _normalize_simple(text: str) -> str:
     s = s.strip().lower()
     return " ".join(s.split())
 
+def extract_darpan_translation_from_labeled_text(text: str) -> str:
+    """Extract a clean Darpan Translation string from a labeled block text.
+
+    Expects labeled sections with exact labels: "Verse:", "Padarth:",
+    "Arth:", "Chhand:", "Bhav:". Discards Verse and Padarth entirely and
+    concatenates the remaining (Arth, then Chhand, then Bhav) if present.
+
+    Preserves line breaks, but collapses excessive whitespace within lines
+    and condenses multiple blank lines.
+    """
+    try:
+        if text is None:
+            return ""
+        s = str(text)
+    except Exception:
+        return ""
+
+    labels = ("Verse", "Padarth", "Arth", "Chhand", "Bhav")
+    blocks = {k: [] for k in labels}
+    current = None
+
+    for raw_line in s.splitlines():
+        line = raw_line.rstrip("\r\n")
+        m = re.match(r"^\s*(Verse|Padarth|Arth|Chhand|Bhav):\s*(.*)$", line)
+        if m:
+            current = m.group(1)
+            rest = m.group(2)
+            if rest:
+                blocks[current].append(rest)
+            continue
+        if current in blocks:
+            blocks[current].append(line)
+
+    def _clean_join(lines):
+        cleaned = []
+        for ln in lines:
+            ln2 = re.sub(r"\s+", " ", str(ln)).strip()
+            cleaned.append(ln2)
+        txt = "\n".join(cleaned)
+        txt = re.sub(r"(?:\n\s*\n)+", "\n\n", txt, flags=re.MULTILINE)
+        return txt.strip()
+
+    parts = []
+    for key in ("Arth", "Chhand", "Bhav"):
+        block_txt = _clean_join(blocks.get(key, []))
+        if block_txt:
+            parts.append(block_txt)
+
+    return "\n\n".join(parts)
+
 def _normalize_verse_key(text: str) -> str:
     """Robust comparable key for verse text.
     - Unicode normalize, lowercase
@@ -2227,7 +2277,8 @@ class GrammarApp:
 
         # 2) Gather verse + translation context:
         verse       = self.selected_verse_text
-        translation = self.current_translation
+        # Use Darpan Translation excluding Verse/Padarth, combining Arth+Chhand+Bhav
+        translation = extract_darpan_translation_from_labeled_text(self.current_translation)
 
         # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
         meanings = next(
