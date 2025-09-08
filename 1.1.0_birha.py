@@ -1340,44 +1340,73 @@ class GrammarApp:
             pady=10
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
-        # — Translation area —
+        # - Translation area -
         tf = tk.LabelFrame(
             win,
             text="Established Darpan Translation",
             font=("Arial", 14, "bold"),
             bg='light gray',
             fg='black',
-            padx=10, pady=10
+            padx=10, pady=5
         )
-        tf.pack(fill=tk.BOTH, expand=False, padx=20, pady=(0,15))
+        # allow translation area to take the extra space
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
         self._translation_text = tk.Text(
             tf, wrap=tk.WORD, font=("Arial", 13),
-            height=8, padx=5, pady=5
+            height=8, padx=5, pady=10
         )
-        self._translation_text.pack(fill=tk.BOTH, expand=False)
+        # let the text box expand and keep the status row at the bottom
+        self._translation_text.pack(fill=tk.BOTH, expand=True)
 
         # Status + Refresh row under the translation box
         status_row = tk.Frame(tf, bg='light gray')
-        status_row.pack(fill=tk.X, pady=(6, 0))
+        # keep status row pinned to the bottom of the translation frame
+        status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        # grid inside the row: label left (expands), button right
+        status_row.columnconfigure(0, weight=1)
+        status_row.columnconfigure(1, weight=0)
         self._translation_status_var = tk.StringVar(value="")
         tk.Label(
             status_row,
             textvariable=self._translation_status_var,
             font=("Arial", 10, "italic"),
-            bg='light gray', fg='#333333'
-        ).pack(side=tk.LEFT)
+            bg='light gray', fg='#333333',
+            anchor='w'
+        ).grid(row=0, column=0, sticky='w', padx=(0,8))
         tk.Button(
             status_row,
             text="Refresh from data files",
             font=("Arial", 10),
             bg='gray', fg='white',
             command=self._refresh_translation_from_data
-        ).pack(side=tk.RIGHT)
+        ).grid(row=0, column=1, sticky='e')
 
         # Try to auto-populate translation from structured sources
         filled, status = self._populate_translation_from_structured()
         self._translation_status_var.set(status)
+
+        # Reduce the translation frame height by ~5% once to keep bottom buttons visible
+        def _reduce_tf_height_once():
+            try:
+                if getattr(self, '_tf_height_reduced_once', False):
+                    return
+                tf.update_idletasks()
+                curr = tf.winfo_height()
+                if curr <= 0:
+                    win.after(120, _reduce_tf_height_once)
+                    return
+                target = max(1, int(curr * 0.95))
+                try:
+                    tf.pack_propagate(False)
+                except Exception:
+                    pass
+                tf.configure(height=target)
+                self._tf_height_reduced_once = True
+            except Exception:
+                # If anything goes wrong, just skip the reduction
+                pass
+        win.after(150, _reduce_tf_height_once)
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
@@ -1388,7 +1417,8 @@ class GrammarApp:
             fg='black',
             padx=10, pady=10
         )
-        wf.pack(fill=tk.BOTH, expand=False, padx=20, pady=(0,15))
+        # reduce the vertical footprint of the word-selection area
+        wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
 
         # select/deselect all
         self._select_all_words_var = tk.BooleanVar(value=False)
@@ -1401,14 +1431,16 @@ class GrammarApp:
             command=self._toggle_all_word_selection
         ).pack(anchor="w", pady=(0,10))
 
-        # scrollable word grid
+        # scrollable word row (single line, horizontal scroll)
         canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
-        scrollbar = tk.Scrollbar(wf, orient="vertical", command=canvas.yview)
+        # limit the canvas height to roughly a single checkbox row (~75% reduction)
+        canvas.configure(height=48)
+        scrollbar = tk.Scrollbar(wf, orient="horizontal", command=canvas.xview)
         word_frame = tk.Frame(canvas, bg='light gray')
-        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.configure(xscrollcommand=scrollbar.set)
 
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=False)
+        canvas.pack(side="top", fill="x", expand=False)
+        scrollbar.pack(side="top", fill="x")
         canvas.create_window((0,0), window=word_frame, anchor="nw")
 
         def _on_wf_resize(event):
@@ -1433,11 +1465,11 @@ class GrammarApp:
                 variable=var,
                 bg='light gray',
                 font=('Arial', 12),
-                wraplength=120,
                 anchor='w',
                 justify='left'
             )
-            chk.grid(row=i//4, column=i%4, sticky='w', padx=5, pady=3)
+            # arrange all checkboxes in a single row; scroll horizontally if needed
+            chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
             self._word_selection_vars.append((var, w))
 
         # — Bottom buttons —
