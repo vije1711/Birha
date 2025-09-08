@@ -1493,7 +1493,7 @@ class GrammarApp:
         # — Bottom buttons —
         btn_frame = tk.Frame(win, bg="light gray")
         # Anchor buttons to the bottom edge and keep a comfortable bottom margin
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=24)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=40)
 
         tk.Button(
             btn_frame,
