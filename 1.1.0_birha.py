@@ -1526,26 +1526,33 @@ class GrammarApp:
             record = _find_arth_for(self, verse_text, page_num)
             if not record:
                 return False, "Manual input"
-            parts = []
             v = record.get('verse') or record.get('Verse') or ''
-            if v:
-                parts.append("Verse:\n" + str(v).strip())
             p = record.get('padarth') or record.get('Padarth') or ''
-            if p:
-                parts.append("Padarth:\n" + str(p).strip())
             a = record.get('arth') or record.get('Arth') or ''
-            if a:
-                parts.append("Arth:\n" + str(a).strip())
             ch = record.get('chhand') or record.get('Chhand') or ''
-            if ch:
-                parts.append("Chhand:\n" + str(ch).strip())
             bh = record.get('bhav') or record.get('Bhav') or ''
-            if bh:
-                parts.append("Bhav:\n" + str(bh).strip())
-            if not parts:
+
+            if not any([v, p, a, ch, bh]):
                 return False, "Manual input"
+
+            # Write into Text widget using a bold header tag for labels
             self._translation_text.delete('1.0', tk.END)
-            self._translation_text.insert('1.0', "\n\n".join(parts) + "\n")
+            try:
+                self._translation_text.tag_configure('hdr', font=('Arial', 12, 'bold'))
+            except Exception:
+                # If tag config fails, continue without styling
+                pass
+
+            def _ins(label, value):
+                if value:
+                    self._translation_text.insert('end', f"{label}:\n", 'hdr')
+                    self._translation_text.insert('end', str(value).strip() + "\n\n")
+
+            _ins('Verse', v)
+            _ins('Padarth', p)
+            _ins('Arth', a)
+            _ins('Chhand', ch)
+            _ins('Bhav', bh)
             return True, "Auto-filled from structured data"
         except Exception:
             return False, "Manual input"
