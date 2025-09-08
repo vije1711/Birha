@@ -4119,7 +4119,8 @@ class GrammarApp:
             pass
 
         self.root.wait_window(dlg)
-        return result.get('choice') or 'overwrite'
+        # Require explicit confirmation; default to cancel if window closed without choice
+        return result.get('choice') or 'cancel'
 
     def _prompt_review_overwrite_cancel(self, existing: dict, headers: list):
         """Show a blocking review modal of the existing row. Cancel/Overwrite only.
