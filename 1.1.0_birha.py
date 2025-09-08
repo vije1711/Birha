@@ -3708,6 +3708,135 @@ class GrammarApp:
 
 
 
+    def on_accept_detailed_grammar(self, win):
+        """Finalize the detailed grammar selection and append a row to 1.1.1_birha.csv.
+        This is called by the 'Save & Finish' button in the detailed grammar dialog.
+        """
+        try:
+            # Pull selections from the dropdowns/commentary box
+            ve    = (self.detailed_ve_var.get() if hasattr(self, 'detailed_ve_var') else "")
+            num   = (self.detailed_number_var.get()  if hasattr(self, 'detailed_number_var')  else "")
+            gram  = (self.detailed_grammar_var.get() if hasattr(self, 'detailed_grammar_var') else "")
+            gen   = (self.detailed_gender_var.get()  if hasattr(self, 'detailed_gender_var')  else "")
+            root  = (self.detailed_root_var.get()    if hasattr(self, 'detailed_root_var')    else "")
+            comm  = ""
+            try:
+                if hasattr(self, 'detailed_commentary') and self.detailed_commentary is not None:
+                    comm = self.detailed_commentary.get("1.0", tk.END).strip()
+            except Exception:
+                pass
+
+            # Update the current detailed entry with finalized values
+            entry = getattr(self, 'current_detailed_entry', {}) or {}
+            if ve:
+                entry["\ufeffVowel Ending"] = ve
+            if num:
+                entry["Number / ਵਚਨ"] = num
+            if gram:
+                entry["Grammar / ਵਯਾਕਰਣ"] = gram
+            if gen:
+                entry["Gender / ਲਿੰਗ"] = gen
+            if root:
+                entry["Word Root"] = root
+            # Keep existing fields: Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning
+            # Store commentary in the UI key for internal use; CSV uses 'ChatGPT Commentry'
+            entry["ChatGPT Commentary"] = comm
+
+            # Append to CSV (create with headers if needed) and flush
+            self._append_birha_csv_row(entry)
+        except Exception as e:
+            try:
+                messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
+            except Exception:
+                pass
+        finally:
+            # Close the dialog and move to next word in the queue if present
+            try:
+                if win and win.winfo_exists():
+                    win.destroy()
+            except Exception:
+                pass
+            try:
+                # advance in the selected-words queue if that flow is active
+                if hasattr(self, 'grammar_queue'):
+                    self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
+                    self.process_next_word_assessment()
+            except Exception:
+                pass
+
+    def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv"):
+        """Append a UTF-8 row to 1.1.1_birha.csv, creating it with headers if missing.
+        Expected headers: Vowel Ending, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ,
+        Word Root, Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning, ChatGPT Commentry
+        """
+        headers = [
+            "\ufeffVowel Ending",  # keep BOM in first header for compatibility with existing readers
+            "Number / ਵਚਨ",
+            "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ",
+            "Word Root",
+            "Type",
+            "Evaluation",
+            "Reference Verse",
+            "Darpan Translation",
+            "Darpan Meaning",
+            "ChatGPT Commentry",   # note: CSV header uses 'Commentry'
+        ]
+        # Build a row mapping with safe defaults
+        row = {h: "" for h in headers}
+        # Map from internal keys (including 'ChatGPT Commentary') to CSV headers
+        mapping = {
+            "\ufeffVowel Ending": "\ufeffVowel Ending",
+            "Number / ਵਚਨ": "Number / ਵਚਨ",
+            "Grammar / ਵਯਾਕਰਣ": "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ": "Gender / ਲਿੰਗ",
+            "Word Root": "Word Root",
+            "Type": "Type",
+            "Evaluation": "Evaluation",
+            "Reference Verse": "Reference Verse",
+            "Darpan Translation": "Darpan Translation",
+            "Darpan Meaning": "Darpan Meaning",
+            # Internal UI key to CSV header
+            "ChatGPT Commentary": "ChatGPT Commentry",
+            "ChatGPT Commentry": "ChatGPT Commentry",
+        }
+        for k, v in (entry or {}).items():
+            if k in mapping:
+                row[mapping[k]] = v if v is not None else ""
+
+        # Ensure file exists with headers. Write BOM ONLY on first creation, then append with utf-8.
+        file_exists = os.path.exists(path)
+        file_empty = False
+        if file_exists:
+            try:
+                file_empty = os.path.getsize(path) == 0
+            except Exception:
+                file_empty = False
+
+        # Create file with BOM + header if missing or empty
+        if (not file_exists) or file_empty:
+            with open(path, 'w', encoding='utf-8', newline='') as f:
+                try:
+                    # Write BOM explicitly once so first header retains BOM for compatibility
+                    f.write('\ufeff')
+                except Exception:
+                    pass
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                try:
+                    f.flush(); os.fsync(f.fileno())
+                except Exception:
+                    pass
+
+        # Append the row without BOM using plain UTF-8
+        with open(path, 'a', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writerow(row)
+            try:
+                f.flush(); os.fsync(f.fileno())
+            except Exception:
+                pass
+
 
 
 
