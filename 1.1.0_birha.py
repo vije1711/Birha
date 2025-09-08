@@ -1368,9 +1368,13 @@ class GrammarApp:
             pady=12
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
+        # Make a content container so bottom buttons are anchored reliably
+        content = tk.Frame(win, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
         # - Translation area -
         tf = tk.LabelFrame(
-            win,
+            content,
             text="Established Darpan Translation",
             font=("Arial", 14, "bold"),
             bg='light gray',
@@ -1380,12 +1384,18 @@ class GrammarApp:
         # allow translation area to take the extra space
         tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
+        # Text area with vertical scrollbar so content scrolls instead of pushing layout
+        text_container = tk.Frame(tf, bg='light gray')
+        text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_y = tk.Scrollbar(text_container, orient="vertical")
         self._translation_text = tk.Text(
-            tf, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
+            text_container, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
             height=10, padx=8, pady=12
         )
-        # let the text box expand and keep the status row at the bottom
-        self._translation_text.pack(fill=tk.BOTH, expand=True)
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Status + Refresh row under the translation box
         status_row = tk.Frame(tf, bg='light gray')
@@ -1414,31 +1424,11 @@ class GrammarApp:
         filled, status = self._populate_translation_from_structured()
         self._translation_status_var.set(status)
 
-        # Reduce the translation frame height by ~5% once to keep bottom buttons visible
-        def _reduce_tf_height_once():
-            try:
-                if getattr(self, '_tf_height_reduced_once', False):
-                    return
-                tf.update_idletasks()
-                curr = tf.winfo_height()
-                if curr <= 0:
-                    win.after(120, _reduce_tf_height_once)
-                    return
-                target = max(1, int(curr * 0.95))
-                try:
-                    tf.pack_propagate(False)
-                except Exception:
-                    pass
-                tf.configure(height=target)
-                self._tf_height_reduced_once = True
-            except Exception:
-                # If anything goes wrong, just skip the reduction
-                pass
-        win.after(150, _reduce_tf_height_once)
+        # (Removed one-off height cap; scrollable text keeps buttons visible)
 
         # — Word‐selection area —
         wf = tk.LabelFrame(
-            win,
+            content,
             text="Select Words to Assess Grammar",
             font=("Arial", 14, "bold"),
             bg='light gray',
@@ -1502,7 +1492,8 @@ class GrammarApp:
 
         # — Bottom buttons —
         btn_frame = tk.Frame(win, bg="light gray")
-        btn_frame.pack(fill=tk.X, padx=20, pady=30)
+        # Anchor buttons to the bottom edge and keep a comfortable bottom margin
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=24)
 
         tk.Button(
             btn_frame,
