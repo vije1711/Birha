@@ -1365,7 +1365,7 @@ class GrammarApp:
             bg="light gray",
             wraplength=900,
             justify="center",
-            pady=(18, 12)
+            pady=12
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
         # - Translation area -
