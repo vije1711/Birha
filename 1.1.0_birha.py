@@ -3804,22 +3804,33 @@ class GrammarApp:
             if k in mapping:
                 row[mapping[k]] = v if v is not None else ""
 
-        # Ensure file exists with headers; open in append mode using utf-8-sig to keep BOM once
-        import io
+        # Ensure file exists with headers. Write BOM ONLY on first creation, then append with utf-8.
         file_exists = os.path.exists(path)
-        # If file exists but is empty, we will write headers
-        need_header = True
+        file_empty = False
         if file_exists:
             try:
-                need_header = os.path.getsize(path) == 0
+                file_empty = os.path.getsize(path) == 0
             except Exception:
-                need_header = False
+                file_empty = False
 
-        # Use newline='' to avoid extra blank lines on Windows; utf-8-sig ensures BOM at start on first write
-        with open(path, 'a', encoding='utf-8-sig', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=headers)
-            if not file_exists or need_header:
+        # Create file with BOM + header if missing or empty
+        if (not file_exists) or file_empty:
+            with open(path, 'w', encoding='utf-8', newline='') as f:
+                try:
+                    # Write BOM explicitly once so first header retains BOM for compatibility
+                    f.write('\ufeff')
+                except Exception:
+                    pass
+                writer = csv.DictWriter(f, fieldnames=headers)
                 writer.writeheader()
+                try:
+                    f.flush(); os.fsync(f.fileno())
+                except Exception:
+                    pass
+
+        # Append the row without BOM using plain UTF-8
+        with open(path, 'a', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
             writer.writerow(row)
             try:
                 f.flush(); os.fsync(f.fileno())
