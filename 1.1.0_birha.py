@@ -3881,10 +3881,25 @@ class GrammarApp:
             if k in mapping:
                 row[mapping[k]] = v if v is not None else ""
 
-        # Overwrite vs append behavior based on composite key (Vowel Ending + Reference Verse)
-        key_vowel = row.get('\ufeffVowel Ending', '')
-        key_ref   = row.get('Reference Verse', '')
-        composite_key = (key_vowel, key_ref)
+        # Normalized composite key: (Reference Verse, Word Root) or fallback (Reference Verse, Selected Word)
+        def _norm_key_part(val):
+            try:
+                s = str(val)
+            except Exception:
+                s = ""
+            s = s.strip()
+            try:
+                s = re.sub(r"[\s\u00A0]+", " ", s)
+            except Exception:
+                s = " ".join(s.split())
+            return s
+
+        ref_raw = row.get('Reference Verse', '')
+        root_raw = row.get('Word Root', '')
+        sel_raw = row.get('\ufeffVowel Ending', row.get('Vowel Ending', ''))
+        key_ref = _norm_key_part(ref_raw)
+        key_2 = _norm_key_part(root_raw) if str(root_raw).strip() else _norm_key_part(sel_raw)
+        composite_key = (key_ref, key_2)
 
         file_exists = os.path.exists(path)
         file_empty = False
@@ -3903,71 +3918,67 @@ class GrammarApp:
             except Exception:
                 existing_rows = []
 
-        # Find a matching row by keys
-        match_idx = None
+        # Helper to compute existing row normalized composite key
+        def _row_composite_key(r):
+            ref = _norm_key_part(r.get('Reference Verse', ''))
+            r_root = r.get('Word Root', '')
+            r_sel = r.get('\ufeffVowel Ending', r.get('Vowel Ending', ''))
+            k2 = _norm_key_part(r_root) if str(r_root).strip() else _norm_key_part(r_sel)
+            return (ref, k2)
+
+        # Find all matching rows by normalized composite key
+        match_indices = []
         for i, r in enumerate(existing_rows):
-            existing_key = (
-                r.get('\ufeffVowel Ending', r.get('Vowel Ending', '')),
-                r.get('Reference Verse', '')
-            )
-            if existing_key == composite_key:
-                match_idx = i
-                break
+            if _row_composite_key(r) == composite_key:
+                match_indices.append(i)
 
-        if match_idx is not None:
-            # Prompt overwrite/append/cancel with preview
+        if match_indices:
+            # Strict overwrite flow: review dialog, then overwrite or cancel
+            target_idx = match_indices[0]
             try:
-                choice = self._prompt_overwrite_append_cancel(
-                    existing=existing_rows[match_idx],
-                    new_row={h: row.get(h, '') for h in headers},
-                    headers=headers,
-                )
+                choice = self._prompt_review_overwrite_cancel(existing=existing_rows[target_idx], headers=headers)
             except Exception:
-                # If UI prompt fails for any reason, default to overwrite to preserve behavior
-                choice = 'overwrite'
+                # If UI prompt cannot be shown, treat as cancel to avoid unintended overwrite
+                choice = 'cancel'
 
-            if choice == 'cancel':
+            if choice != 'overwrite':
                 return {"success": False, "cancelled": True}
 
-            if choice == 'overwrite':
-                # Replace the existing row and rewrite file to preserve structure
-                existing_rows[match_idx] = {h: row.get(h, '') for h in headers}
-                try:
-                    with open(path, 'w', encoding='utf-8', newline='') as f:
-                        try:
-                            f.write('\ufeff')
-                        except Exception:
-                            pass
-                        writer = csv.DictWriter(f, fieldnames=headers)
-                        writer.writeheader()
-                        for r in existing_rows:
-                            out = {h: '' for h in headers}
-                            for k, v in (r or {}).items():
-                                if k in out:
-                                    out[k] = v
-                                elif k == 'Vowel Ending':
-                                    out['\ufeffVowel Ending'] = v
-                            writer.writerow(out)
-                        try:
-                            f.flush(); os.fsync(f.fileno())
-                        except Exception:
-                            pass
-                    return {"success": True, "action": "overwrite", "row_index": (match_idx + 1), "path": path}
-                except Exception as e:
-                    return {"success": False, "error": str(e)}
-            else:
-                # Append as new (even though composite key matches)
-                try:
-                    with open(path, 'a', encoding='utf-8', newline='') as f:
-                        writer = csv.DictWriter(f, fieldnames=headers)
-                        writer.writerow(row)
-                        try:
-                            f.flush(); os.fsync(f.fileno())
-                        except Exception:
-                            pass
-                    return {"success": True, "action": "append", "path": path}
-                except Exception as e:
-                    return {"success": False, "error": str(e)}
+            # Collapse legacy duplicates: keep only one row for this composite key
+            filtered_rows = []
+            for i, r in enumerate(existing_rows):
+                if i == target_idx:
+                    filtered_rows.append(r)
+                else:
+                    if _row_composite_key(r) != composite_key:
+                        filtered_rows.append(r)
+
+            # Replace target row in place
+            filtered_rows[target_idx] = {h: row.get(h, '') for h in headers}
+
+            try:
+                with open(path, 'w', encoding='utf-8', newline='') as f:
+                    try:
+                        f.write('\ufeff')
+                    except Exception:
+                        pass
+                    writer = csv.DictWriter(f, fieldnames=headers)
+                    writer.writeheader()
+                    for r in filtered_rows:
+                        out = {h: '' for h in headers}
+                        for k, v in (r or {}).items():
+                            if k in out:
+                                out[k] = v
+                            elif k == 'Vowel Ending':
+                                out['\ufeffVowel Ending'] = v
+                        writer.writerow(out)
+                    try:
+                        f.flush(); os.fsync(f.fileno())
+                    except Exception:
+                        pass
+                return {"success": True, "action": "overwrite", "row_index": (target_idx + 1), "path": path}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
         else:
             # Create file with header if missing, then append
             try:
@@ -4104,6 +4115,76 @@ class GrammarApp:
             w = max(720, min(1000, dlg.winfo_width()))
             h = max(420, min(800, dlg.winfo_height()))
             dlg.geometry(f"{w}x{h}")
+        except Exception:
+            pass
+
+        self.root.wait_window(dlg)
+        return result.get('choice') or 'overwrite'
+
+    def _prompt_review_overwrite_cancel(self, existing: dict, headers: list):
+        """Show a blocking review modal of the existing row. Cancel/Overwrite only.
+        Returns 'overwrite' or 'cancel'. Default Enter = Overwrite.
+        """
+        # Test seam: allow unit tests to bypass UI
+        try:
+            forced = getattr(self, '_test_overwrite_choice', None)
+            if forced in {'overwrite', 'cancel'}:
+                return forced
+        except Exception:
+            pass
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Review Existing Entry")
+        dlg.configure(bg='white')
+        dlg.transient(self.root)
+        dlg.grab_set()
+        try:
+            dlg.minsize(600, 360)
+            dlg.resizable(True, True)
+            dlg.grid_columnconfigure(0, weight=1)
+            dlg.grid_rowconfigure(1, weight=1)
+        except Exception:
+            pass
+
+        info = tk.Label(
+            dlg,
+            text=("An entry with this Verse + Word already exists.\n"
+                  "Review below and choose Overwrite to replace it."),
+            bg='white', anchor='w', justify='left'
+        )
+        info.grid(row=0, column=0, sticky='ew', padx=12, pady=(10, 8))
+
+        txt = scrolledtext.ScrolledText(dlg, wrap='word', width=100, height=20)
+        txt.grid(row=1, column=0, sticky='nsew', padx=12, pady=4)
+        try:
+            lines = []
+            for h in headers:
+                v = existing.get(h, existing.get('Vowel Ending', '')) if h == '\ufeffVowel Ending' else existing.get(h, '')
+                lines.append(f"{h}: {v}")
+            txt.insert('1.0', "\n".join(lines))
+            txt.configure(state='disabled')
+        except Exception:
+            pass
+
+        result = {"choice": None}
+
+        def choose(val):
+            result["choice"] = val
+            try:
+                dlg.grab_release()
+            except Exception:
+                pass
+            dlg.destroy()
+
+        btns = tk.Frame(dlg, bg='white')
+        btns.grid(row=2, column=0, pady=10)
+        btn_over = tk.Button(btns, text='Overwrite', bg='dark cyan', fg='white', command=lambda: choose('overwrite'))
+        btn_over.pack(side=tk.LEFT, padx=6)
+        tk.Button(btns, text='Cancel', command=lambda: choose('cancel')).pack(side=tk.LEFT, padx=6)
+        try:
+            btn_over.focus_set()
+            dlg.bind('<Return>', lambda e: choose('overwrite'))
+            dlg.bind('<Escape>', lambda e: choose('cancel'))
         except Exception:
             pass
 
