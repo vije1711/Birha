@@ -8,6 +8,7 @@ import math
 import unicodedata
 import pyperclip
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk
 import threading
 from rapidfuzz import fuzz
@@ -1329,15 +1330,42 @@ class GrammarApp:
         win.transient(self.root)
         win.grab_set()
 
-        # — Heading —
+        # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    # fall back to Tk's default family rather than Arial to keep system fallback working
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                # last resort: don't force a specific family; rely on Tk's default
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # - Heading -
         tk.Label(
             win,
             text=self.selected_verse_text,
-            font=("Arial", 20, "bold"),
+            # Use a font with proper ascent for Gurmukhi + extra top padding
+            font=(self._gurmukhi_font_family, 20, "bold"),
             bg="light gray",
             wraplength=900,
             justify="center",
-            pady=10
+            pady=12
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
         # - Translation area -
@@ -1353,8 +1381,8 @@ class GrammarApp:
         tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
         self._translation_text = tk.Text(
-            tf, wrap=tk.WORD, font=("Arial", 13),
-            height=8, padx=5, pady=10
+            tf, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
+            height=10, padx=8, pady=12
         )
         # let the text box expand and keep the status row at the bottom
         self._translation_text.pack(fill=tk.BOTH, expand=True)
@@ -1474,7 +1502,7 @@ class GrammarApp:
 
         # — Bottom buttons —
         btn_frame = tk.Frame(win, bg="light gray")
-        btn_frame.pack(fill=tk.X, padx=20, pady=20)
+        btn_frame.pack(fill=tk.X, padx=20, pady=30)
 
         tk.Button(
             btn_frame,
