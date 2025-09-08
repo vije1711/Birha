@@ -8,6 +8,7 @@ import math
 import unicodedata
 import pyperclip
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk
 import threading
 from rapidfuzz import fuzz
@@ -1329,15 +1330,31 @@ class GrammarApp:
         win.transient(self.root)
         win.grab_set()
 
-        # — Heading —
+        # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = {f for f in tkfont.families()}
+                # Prefer Nirmala UI, then Raavi, then fall back to Arial
+                if 'Nirmala UI' in families:
+                    self._gurmukhi_font_family = 'Nirmala UI'
+                elif 'Raavi' in families:
+                    self._gurmukhi_font_family = 'Raavi'
+                else:
+                    self._gurmukhi_font_family = 'Arial'
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                self._gurmukhi_font_family = 'Arial'
+
+        # - Heading -
         tk.Label(
             win,
             text=self.selected_verse_text,
-            font=("Arial", 20, "bold"),
+            # Use a font with proper ascent for Gurmukhi + extra top padding
+            font=(self._gurmukhi_font_family, 20, "bold"),
             bg="light gray",
             wraplength=900,
             justify="center",
-            pady=10
+            pady=(14, 12)
         ).pack(fill=tk.X, padx=20, pady=(15,10))
 
         # - Translation area -
@@ -1353,8 +1370,8 @@ class GrammarApp:
         tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
         self._translation_text = tk.Text(
-            tf, wrap=tk.WORD, font=("Arial", 13),
-            height=8, padx=5, pady=10
+            tf, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
+            height=8, padx=7, pady=12
         )
         # let the text box expand and keep the status row at the bottom
         self._translation_text.pack(fill=tk.BOTH, expand=True)
@@ -1474,7 +1491,7 @@ class GrammarApp:
 
         # — Bottom buttons —
         btn_frame = tk.Frame(win, bg="light gray")
-        btn_frame.pack(fill=tk.X, padx=20, pady=20)
+        btn_frame.pack(fill=tk.X, padx=20, pady=30)
 
         tk.Button(
             btn_frame,
