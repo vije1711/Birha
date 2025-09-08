@@ -641,8 +641,8 @@ class GrammarApp:
         try:
             if hasattr(self, "literal_note_body") and self.literal_note_body and self.literal_note_body.winfo_exists():
                 self.literal_note_body.config(wraplength=self._banner_wraplength(self.match_window))
-    except Exception:
-        pass
+        except Exception:
+            pass
 
 
 def extract_translation_body(text: str) -> str:
