@@ -3740,7 +3740,7 @@ class GrammarApp:
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(5, 0))
 
         btns = tk.Frame(win, bg="light gray")
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=20)
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=50)
 
         tk.Button(
             btns, text="‹ Back",
@@ -3760,22 +3760,11 @@ class GrammarApp:
         self.root.wait_window(win)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
     def on_accept_detailed_grammar(self, win):
         """Finalize the detailed grammar selection and append a row to 1.1.1_birha.csv.
         This is called by the 'Save & Finish' button in the detailed grammar dialog.
         """
+        __save_ok = False
         try:
             # Pull selections from the dropdowns/commentary box
             ve    = (self.detailed_ve_var.get() if hasattr(self, 'detailed_ve_var') else "")
@@ -3807,26 +3796,50 @@ class GrammarApp:
             entry["ChatGPT Commentary"] = comm
 
             # Append to CSV (create with headers if needed) and flush
-            self._append_birha_csv_row(entry)
+            result = self._append_birha_csv_row(entry)
+            if not result or not result.get('success'):
+                err = (result or {}).get('error')
+                if err:
+                    try:
+                        messagebox.showerror("Save Error", f"Could not save CSV row: {err}")
+                    except Exception:
+                        pass
+                return
+            # Success confirmation and concise console log
+            try:
+                action = result.get('action', 'append')
+                path = result.get('path', '1.1.1_birha.csv')
+                abspath = os.path.abspath(path)
+                label = 'Overwritten' if action == 'overwrite' else 'Appended'
+                messagebox.showinfo("Saved", f"Saved to {abspath} ({label})")
+                if action == 'overwrite':
+                    idx = result.get('row_index')
+                    print(f"[Save] overwrite row #{idx}")
+                else:
+                    print("[Save] append new row")
+            except Exception:
+                pass
+            __save_ok = True
         except Exception as e:
             try:
-                messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
+                messagebox.showerror("Save Error", f"Could not save CSV row: {e}")
             except Exception:
                 pass
         finally:
             # Close the dialog and move to next word in the queue if present
-            try:
-                if win and win.winfo_exists():
-                    win.destroy()
-            except Exception:
-                pass
-            try:
-                # advance in the selected-words queue if that flow is active
-                if hasattr(self, 'grammar_queue'):
-                    self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
-                    self.process_next_word_assessment()
-            except Exception:
-                pass
+            if __save_ok:
+                try:
+                    if win and win.winfo_exists():
+                        win.destroy()
+                except Exception:
+                    pass
+                try:
+                    # advance in the selected-words queue if that flow is active
+                    if hasattr(self, 'grammar_queue'):
+                        self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
+                        self.process_next_word_assessment()
+                except Exception:
+                    pass
 
     def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv"):
         """Append a UTF-8 row to 1.1.1_birha.csv, creating it with headers if missing.
@@ -3902,48 +3915,161 @@ class GrammarApp:
                 break
 
         if match_idx is not None:
-            # Replace the existing row and rewrite file to preserve structure
-            existing_rows[match_idx] = {h: row.get(h, '') for h in headers}
-            with open(path, 'w', encoding='utf-8', newline='') as f:
+            # Prompt overwrite/append/cancel with preview
+            try:
+                choice = self._prompt_overwrite_append_cancel(
+                    existing=existing_rows[match_idx],
+                    new_row={h: row.get(h, '') for h in headers},
+                    headers=headers,
+                )
+            except Exception:
+                # If UI prompt fails for any reason, default to overwrite to preserve behavior
+                choice = 'overwrite'
+
+            if choice == 'cancel':
+                return {"success": False, "cancelled": True}
+
+            if choice == 'overwrite':
+                # Replace the existing row and rewrite file to preserve structure
+                existing_rows[match_idx] = {h: row.get(h, '') for h in headers}
                 try:
-                    f.write('\ufeff')
-                except Exception:
-                    pass
-                writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writeheader()
-                for r in existing_rows:
-                    out = {h: '' for h in headers}
-                    for k, v in (r or {}).items():
-                        if k in out:
-                            out[k] = v
-                        elif k == 'Vowel Ending':
-                            out['\ufeffVowel Ending'] = v
-                    writer.writerow(out)
+                    with open(path, 'w', encoding='utf-8', newline='') as f:
+                        try:
+                            f.write('\ufeff')
+                        except Exception:
+                            pass
+                        writer = csv.DictWriter(f, fieldnames=headers)
+                        writer.writeheader()
+                        for r in existing_rows:
+                            out = {h: '' for h in headers}
+                            for k, v in (r or {}).items():
+                                if k in out:
+                                    out[k] = v
+                                elif k == 'Vowel Ending':
+                                    out['\ufeffVowel Ending'] = v
+                            writer.writerow(out)
+                        try:
+                            f.flush(); os.fsync(f.fileno())
+                        except Exception:
+                            pass
+                    return {"success": True, "action": "overwrite", "row_index": (match_idx + 1), "path": path}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
+            else:
+                # Append as new (even though composite key matches)
                 try:
-                    f.flush(); os.fsync(f.fileno())
-                except Exception:
-                    pass
+                    with open(path, 'a', encoding='utf-8', newline='') as f:
+                        writer = csv.DictWriter(f, fieldnames=headers)
+                        writer.writerow(row)
+                        try:
+                            f.flush(); os.fsync(f.fileno())
+                        except Exception:
+                            pass
+                    return {"success": True, "action": "append", "path": path}
+                except Exception as e:
+                    return {"success": False, "error": str(e)}
         else:
             # Create file with header if missing, then append
-            if (not file_exists) or file_empty:
-                with open(path, 'w', encoding='utf-8', newline='') as f:
-                    try:
-                        f.write('\ufeff')
-                    except Exception:
-                        pass
+            try:
+                if (not file_exists) or file_empty:
+                    with open(path, 'w', encoding='utf-8', newline='') as f:
+                        try:
+                            f.write('\ufeff')
+                        except Exception:
+                            pass
+                        writer = csv.DictWriter(f, fieldnames=headers)
+                        writer.writeheader()
+                        try:
+                            f.flush(); os.fsync(f.fileno())
+                        except Exception:
+                            pass
+                with open(path, 'a', encoding='utf-8', newline='') as f:
                     writer = csv.DictWriter(f, fieldnames=headers)
-                    writer.writeheader()
+                    writer.writerow(row)
                     try:
                         f.flush(); os.fsync(f.fileno())
                     except Exception:
                         pass
-            with open(path, 'a', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writerow(row)
-                try:
-                    f.flush(); os.fsync(f.fileno())
-                except Exception:
-                    pass
+                return {"success": True, "action": "append", "path": path}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+    def _prompt_overwrite_append_cancel(self, existing: dict, new_row: dict, headers: list):
+        """Show a blocking preview dialog comparing existing vs new row values.
+        Returns one of: 'overwrite', 'append', 'cancel'.
+        Default (Enter key) is 'overwrite'.
+        """
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Overwrite Existing Entry?")
+        dlg.configure(bg='white')
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        info = tk.Label(
+            dlg,
+            text=(
+                "A matching entry exists for Vowel Ending + Reference Verse.\n"
+                "Review the differences and choose an action."
+            ),
+            bg='white',
+            justify='left'
+        )
+        info.grid(row=0, column=0, columnspan=3, sticky='w', padx=12, pady=(10, 8))
+
+        hdr_style = {"bg": "#f0f0f0", "fg": "black"}
+        tk.Label(dlg, text="Field", **hdr_style).grid(row=1, column=0, sticky='nsew', padx=6, pady=4)
+        tk.Label(dlg, text="Existing", **hdr_style).grid(row=1, column=1, sticky='nsew', padx=6, pady=4)
+        tk.Label(dlg, text="New", **hdr_style).grid(row=1, column=2, sticky='nsew', padx=6, pady=4)
+
+        # Populate rows with simple difference highlighting
+        base_r = 2
+        for idx, h in enumerate(headers):
+            e_val = str(existing.get(h, existing.get('Vowel Ending', ''))) if h == '\ufeffVowel Ending' else str(existing.get(h, ''))
+            n_val = str(new_row.get(h, ''))
+            diff = (e_val != n_val)
+            bg_e = '#ffe6e6' if diff else 'white'
+            bg_n = '#e6ffe6' if diff else 'white'
+            tk.Label(dlg, text=h, anchor='w', bg='white').grid(row=base_r + idx, column=0, sticky='nsew', padx=6, pady=2)
+            tk.Label(dlg, text=e_val, anchor='w', bg=bg_e).grid(row=base_r + idx, column=1, sticky='nsew', padx=6, pady=2)
+            tk.Label(dlg, text=n_val, anchor='w', bg=bg_n).grid(row=base_r + idx, column=2, sticky='nsew', padx=6, pady=2)
+
+        # Buttons
+        result = {"choice": None}
+
+        def choose(val):
+            result["choice"] = val
+            try:
+                dlg.grab_release()
+            except Exception:
+                pass
+            dlg.destroy()
+
+        btn_frame = tk.Frame(dlg, bg='white')
+        btn_frame.grid(row=base_r + len(headers), column=0, columnspan=3, pady=12)
+
+        btn_over = tk.Button(btn_frame, text="Overwrite", bg='dark cyan', fg='white', command=lambda: choose('overwrite'))
+        btn_over.pack(side=tk.LEFT, padx=6)
+        # Default selection: Enter triggers Overwrite
+        try:
+            btn_over.focus_set()
+            dlg.bind('<Return>', lambda e: choose('overwrite'))
+        except Exception:
+            pass
+
+        tk.Button(btn_frame, text="Append as New", command=lambda: choose('append')).pack(side=tk.LEFT, padx=6)
+        tk.Button(btn_frame, text="Cancel", command=lambda: choose('cancel')).pack(side=tk.LEFT, padx=6)
+
+        # Make dialog moderately sized
+        try:
+            dlg.update_idletasks()
+            w = min(900, max(700, dlg.winfo_width()))
+            h = min(600, max(400, dlg.winfo_height()))
+            dlg.geometry(f"{w}x{h}")
+        except Exception:
+            pass
+
+        self.root.wait_window(dlg)
+        return result.get('choice') or 'overwrite'
 
 
 
