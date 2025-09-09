@@ -1850,24 +1850,84 @@ class GrammarApp:
         win.state("zoomed")
         win.resizable(True, True)
 
-        # 1) Verse display + highlight
+        # 1) Verse display + highlight (use Gurmukhi‑safe font + metrics padding)
         vf = tk.Frame(win, bg='light gray')
         vf.pack(fill=tk.X, padx=20, pady=(20,10))
-        td = tk.Text(vf, wrap=tk.WORD, bg='light gray',
-                     font=('Arial', 24), height=1, bd=0)
-        td.pack(fill=tk.X)
+
+        # Reuse or compute a Gurmukhi-safe font family (shared with translation input)
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Construct fonts for the verse and highlight
+        verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
+        verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
+
+        # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
+        try:
+            ascent = int(verse_font.metrics('ascent') or 0)
+            descent = int(verse_font.metrics('descent') or 0)
+        except Exception:
+            ascent = descent = 0
+        pad_top = int(math.ceil(ascent * 0.25))
+        pad_bottom = int(math.ceil(descent * 0.35))
+
+        # Text widget for the verse (centered, word-wrap), with internal padding and external pady
+        td = tk.Text(
+            vf,
+            wrap=tk.WORD,
+            bg='light gray',
+            font=verse_font,
+            height=1,
+            bd=0,
+            padx=4,
+            pady=max(2, int(math.ceil(max(ascent, descent) * 0.15)))  # internal cushion
+        )
+        td.pack(fill=tk.X, pady=(pad_top, pad_bottom))
         td.insert('1.0', self.selected_verse_text)
         td.tag_add('center', '1.0', 'end')
         td.tag_configure('center', justify='center')
-        # highlight the word
+
+        # highlight the word (keep blue styling, but use Gurmukhi font variant)
         words = self.selected_verse_text.split()
         start = sum(len(w)+1 for w in words[:index])
         end   = start + len(words[index])
         td.tag_add('highlight', f'1.{start}', f'1.{end}')
-        td.tag_configure('highlight',
-                         font=('Arial',24,'bold'),
-                         foreground='blue')
+        td.tag_configure('highlight', font=verse_font_bold, foreground='blue')
         td.config(state=tk.DISABLED)
+
+        # Keep text wrapping responsive to window width; adjust char width on resize (approximation)
+        def _sync_text_width(evt):
+            try:
+                # Estimate characters that fit in available width (minus frame padding)
+                avg_px = max(1, int(verse_font.measure('0') or 8))
+                width_chars = max(20, int((evt.width - 40) / avg_px))
+                td.configure(width=width_chars)
+            except Exception:
+                pass
+        try:
+            win.bind('<Configure>', _sync_text_width, add='+')
+        except Exception:
+            pass
 
         # 2) Translation LabelFrame
         tf = tk.LabelFrame(win, text="Darpan Translation",
