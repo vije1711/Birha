@@ -1878,9 +1878,11 @@ class GrammarApp:
                 except Exception:
                     self._gurmukhi_font_family = 'TkDefaultFont'
 
-        # Construct fonts for the verse and highlight
-        verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
-        verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
+        # Construct fonts for the verse and highlight (persist to avoid GC fallback)
+        if not hasattr(self, '_verse_font'):
+            self._verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
+        if not hasattr(self, '_verse_font_bold'):
+            self._verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
 
         # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
         try:
@@ -1896,7 +1898,7 @@ class GrammarApp:
             vf,
             wrap=tk.WORD,
             bg='light gray',
-            font=verse_font,
+            font=self._verse_font,
             height=1,
             bd=0,
             padx=4,
@@ -1912,14 +1914,14 @@ class GrammarApp:
         start = sum(len(w)+1 for w in words[:index])
         end   = start + len(words[index])
         td.tag_add('highlight', f'1.{start}', f'1.{end}')
-        td.tag_configure('highlight', font=verse_font_bold, foreground='blue')
+        td.tag_configure('highlight', font=self._verse_font_bold, foreground='blue')
         td.config(state=tk.DISABLED)
 
         # Keep text wrapping responsive to window width; adjust char width on resize (approximation)
         def _sync_text_width(evt):
             try:
                 # Estimate characters that fit in available width (minus frame padding)
-                avg_px = max(1, int(verse_font.measure('0') or 8))
+                avg_px = max(1, int(self._verse_font.measure('0') or 8))
                 width_chars = max(20, int((evt.width - 40) / avg_px))
                 td.configure(width=width_chars)
             except Exception:
