@@ -3752,7 +3752,7 @@ class GrammarApp:
         tk.Button(
             btns, text="Save & Finish →",
             font=("Arial", 12, "bold"), bg="dark cyan", fg="white",
-            command=lambda: self.on_accept_detailed_grammar(win)
+            command=lambda: self.on_accept_detailed_grammar_overwrite(win)
         ).pack(side=tk.RIGHT)
 
         win.transient(self.root)
@@ -3909,34 +3909,272 @@ class GrammarApp:
                     f.write('\ufeff')
                 except Exception:
                     pass
-                writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writeheader()
-                for r in existing_rows:
+
+    # Strict overwrite flow used by the Save & Finish button
+    def on_accept_detailed_grammar_overwrite(self, win):
+        """Never append; overwrite existing row matched by (Vowel Ending + Reference Verse).
+        Shows a blocking confirmation modal with side-by-side comparison before saving.
+        """
+        try:
+            ve    = (self.detailed_ve_var.get() if hasattr(self, 'detailed_ve_var') else "")
+            num   = (self.detailed_number_var.get()  if hasattr(self, 'detailed_number_var')  else "")
+            gram  = (self.detailed_grammar_var.get() if hasattr(self, 'detailed_grammar_var') else "")
+            gen   = (self.detailed_gender_var.get()  if hasattr(self, 'detailed_gender_var')  else "")
+            root  = (self.detailed_root_var.get()    if hasattr(self, 'detailed_root_var')    else "")
+            comm  = ""
+            try:
+                if hasattr(self, 'detailed_commentary') and self.detailed_commentary is not None:
+                    comm = self.detailed_commentary.get("1.0", tk.END).strip()
+            except Exception:
+                pass
+
+            entry = getattr(self, 'current_detailed_entry', {}) or {}
+            if ve:
+                entry["\ufeffVowel Ending"] = ve
+            if num:
+                entry["Number / ???"] = num
+            if gram:
+                entry["Grammar / ??????"] = gram
+            if gen:
+                entry["Gender / ????"] = gen
+            if root:
+                entry["Word Root"] = root
+            entry["ChatGPT Commentary"] = comm
+
+            path = "1.1.1_birha.csv"
+            found, match_idx, existing_row, headers = self._find_existing_row_for_overwrite(entry, path)
+            if not found:
+                try:
+                    messagebox.showerror(
+                        "No Existing Row",
+                        "No existing row found matching the composite key\n(Vowel Ending + Reference Verse). Save cancelled."
+                    )
+                except Exception:
+                    pass
+                return
+
+            if not self._confirm_overwrite_modal(existing_row, entry, headers):
+                return
+
+            ok, err = self._overwrite_birha_csv_row_strict(entry, match_idx, path, headers)
+            if not ok:
+                try:
+                    messagebox.showerror("Save Error", f"Could not overwrite row: {err}")
+                except Exception:
+                    pass
+                return
+
+            try:
+                messagebox.showinfo("Saved", f"Saved to {os.path.abspath(path)} (row overwritten)")
+            except Exception:
+                pass
+            try:
+                print(f"[Save] overwrite row #{match_idx + 1}")
+            except Exception:
+                pass
+            # Close and advance on success
+            try:
+                if win and win.winfo_exists():
+                    win.destroy()
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'grammar_queue'):
+                    self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
+                    self.process_next_word_assessment()
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                messagebox.showerror("Save Error", f"Unexpected error: {e}")
+            except Exception:
+                pass
+
+    def _find_existing_row_for_overwrite(self, entry: dict, path: str):
+        """Locate existing row by composite key (Vowel Ending + Reference Verse).
+        Returns (found: bool, match_idx: Optional[int], existing_row: Optional[dict], headers: list)
+        """
+        headers = [
+            "\ufeffVowel Ending",
+            "Number / ???",
+            "Grammar / ??????",
+            "Gender / ????",
+            "Word Root",
+            "Type",
+            "Evaluation",
+            "Reference Verse",
+            "Darpan Translation",
+            "Darpan Meaning",
+            "ChatGPT Commentry",
+        ]
+
+        key_vowel = entry.get("\ufeffVowel Ending") or entry.get("Vowel Ending") or ""
+        key_ref   = entry.get("Reference Verse", "")
+
+        if (not os.path.exists(path)) or (os.path.getsize(path) == 0):
+            return False, None, None, headers
+
+        try:
+            with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+        except Exception:
+            rows = []
+
+        match_idx = None
+        existing_row = None
+        for i, r in enumerate(rows):
+            existing_key = (
+                r.get('\ufeffVowel Ending', r.get('Vowel Ending', '')),
+                r.get('Reference Verse', '')
+            )
+            if existing_key == (key_vowel, key_ref):
+                match_idx = i
+                existing_row = r
+                break
+        return (match_idx is not None), match_idx, existing_row, headers
+
+    def _confirm_overwrite_modal(self, existing_row: dict, new_row: dict, headers: list) -> bool:
+        """Blocking modal: side-by-side comparison highlighting differences.
+        Returns True if Overwrite confirmed; Cancel default.
+        """
+        try:
+            modal = tk.Toplevel(self.root)
+        except Exception:
+            try:
+                return messagebox.askyesno("Confirm Overwrite", "Overwrite existing row?")
+            except Exception:
+                return False
+
+        modal.title("Confirm Overwrite")
+        modal.configure(bg='light gray')
+        try:
+            modal.transient(self.root)
+            modal.grab_set()
+        except Exception:
+            pass
+
+        hdr = tk.Label(modal, text="Review changes before overwrite", bg='dark slate gray', fg='white', font=("Arial", 12, "bold"), pady=6)
+        hdr.grid(row=0, column=0, columnspan=3, sticky='ew')
+
+        header_font = ("Arial", 10, "bold")
+        tk.Label(modal, text="Field", bg='light gray', font=header_font).grid(row=1, column=0, padx=10, pady=(8, 4), sticky='w')
+        tk.Label(modal, text="Existing", bg='light gray', font=header_font).grid(row=1, column=1, padx=10, pady=(8, 4), sticky='w')
+        tk.Label(modal, text="New", bg='light gray', font=header_font).grid(row=1, column=2, padx=10, pady=(8, 4), sticky='w')
+
+        diff_bg = '#fff3cd'
+        r = 2
+        for h in headers:
+            disp = h.replace('\ufeff', '')
+            old_val = (existing_row or {}).get(h, (existing_row or {}).get('Vowel Ending' if h == '\ufeffVowel Ending' else h, ''))
+            new_val = (new_row or {}).get(h, (new_row or {}).get('Vowel Ending' if h == '\ufeffVowel Ending' else h, ''))
+            is_diff = (str(old_val) or '') != (str(new_val) or '')
+
+            tk.Label(modal, text=disp, bg='light gray').grid(row=r, column=0, padx=10, pady=2, sticky='w')
+            l_old = tk.Label(modal, text=str(old_val or ''), bg=(diff_bg if is_diff else 'white'), anchor='w', justify='left', wraplength=420)
+            l_new = tk.Label(modal, text=str(new_val or ''), bg=(diff_bg if is_diff else 'white'), anchor='w', justify='left', wraplength=420)
+            l_old.grid(row=r, column=1, padx=10, pady=2, sticky='ew')
+            l_new.grid(row=r, column=2, padx=10, pady=2, sticky='ew')
+            r += 1
+
+        btns = tk.Frame(modal, bg='light gray')
+        btns.grid(row=r, column=0, columnspan=3, pady=(10, 10))
+
+        confirmed = {'v': False}
+
+        def do_overwrite():
+            confirmed['v'] = True
+            try:
+                modal.destroy()
+            except Exception:
+                pass
+
+        def do_cancel(_e=None):
+            confirmed['v'] = False
+            try:
+                modal.destroy()
+            except Exception:
+                pass
+
+        btn_over = tk.Button(btns, text="Overwrite", bg='dark cyan', fg='white', command=do_overwrite)
+        btn_cancel = tk.Button(btns, text="Cancel", bg='gray', fg='white', command=do_cancel)
+        btn_cancel.pack(side=tk.RIGHT, padx=5)
+        btn_over.pack(side=tk.RIGHT, padx=5)
+
+        try:
+            btn_cancel.focus_set()
+            modal.bind('<Return>', do_cancel)
+            modal.columnconfigure(1, weight=1)
+            modal.columnconfigure(2, weight=1)
+        except Exception:
+            pass
+
+        try:
+            self.root.wait_window(modal)
+        except Exception:
+            pass
+        return bool(confirmed['v'])
+
+        
+    def _overwrite_birha_csv_row_strict(self, entry: dict, match_idx: int, path: str, headers: list):
+        """Overwrite the existing row at match_idx with entry (no append).
+        Returns (ok: bool, err: Optional[str])
+        """
+        row = {h: "" for h in headers}
+        mapping = {
+            "\ufeffVowel Ending": "\ufeffVowel Ending",
+            "Vowel Ending": "\ufeffVowel Ending",
+            "Number / ???": "Number / ???",
+            "Grammar / ??????": "Grammar / ??????",
+            "Gender / ????": "Gender / ????",
+            "Word Root": "Word Root",
+            "Type": "Type",
+            "Evaluation": "Evaluation",
+            "Reference Verse": "Reference Verse",
+            "Darpan Translation": "Darpan Translation",
+            "Darpan Meaning": "Darpan Meaning",
+            "ChatGPT Commentary": "ChatGPT Commentry",
+            "ChatGPT Commentry": "ChatGPT Commentry",
+        }
+        for k, v in (entry or {}).items():
+            if k in mapping:
+                row[mapping[k]] = v if v is not None else ""
+
+        try:
+            with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+        except Exception as e:
+            return False, str(e)
+
+        try:
+            rows[match_idx] = {h: row.get(h, '') for h in headers}
+        except Exception as e:
+            return False, str(e)
+
+        try:
+            with open(path, 'w', encoding='utf-8', newline='') as f:
+                try:
+                    f.write('\ufeff')
+                except Exception:
+                    pass
+                w = csv.DictWriter(f, fieldnames=headers)
+                w.writeheader()
+                for r in rows:
                     out = {h: '' for h in headers}
                     for k, v in (r or {}).items():
                         if k in out:
                             out[k] = v
                         elif k == 'Vowel Ending':
                             out['\ufeffVowel Ending'] = v
-                    writer.writerow(out)
+                    w.writerow(out)
                 try:
                     f.flush(); os.fsync(f.fileno())
                 except Exception:
                     pass
-        else:
-            # Create file with header if missing, then append
-            if (not file_exists) or file_empty:
-                with open(path, 'w', encoding='utf-8', newline='') as f:
-                    try:
-                        f.write('\ufeff')
-                    except Exception:
-                        pass
-                    writer = csv.DictWriter(f, fieldnames=headers)
-                    writer.writeheader()
-                    try:
-                        f.flush(); os.fsync(f.fileno())
-                    except Exception:
-                        pass
+            return True, None
+        except Exception as e:
+            return False, str(e)
             with open(path, 'a', encoding='utf-8', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=headers)
                 writer.writerow(row)
