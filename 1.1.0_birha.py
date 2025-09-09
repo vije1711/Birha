@@ -1949,16 +1949,19 @@ class GrammarApp:
         self.gender_var = tk.StringVar(value="NA")
         self.pos_var    = tk.StringVar(value="NA")
 
-        # 3+4) Split pane: left=meanings, right=options
-        split = tk.PanedWindow(win, orient=tk.HORIZONTAL, bg='light gray')
-        split.pack(fill=tk.BOTH, expand=False, padx=20, pady=(0,15))
+        # 3+4) Stack: meanings (wide) above options (wide), both near bottom
+        stack = tk.Frame(win, bg='light gray')
+        stack.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,15))
 
-        # — Left: Dictionary Meanings in 5 columns with scrollbar —
-        left = tk.LabelFrame(split,
-                            text=f"Meanings for “{word}”",
-                            font=('Arial',16,'bold'),
-                            bg='light gray', fg='black',
-                            padx=10, pady=10)
+        # — Meanings (wide, dense columns) —
+        left = tk.LabelFrame(
+            stack,
+            text=f"Meanings for \u201c{word}\u201d",
+            font=('Arial',16,'bold'),
+            bg='light gray', fg='black',
+            padx=10, pady=10
+        )
+        left.pack(fill=tk.X, expand=False)
 
         self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0)
         scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
@@ -1973,8 +1976,6 @@ class GrammarApp:
             self.meanings_canvas.configure(scrollregion=self.meanings_canvas.bbox("all"))
         self.meanings_inner_frame.bind("<Configure>", _on_meanings_configure)
 
-        split.add(left, stretch="always")
-
         self.current_word = word   # ← NEW: remember which word we’re looking up
         threading.Thread(
             target=lambda: self.lookup_grammar_meanings_thread(word),
@@ -1982,13 +1983,15 @@ class GrammarApp:
         ).start()
 
 
-        # — Right: Grammar Options + Expert Prompt —
-        right = tk.LabelFrame(split,
-                            text="Select Grammar Options",
-                            font=("Arial", 16, "bold"),
-                            bg="light gray", fg="black",
-                            padx=10, pady=10)
-        split.add(right, stretch="never")
+        # — Grammar Options (wide row of groups) —
+        right = tk.LabelFrame(
+            stack,
+            text="Select Grammar Options",
+            font=("Arial", 16, "bold"),
+            bg="light gray", fg="black",
+            padx=10, pady=10
+        )
+        right.pack(fill=tk.X, expand=False, pady=(8, 0))
 
         # prepare your choices
         nums = [
@@ -2014,14 +2017,16 @@ class GrammarApp:
             ("Unknown",     "NA")
         ]
 
-        # Number & Gender side-by-side
-        frame_ng = tk.Frame(right, bg="light gray")
-        frame_ng.pack(fill=tk.X)
+        # Horizontal row of three groups: Number | Gender | Part of Speech
+        grp_row = tk.Frame(right, bg="light gray")
+        grp_row.pack(fill=tk.X)
+        for c in range(3):
+            grp_row.grid_columnconfigure(c, weight=1)
 
-        # Number frame in col0
-        num_frame = tk.LabelFrame(frame_ng, text="Number",
-                                font=("Arial", 14, "bold"),
-                                bg="light gray", padx=8, pady=8)
+        # Number
+        num_frame = tk.LabelFrame(grp_row, text="Number",
+                                  font=("Arial", 14, "bold"),
+                                  bg="light gray", padx=8, pady=8)
         num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
         for txt, val in nums:
             tk.Radiobutton(
@@ -2030,10 +2035,10 @@ class GrammarApp:
                 anchor="w", justify="left"
             ).pack(anchor="w", pady=2)
 
-        # Gender frame in col1, split into two columns
-        gend_frame = tk.LabelFrame(frame_ng, text="Gender",
-                                font=("Arial", 14, "bold"),
-                                bg="light gray", padx=8, pady=8)
+        # Gender
+        gend_frame = tk.LabelFrame(grp_row, text="Gender",
+                                   font=("Arial", 14, "bold"),
+                                   bg="light gray", padx=8, pady=8)
         gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
 
         # two sub-frames for the two columns
@@ -2052,26 +2057,23 @@ class GrammarApp:
                 anchor="w", justify="left"
             ).pack(anchor="w", pady=2)
 
-        # Part-of-Speech in two columns
-        pos_frame = tk.LabelFrame(right, text="Part of Speech",
-                                font=("Arial", 14, "bold"),
-                                bg="light gray", padx=8, pady=8)
-        pos_frame.pack(fill=tk.X, pady=5)
+        # Part of Speech (compact: 3 columns inside the group)
+        pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
+                                  font=("Arial", 14, "bold"),
+                                  bg="light gray", padx=8, pady=8)
+        pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
 
-        # sub-frames for POS
-        p1 = tk.Frame(pos_frame, bg="light gray")
-        p2 = tk.Frame(pos_frame, bg="light gray")
-        p1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
-        p2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
-
-        half_pos = (len(pos_choices)+1)//2
+        # Arrange POS options into 3 columns to reduce vertical height
+        pos_cols = 3
+        rows = -(-len(pos_choices) // pos_cols)  # ceil division
         for i, (txt, val) in enumerate(pos_choices):
-            parent = p1 if i < half_pos else p2
-            tk.Radiobutton(
-                parent, text=txt, variable=self.pos_var, value=val,
+            r = i % rows
+            c = i // rows
+            rb = tk.Radiobutton(
+                pos_frame, text=txt, variable=self.pos_var, value=val,
                 bg="light gray", font=("Arial", 12),
-                anchor="w", justify="left"
-            ).pack(anchor="w", pady=2)
+                anchor="w", justify="left")
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
 
         # Expert-prompt builder
         def ask_suggestion():
@@ -2478,8 +2480,15 @@ class GrammarApp:
         for w in self.meanings_inner_frame.winfo_children():
             w.destroy()
 
-        # 2) Decide on how many columns
-        num_cols = 5
+        # 2) Decide on how many columns (wider, denser layout across the canvas width)
+        try:
+            # Try to infer available width for meaning columns
+            self.meanings_canvas.update_idletasks()
+            avail_w = max(800, int(self.meanings_canvas.winfo_width() or 0))
+        except Exception:
+            avail_w = 1000
+        col_w = 260  # approximate width per column incl. padding
+        num_cols = max(5, min(10, avail_w // col_w))
         total   = len(meanings)
         # Ceil division so each column has at most ceil(total/num_cols) entries
         per_col = -(-total // num_cols)
@@ -2493,7 +2502,7 @@ class GrammarApp:
                 text=f"• {m}",
                 bg='light gray',
                 font=('Arial', 12),
-                wraplength=350,   # adjust if you need narrower columns
+                wraplength=max(140, col_w - 20),
                 justify='left'
             ).grid(
                 row=row,
