@@ -25,6 +25,76 @@ import webbrowser
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
 
+# ------------------------------------------------------------------
+# CSV helper: load Predefined-only keyset for Top Matches filtering
+# ------------------------------------------------------------------
+def _normalize_headers(headers):
+    try:
+        return [str(h).replace('\ufeff', '').strip() for h in headers]
+    except Exception:
+        return list(headers)
+
+@lru_cache(maxsize=8)
+def load_predefined_keyset(csv_path: str = "1.1.1_birha.csv") -> set[tuple[str, str, str, str, str]]:
+    """Pure helper. Read CSV and return a keyset of
+    (Number, Grammar, Gender, WordRoot, Type) for rows where Evaluation == "Predefined".
+
+    - Robust to UTF-8 BOM in headers (e.g., "\ufeffVowel Ending").
+    - Tolerates NaN/empty cells; coerces to empty strings.
+    - Column name lookup is case-insensitive and trims whitespace.
+    - Evaluation comparison is exact match after str.strip().
+    """
+    try:
+        # utf-8-sig handles BOM at file start; we still strip stray BOM from headers explicitly.
+        df = pd.read_csv(csv_path, encoding="utf-8-sig")
+    except Exception:
+        # Fallback if encoding not recognized; keep behavior permissive
+        df = pd.read_csv(csv_path)
+
+    df.columns = _normalize_headers(df.columns)
+    # Case-insensitive column resolver
+    colmap = {str(c).strip().lower(): c for c in df.columns}
+    def col(*cands):
+        for c in cands:
+            k = str(c).strip().lower()
+            if k in colmap:
+                return colmap[k]
+        return None
+
+    eval_col   = col("Evaluation")
+    # Prefer Punjabi headers; accept both with/without "options"; fall back to legacy names
+    num_col    = col("Number / ਵਚਨ", "Number / ਵਚਨ options", "Number / ???", "Number")
+    gram_col   = col("Grammar / ਵਯਾਕਰਣ", "Grammar / ਵਯਾਕਰਣ options", "Grammar / ??????", "Grammar")
+    gen_col    = col("Gender / ਲਿੰਗ", "Gender / ਲਿੰਗ options", "Gender / ????", "Gender")
+    root_col   = col("Word Root", "Root")
+    type_col   = col("Type", "Word Type")
+
+    if eval_col is None or None in (num_col, gram_col, gen_col, root_col, type_col):
+        # Missing expected columns; nothing qualifies
+        return set()
+
+    # Normalize values and filter strictly by Evaluation == "Predefined" after strip
+    safe = df.copy()
+    for c in (eval_col, num_col, gram_col, gen_col, root_col, type_col):
+        # Important: fillna before astype(str) so NaN does not become the literal string "nan"
+        safe[c] = safe[c].fillna("").astype(str).map(lambda s: s.strip())
+
+    mask = safe[eval_col].map(lambda s: s.strip()) == "Predefined"
+    pre = safe.loc[mask, [num_col, gram_col, gen_col, root_col, type_col]]
+
+    keyset: set[tuple[str, str, str, str, str]] = set()
+    for _, r in pre.iterrows():
+        key = (
+            r[num_col] or "",
+            r[gram_col] or "",
+            r[gen_col] or "",
+            r[root_col] or "",
+            r[type_col] or "",
+        )
+        # Already stripped; keep as-is (case-sensitive values preserved)
+        keyset.add(tuple(key))
+    return keyset
+
 # Debug flag for translation auto-fill matching. Enable via env var BIRHA_DEBUG_AUTOFILL=1
 DEBUG_AUTOFILL = False
 try:
@@ -1954,11 +2024,21 @@ class GrammarApp:
                     if not matches:
                         matches = self.search_by_inflections(word)
 
+                # Precompute keyset for Evaluation == "Predefined" rows from CSV
+                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
                 rows = []
-                for result, _count, _perc in matches[:5]:
+                for result, _count, _perc in matches:
                     parts = [p.strip() for p in result.split("|")]
                     if len(parts) < 7:
                         parts += [""] * (7 - len(parts))
+
+                    # Filter out rows not marked Predefined in CSV (by core feature key)
+                    try:
+                        key = tuple((parts[i] or "").strip() for i in (2, 3, 4, 5, 6))
+                    except Exception:
+                        key = ("") * 5
+                    if key not in pre_keys:
+                        continue
 
                     highlight = parts[0] == parts[1] and is_full_word(parts[0])
                     if highlight:
@@ -1970,6 +2050,8 @@ class GrammarApp:
                         + " | ".join(parts + [str(_count), f"{_perc:.1f}%"])
                         + " |"
                     )
+                    if len(rows) >= 5:
+                        break
 
                 if rows:
                     headers = [
@@ -1991,7 +2073,7 @@ class GrammarApp:
                     ]
                     matches_block = "\n".join(table_lines)
                 else:
-                    matches_block = ""
+                    matches_block = "**Top Grammar Matches**\nNo predefined examples found"
             except Exception as exc:
                 print(f"search for matches failed: {exc}")
                 matches_block = ""
@@ -2684,11 +2766,21 @@ class GrammarApp:
                 crit_gen = gen if gen != "(please choose)" else "NA"
                 crit_matches = self.search_by_criteria(word, crit_num, crit_gen, pos)
 
+                # Predefined-only filter keyset from CSV
+                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
                 rows = []
-                for result, _count, _perc in crit_matches[:5]:
+                for result, _count, _perc in crit_matches:
                     parts = [p.strip() for p in result.split("|")]
                     if len(parts) < 7:
                         parts += [""] * (7 - len(parts))
+
+                    # Skip if the match does not map to a Predefined row in CSV
+                    try:
+                        key = tuple((parts[i] or "").strip() for i in (2, 3, 4, 5, 6))
+                    except Exception:
+                        key = ("") * 5
+                    if key not in pre_keys:
+                        continue
 
                     highlight = parts[0] == parts[1] and is_full_word(parts[0])
                     if highlight:
@@ -2698,6 +2790,8 @@ class GrammarApp:
                     rows.append("| " + " | ".join(
                         parts + [str(_count), f"{_perc:.1f}%"]
                     ) + " |")
+                    if len(rows) >= 5:
+                        break
 
                 if rows:
                     headers = [
@@ -2719,7 +2813,7 @@ class GrammarApp:
                     ]
                     matches_block = "\n".join(table_lines)
                 else:
-                    matches_block = ""
+                    matches_block = "**Top Grammar Matches**\nNo predefined examples found"
             except Exception as exc:
                 print(f"search_by_criteria failed: {exc}")
                 matches_block = ""
