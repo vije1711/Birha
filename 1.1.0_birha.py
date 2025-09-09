@@ -2311,7 +2311,9 @@ class GrammarApp:
             "Reference Verse":     verse,
             "Darpan Translation":  translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
-            "ChatGPT Commentary":  ""    # to be pasted later
+            "ChatGPT Commentary":  "",    # to be pasted later
+            # Ensure each saved word within the same verse is uniquely identified
+            "Word Index":          int(index) if index is not None else ""
         }
 
         # 5) Store it so the next window can read & update it:
@@ -3740,7 +3742,7 @@ class GrammarApp:
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(5, 0))
 
         btns = tk.Frame(win, bg="light gray")
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=20)
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=40)
 
         tk.Button(
             btns, text="‹ Back",
@@ -3776,6 +3778,7 @@ class GrammarApp:
         """Finalize the detailed grammar selection and append a row to 1.1.1_birha.csv.
         This is called by the 'Save & Finish' button in the detailed grammar dialog.
         """
+        advance_ok = False
         try:
             # Pull selections from the dropdowns/commentary box
             ve    = (self.detailed_ve_var.get() if hasattr(self, 'detailed_ve_var') else "")
@@ -3806,29 +3809,36 @@ class GrammarApp:
             # Store commentary in the UI key for internal use; CSV uses 'ChatGPT Commentry'
             entry["ChatGPT Commentary"] = comm
 
-            # Append to CSV (create with headers if needed) and flush
-            self._append_birha_csv_row(entry)
+            # Append/Overwrite to CSV with composite key and confirm-overwrite UI
+            saved, _row_no, _mode = self._append_birha_csv_row(
+                entry,
+                path="1.1.1_birha.csv",
+                require_confirm=True,
+                ui_parent=win
+            )
+            advance_ok = bool(saved)
         except Exception as e:
             try:
                 messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
             except Exception:
                 pass
         finally:
-            # Close the dialog and move to next word in the queue if present
-            try:
-                if win and win.winfo_exists():
-                    win.destroy()
-            except Exception:
-                pass
-            try:
-                # advance in the selected-words queue if that flow is active
-                if hasattr(self, 'grammar_queue'):
-                    self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
-                    self.process_next_word_assessment()
-            except Exception:
-                pass
+            # Close and advance only if save succeeded or confirmed overwrite
+            if advance_ok:
+                try:
+                    if win and win.winfo_exists():
+                        win.destroy()
+                except Exception:
+                    pass
+                try:
+                    # advance in the selected-words queue if that flow is active
+                    if hasattr(self, 'grammar_queue'):
+                        self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
+                        self.process_next_word_assessment()
+                except Exception:
+                    pass
 
-    def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv"):
+    def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv", require_confirm: bool = False, ui_parent=None):
         """Append a UTF-8 row to 1.1.1_birha.csv, creating it with headers if missing.
         Expected headers: Vowel Ending, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ,
         Word Root, Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning, ChatGPT Commentry
@@ -3863,15 +3873,17 @@ class GrammarApp:
             # Internal UI key to CSV header
             "ChatGPT Commentary": "ChatGPT Commentry",
             "ChatGPT Commentry": "ChatGPT Commentry",
+            "Word Index": "Word Index",
         }
         for k, v in (entry or {}).items():
             if k in mapping:
                 row[mapping[k]] = v if v is not None else ""
 
-        # Overwrite vs append behavior based on composite key (Vowel Ending + Reference Verse)
+        # Overwrite vs append based on composite key (Vowel Ending, Reference Verse, Word Index)
         key_vowel = row.get('\ufeffVowel Ending', '')
         key_ref   = row.get('Reference Verse', '')
-        composite_key = (key_vowel, key_ref)
+        key_widx  = str(row.get('Word Index', '') or '').strip()
+        composite_key = (key_vowel, key_ref, key_widx)
 
         file_exists = os.path.exists(path)
         file_empty = False
@@ -3882,26 +3894,48 @@ class GrammarApp:
                 file_empty = False
 
         existing_rows = []
+        headers_from_file = None
         if file_exists and not file_empty:
             try:
                 with open(path, 'r', encoding='utf-8-sig', newline='') as f:
                     reader = csv.DictReader(f)
+                    headers_from_file = list(reader.fieldnames or [])
                     existing_rows = list(reader)
             except Exception:
                 existing_rows = []
+
+        # Preserve existing column order; ensure 'Word Index' exists at end
+        try:
+            if headers_from_file:
+                headers = list(headers_from_file)
+            # Append Word Index if missing (do not reorder others)
+            if 'Word Index' not in headers:
+                headers.append('Word Index')
+        except Exception:
+            # Fallback: ensure Word Index present in default headers list
+            if 'Word Index' not in headers:
+                headers.append('Word Index')
 
         # Find a matching row by keys
         match_idx = None
         for i, r in enumerate(existing_rows):
             existing_key = (
                 r.get('\ufeffVowel Ending', r.get('Vowel Ending', '')),
-                r.get('Reference Verse', '')
+                r.get('Reference Verse', ''),
+                str(r.get('Word Index', '') or '').strip(),
             )
             if existing_key == composite_key:
                 match_idx = i
                 break
 
         if match_idx is not None:
+            # Show confirm modal with diff if requested
+            if require_confirm and ui_parent is not None:
+                try:
+                    if not self._confirm_overwrite_modal(ui_parent, headers, existing_rows[match_idx], row):
+                        return False, None, None
+                except Exception:
+                    pass
             # Replace the existing row and rewrite file to preserve structure
             existing_rows[match_idx] = {h: row.get(h, '') for h in headers}
             with open(path, 'w', encoding='utf-8', newline='') as f:
@@ -3923,6 +3957,13 @@ class GrammarApp:
                     f.flush(); os.fsync(f.fileno())
                 except Exception:
                     pass
+                row_no = match_idx + 1
+                try:
+                    messagebox.showinfo("Saved", f"Saved to {path} (row #{row_no} overwritten)")
+                except Exception:
+                    pass
+                print(f"[Save] overwrite row #{row_no}")
+                return True, row_no, 'overwrite'
         else:
             # Create file with header if missing, then append
             if (not file_exists) or file_empty:
@@ -3944,6 +3985,13 @@ class GrammarApp:
                     f.flush(); os.fsync(f.fileno())
                 except Exception:
                     pass
+            row_no = (len(existing_rows) if existing_rows else 0) + 1
+            try:
+                messagebox.showinfo("Saved", f"Saved to {path} (new row #{row_no})")
+            except Exception:
+                pass
+            print(f"[Save] new row #{row_no}")
+            return True, row_no, 'append'
 
 
 
@@ -3970,6 +4018,61 @@ class GrammarApp:
 
 
 
+
+    def _confirm_overwrite_modal(self, parent, headers, existing_row, new_row) -> bool:
+        try:
+            win = tk.Toplevel(parent)
+            win.title("Confirm Overwrite")
+            win.configure(bg="light gray")
+            win.transient(parent)
+            win.grab_set()
+            title = tk.Label(win, text="A matching entry exists. Review changes:",
+                             bg="dark slate gray", fg="white", font=("Arial", 12, "bold"), padx=10, pady=6)
+            title.pack(fill=tk.X)
+            body = tk.Frame(win, bg="light gray")
+            body.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            left = tk.Frame(body, bg="light gray"); right = tk.Frame(body, bg="light gray")
+            left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
+            right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
+            tk.Label(left, text="Existing", font=("Arial", 11, "bold"), bg="light gray").pack(anchor='w')
+            tk.Label(right, text="New", font=("Arial", 11, "bold"), bg="light gray").pack(anchor='w')
+            l_txt = tk.Text(left, wrap='word', height=18); r_txt = tk.Text(right, wrap='word', height=18)
+            l_txt.pack(fill=tk.BOTH, expand=True); r_txt.pack(fill=tk.BOTH, expand=True)
+            diff_lines = []
+            for h in headers:
+                oldv = str(existing_row.get(h, ''))
+                newv = str(new_row.get(h, ''))
+                l_line = f"{h}: {oldv}\n"; r_line = f"{h}: {newv}\n"
+                l_txt.insert(tk.END, l_line); r_txt.insert(tk.END, r_line)
+                if (oldv or "") != (newv or ""):
+                    diff_lines.append(h)
+            try:
+                def _hl(txtw, header):
+                    start = '1.0'
+                    while True:
+                        idx = txtw.search(f"{header}:", start, stopindex=tk.END)
+                        if not idx:
+                            break
+                        txtw.tag_add('diff', idx, f"{idx} lineend")
+                        start = f"{idx}+1c"
+                for h in diff_lines:
+                    _hl(l_txt, h); _hl(r_txt, h)
+                l_txt.tag_config('diff', background='#fff3cd'); r_txt.tag_config('diff', background='#fff3cd')
+            except Exception:
+                pass
+            btns = tk.Frame(win, bg="light gray"); btns.pack(fill=tk.X, pady=(8,6))
+            def _do_overwrite():
+                win._result = True; win.destroy()
+            def _do_cancel():
+                win._result = False; win.destroy()
+            cancel = tk.Button(btns, text="Cancel", command=_do_cancel)
+            ok = tk.Button(btns, text="Overwrite", command=_do_overwrite, bg='dark cyan', fg='white')
+            cancel.pack(side=tk.RIGHT, padx=6); ok.pack(side=tk.RIGHT)
+            cancel.focus_set()
+            parent.wait_window(win)
+            return bool(getattr(win, '_result', False))
+        except Exception:
+            return True
 
     def launch_verse_analysis_dashboard(self):
         """Clears the main dashboard and launches the Verse Analysis Dashboard."""
