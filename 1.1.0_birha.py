@@ -62,10 +62,10 @@ def load_predefined_keyset(csv_path: str = "1.1.1_birha.csv") -> set[tuple[str, 
         return None
 
     eval_col   = col("Evaluation")
-    # Prefer new Punjabi option headers; fall back to legacy names
-    num_col    = col("Number / ਵਚਨ options", "Number / ???", "Number")
-    gram_col   = col("Grammar / ਵਯਾਕਰਣ options", "Grammar / ??????", "Grammar")
-    gen_col    = col("Gender / ਲਿੰਗ options", "Gender / ????", "Gender")
+    # Prefer Punjabi headers; accept both with/without "options"; fall back to legacy names
+    num_col    = col("Number / ਵਚਨ", "Number / ਵਚਨ options", "Number / ???", "Number")
+    gram_col   = col("Grammar / ਵਯਾਕਰਣ", "Grammar / ਵਯਾਕਰਣ options", "Grammar / ??????", "Grammar")
+    gen_col    = col("Gender / ਲਿੰਗ", "Gender / ਲਿੰਗ options", "Gender / ????", "Gender")
     root_col   = col("Word Root", "Root")
     type_col   = col("Type", "Word Type")
 
