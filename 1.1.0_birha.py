@@ -76,7 +76,8 @@ def load_predefined_keyset(csv_path: str = "1.1.1_birha.csv") -> set[tuple[str, 
     # Normalize values and filter strictly by Evaluation == "Predefined" after strip
     safe = df.copy()
     for c in (eval_col, num_col, gram_col, gen_col, root_col, type_col):
-        safe[c] = safe[c].astype(str).fillna("").map(lambda s: s.strip())
+        # Important: fillna before astype(str) so NaN does not become the literal string "nan"
+        safe[c] = safe[c].fillna("").astype(str).map(lambda s: s.strip())
 
     mask = safe[eval_col].map(lambda s: s.strip()) == "Predefined"
     pre = safe.loc[mask, [num_col, gram_col, gen_col, root_col, type_col]]
