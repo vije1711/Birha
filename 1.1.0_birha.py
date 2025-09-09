@@ -1931,17 +1931,19 @@ class GrammarApp:
         except Exception:
             pass
 
-        # 2) Translation LabelFrame
+        # 2) Translation LabelFrame (taller; expands with window)
         tf = tk.LabelFrame(win, text="Darpan Translation",
                            font=('Arial',16,'bold'),
                            bg='light gray', fg='black',
                            padx=10, pady=10)
-        tf.pack(fill=tk.BOTH, padx=20, pady=(0,15))
+        # Allow translation area to grow and use available vertical space
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
         trans = tk.Text(tf, wrap=tk.WORD, font=('Arial',14),
-                        height=2, bd=0)
+                        height=6, bd=0)
         trans.insert('1.0', translation)
         trans.config(state=tk.DISABLED)
-        trans.pack(fill=tk.BOTH, expand=False)
+        # Let the Text grow within the frame
+        trans.pack(fill=tk.BOTH, expand=True)
 
         # Prepare vars for grammar options
         # Default to “Unknown” (NA)
@@ -1965,7 +1967,7 @@ class GrammarApp:
         )
         left.pack(fill=tk.X, expand=False)
 
-        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0)
+        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0, height=200)
         scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
         self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
 
@@ -2414,16 +2416,7 @@ class GrammarApp:
                 "Paste it into ChatGPT for its recommendation."
             )
 
-        btn_prompt = tk.Button(
-            right,
-            text="📋 Build Expert Prompt",
-            font=("Arial", 14, "italic"),
-            bg="white",
-            fg="dark cyan",
-            padx=6, pady=4,
-            command=ask_suggestion
-        )
-        btn_prompt.grid(row=1, column=0, sticky='w', pady=(10,0))
+        # (Button moved to the bottom action bar)
 
         # 5) Bottom separator + buttons
         sep = tk.Frame(win, bg='#cccccc', height=2)
@@ -2440,6 +2433,14 @@ class GrammarApp:
                   font=('Arial',12), bg='orange', fg='white',
                   padx=20, pady=8,
                   command=lambda: self.skip_word_grammar(win)
+        ).pack(side=tk.LEFT, padx=10)
+        # Moved here from options frame: Build Expert Prompt
+        tk.Button(btns,
+                  text="📋 Build Expert Prompt",
+                  font=("Arial", 14, "italic"),
+                  bg='white', fg='dark cyan',
+                  padx=6, pady=4,
+                  command=ask_suggestion
         ).pack(side=tk.LEFT, padx=10)
         tk.Button(btns, text="Submit",
                   font=('Arial',12,'bold'),
@@ -2499,8 +2500,8 @@ class GrammarApp:
             avail_w = max(800, int(self.meanings_canvas.winfo_width() or 0))
         except Exception:
             avail_w = 1000
-        col_w = 260  # approximate width per column incl. padding
-        num_cols = max(5, min(10, avail_w // col_w))
+        col_w = 240  # approximate width per column incl. padding (slightly narrower to fit more)
+        num_cols = max(6, min(12, avail_w // col_w))
         total   = len(meanings)
         # Ceil division so each column has at most ceil(total/num_cols) entries
         per_col = -(-total // num_cols)
