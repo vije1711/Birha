@@ -1886,8 +1886,8 @@ class GrammarApp:
 
         # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
         try:
-            ascent = int(verse_font.metrics('ascent') or 0)
-            descent = int(verse_font.metrics('descent') or 0)
+            ascent = int(self._verse_font.metrics('ascent') or 0)
+            descent = int(self._verse_font.metrics('descent') or 0)
         except Exception:
             ascent = descent = 0
         pad_top = int(math.ceil(ascent * 0.25))
