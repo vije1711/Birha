@@ -4050,8 +4050,15 @@ class GrammarApp:
             l_txt.pack(fill=tk.BOTH, expand=True); r_txt.pack(fill=tk.BOTH, expand=True)
             diff_lines = []
             for h in headers:
-                oldv = str(existing_row.get(h, ''))
-                newv = str(new_row.get(h, ''))
+                # Normalize lookups to tolerate BOM-prefixed legacy headers
+                try:
+                    oldv = str(self._norm_get(existing_row, h) or '')
+                except Exception:
+                    oldv = str(existing_row.get(h, ''))
+                try:
+                    newv = str(self._norm_get(new_row, h) or '')
+                except Exception:
+                    newv = str(new_row.get(h, ''))
                 l_line = f"{h}: {oldv}\n"; r_line = f"{h}: {newv}\n"
                 l_txt.insert(tk.END, l_line); r_txt.insert(tk.END, r_line)
                 if (oldv or "") != (newv or ""):
