@@ -3988,6 +3988,40 @@ class GrammarApp:
                         f.flush(); os.fsync(f.fileno())
                     except Exception:
                         pass
+            else:
+                # If the existing CSV lacks 'Word Index' in its header, upgrade the file by rewriting
+                try:
+                    existing_headers_norm = _norm_header_list(headers_from_file) if headers_from_file else []
+                except Exception:
+                    existing_headers_norm = list(headers_from_file or [])
+                if headers_from_file and 'Word Index' not in existing_headers_norm:
+                    try:
+                        with open(path, 'w', encoding='utf-8', newline='') as f:
+                            try:
+                                f.write('\ufeff')
+                            except Exception:
+                                pass
+                            writer = csv.DictWriter(f, fieldnames=headers)
+                            writer.writeheader()
+                            for r in existing_rows:
+                                out = {h: '' for h in headers}
+                                for k, v in (r or {}).items():
+                                    try:
+                                        nk = str(k)
+                                    except Exception:
+                                        nk = k
+                                    if isinstance(nk, str) and nk.startswith('\ufeff'):
+                                        nk = nk[1:]
+                                    if nk in out:
+                                        out[nk] = v
+                                writer.writerow(out)
+                            try:
+                                f.flush(); os.fsync(f.fileno())
+                            except Exception:
+                                pass
+                    except Exception:
+                        # If upgrade fails, fall back to appending without Word Index to avoid misalignment
+                        headers = existing_headers_norm
             with open(path, 'a', encoding='utf-8', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=headers)
                 writer.writerow({h: row.get(h, '') for h in headers})
