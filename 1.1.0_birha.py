@@ -2301,7 +2301,7 @@ class GrammarApp:
 
         # 4) Build the initial "detailed" entry dict:
         entry = {
-            "\ufeffVowel Ending":       word,
+            "Vowel Ending":       word,
             "Number / ਵਚਨ":       number,
             "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
             "Gender / ਲਿੰਗ":       gender,
@@ -3796,7 +3796,7 @@ class GrammarApp:
             # Update the current detailed entry with finalized values
             entry = getattr(self, 'current_detailed_entry', {}) or {}
             if ve:
-                entry["\ufeffVowel Ending"] = ve
+                entry["Vowel Ending"] = ve
             if num:
                 entry["Number / ਵਚਨ"] = num
             if gram:
@@ -3860,7 +3860,8 @@ class GrammarApp:
         row = {h: "" for h in headers}
         # Map from internal keys (including 'ChatGPT Commentary') to CSV headers
         mapping = {
-            "\ufeffVowel Ending": "\ufeffVowel Ending",
+            "Vowel Ending": "Vowel Ending",
+            "\ufeffVowel Ending": "Vowel Ending",
             "Number / ਵਚਨ": "Number / ਵਚਨ",
             "Grammar / ਵਯਾਕਰਣ": "Grammar / ਵਯਾਕਰਣ",
             "Gender / ਲਿੰਗ": "Gender / ਲਿੰਗ",
@@ -3880,7 +3881,7 @@ class GrammarApp:
                 row[mapping[k]] = v if v is not None else ""
 
         # Overwrite vs append based on composite key (Vowel Ending, Reference Verse, Word Index)
-        key_vowel = row.get('\ufeffVowel Ending', '')
+        key_vowel = row.get('Vowel Ending', row.get('\ufeffVowel Ending', ''))
         key_ref   = row.get('Reference Verse', '')
         key_widx  = str(row.get('Word Index', '') or '').strip()
         composite_key = (key_vowel, key_ref, key_widx)
@@ -3904,17 +3905,22 @@ class GrammarApp:
             except Exception:
                 existing_rows = []
 
-        # Preserve existing column order; ensure 'Word Index' exists at end
-        try:
-            if headers_from_file:
-                headers = list(headers_from_file)
-            # Append Word Index if missing (do not reorder others)
-            if 'Word Index' not in headers:
-                headers.append('Word Index')
-        except Exception:
-            # Fallback: ensure Word Index present in default headers list
-            if 'Word Index' not in headers:
-                headers.append('Word Index')
+        # Normalize and preserve existing column order; ensure 'Word Index' exists at end
+        def _norm_header_list(hdrs):
+            out = []
+            for h in (hdrs or []):
+                s = str(h)
+                if s.startswith('\ufeff'):
+                    s = s[1:]
+                out.append(s)
+            return out
+
+        if headers_from_file:
+            headers = _norm_header_list(headers_from_file)
+        else:
+            headers = _norm_header_list(headers)
+        if 'Word Index' not in headers:
+            headers.append('Word Index')
 
         # Find a matching row by keys
         match_idx = None
@@ -3948,10 +3954,14 @@ class GrammarApp:
                 for r in existing_rows:
                     out = {h: '' for h in headers}
                     for k, v in (r or {}).items():
-                        if k in out:
-                            out[k] = v
-                        elif k == 'Vowel Ending':
-                            out['\ufeffVowel Ending'] = v
+                        try:
+                            nk = str(k)
+                        except Exception:
+                            nk = k
+                        if isinstance(nk, str) and nk.startswith('\ufeff'):
+                            nk = nk[1:]
+                        if nk in out:
+                            out[nk] = v
                     writer.writerow(out)
                 try:
                     f.flush(); os.fsync(f.fileno())
@@ -3980,7 +3990,7 @@ class GrammarApp:
                         pass
             with open(path, 'a', encoding='utf-8', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writerow(row)
+                writer.writerow({h: row.get(h, '') for h in headers})
                 try:
                     f.flush(); os.fsync(f.fileno())
                 except Exception:
