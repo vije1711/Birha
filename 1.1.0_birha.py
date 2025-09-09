@@ -1951,7 +1951,9 @@ class GrammarApp:
 
         # 3+4) Stack: meanings (wide) above options (wide), both near bottom
         stack = tk.Frame(win, bg='light gray')
-        stack.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,15))
+        # Pack as a normal/top sibling so the bottom-anchored button row remains the last element.
+        # This ensures the stack sits directly above the action buttons.
+        stack.pack(fill=tk.X, padx=20, pady=(0,15))
 
         # — Meanings (wide, dense columns) —
         left = tk.LabelFrame(
