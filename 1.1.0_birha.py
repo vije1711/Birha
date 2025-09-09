@@ -2027,7 +2027,7 @@ class GrammarApp:
                 # Precompute keyset for Evaluation == "Predefined" rows from CSV
                 pre_keys = load_predefined_keyset("1.1.1_birha.csv")
                 rows = []
-                for result, _count, _perc in matches[:5]:
+                for result, _count, _perc in matches:
                     parts = [p.strip() for p in result.split("|")]
                     if len(parts) < 7:
                         parts += [""] * (7 - len(parts))
@@ -2050,6 +2050,8 @@ class GrammarApp:
                         + " | ".join(parts + [str(_count), f"{_perc:.1f}%"])
                         + " |"
                     )
+                    if len(rows) >= 5:
+                        break
 
                 if rows:
                     headers = [
@@ -2745,7 +2747,7 @@ class GrammarApp:
                 # Predefined-only filter keyset from CSV
                 pre_keys = load_predefined_keyset("1.1.1_birha.csv")
                 rows = []
-                for result, _count, _perc in crit_matches[:5]:
+                for result, _count, _perc in crit_matches:
                     parts = [p.strip() for p in result.split("|")]
                     if len(parts) < 7:
                         parts += [""] * (7 - len(parts))
@@ -2766,6 +2768,8 @@ class GrammarApp:
                     rows.append("| " + " | ".join(
                         parts + [str(_count), f"{_perc:.1f}%"]
                     ) + " |")
+                    if len(rows) >= 5:
+                        break
 
                 if rows:
                     headers = [
