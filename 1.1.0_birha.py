@@ -3922,17 +3922,16 @@ class GrammarApp:
         if 'Word Index' not in headers:
             headers.append('Word Index')
 
-        # Find a matching row by keys
+        # Find a matching row by keys; treat missing/blank Word Index as wildcard for legacy rows
         match_idx = None
         for i, r in enumerate(existing_rows):
-            existing_key = (
-                r.get('\ufeffVowel Ending', r.get('Vowel Ending', '')),
-                r.get('Reference Verse', ''),
-                str(r.get('Word Index', '') or '').strip(),
-            )
-            if existing_key == composite_key:
-                match_idx = i
-                break
+            ex_vowel = r.get('\ufeffVowel Ending', r.get('Vowel Ending', ''))
+            ex_ref   = r.get('Reference Verse', '')
+            ex_widx  = str(r.get('Word Index', '') or '').strip()
+            if ex_vowel == key_vowel and ex_ref == key_ref:
+                if (ex_widx == key_widx) or (ex_widx == '' or key_widx == ''):
+                    match_idx = i
+                    break
 
         if match_idx is not None:
             # Show confirm modal with diff if requested
@@ -3942,8 +3941,8 @@ class GrammarApp:
                         return False, None, None
                 except Exception:
                     pass
-            # Replace the existing row and rewrite file to preserve structure
-            existing_rows[match_idx] = {h: row.get(h, '') for h in headers}
+            # Replace the existing row (store normalized keys so writer can map to BOM-safe headers)
+            existing_rows[match_idx] = dict(row)
             with open(path, 'w', encoding='utf-8', newline='') as f:
                 try:
                     f.write('\ufeff')
@@ -4024,7 +4023,14 @@ class GrammarApp:
                         headers = existing_headers_norm
             with open(path, 'a', encoding='utf-8', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writerow({h: row.get(h, '') for h in headers})
+                # Build an output row aligned to headers (map normalized 'Vowel Ending' to BOM header if needed)
+                out = {h: '' for h in headers}
+                for k, v in (row or {}).items():
+                    if k in out:
+                        out[k] = v
+                    elif k == 'Vowel Ending' and '\ufeffVowel Ending' in out:
+                        out['\ufeffVowel Ending'] = v
+                writer.writerow(out)
                 try:
                     f.flush(); os.fsync(f.fileno())
                 except Exception:
