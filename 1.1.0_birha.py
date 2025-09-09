@@ -2262,7 +2262,7 @@ class GrammarApp:
         tk.Button(btns, text="Skip Word",
                   font=('Arial',12), bg='orange', fg='white',
                   padx=20, pady=8,
-                  command=lambda: [win.destroy(), self.skip_word_grammar()]
+                  command=lambda: self.skip_word_grammar(win)
         ).pack(side=tk.LEFT, padx=10)
         tk.Button(btns, text="Submit",
                   font=('Arial',12,'bold'),
@@ -2275,6 +2275,28 @@ class GrammarApp:
         win.transient(self.root)
         win.grab_set()
         self.root.wait_window(win)
+
+    def skip_word_grammar(self, win):
+        """Skip grammar assessment for the current word and advance to the next."""
+        try:
+            confirm_skip = messagebox.askyesno("Confirm Skip", "Are you sure you want to skip this word?")
+            if not confirm_skip:
+                return
+        except Exception:
+            # If the confirmation dialog fails for any reason, proceed with skipping.
+            pass
+
+        try:
+            if win and win.winfo_exists():
+                win.destroy()
+        except Exception:
+            pass
+
+        try:
+            self.current_queue_pos += 1
+            self.process_next_word_assessment()
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while skipping: {e}")
 
     def lookup_grammar_meanings_thread(self, word):
         """
