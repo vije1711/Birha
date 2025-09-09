@@ -1756,6 +1756,25 @@ class GrammarApp:
         self.current_word_index = idx
         self.user_input_grammar(word, self.current_translation, idx)
 
+    def finish_and_prompt_save(self):
+        """Finalize grammar assessment and prompt to save results."""
+        try:
+            if hasattr(self, "save_results_btn") and self.save_results_btn.winfo_exists():
+                self.save_results_btn.config(state=tk.NORMAL)
+        except Exception:
+            pass
+
+        if self.all_new_entries:
+            try:
+                self.prompt_save_results(self.all_new_entries)
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred while saving: {e}")
+        else:
+            try:
+                messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
+            except Exception:
+                pass
+
     def _on_translation_submitted(self, win):
         # 1) grab and validate the translation itself
         text = self._translation_text.get("1.0", tk.END).strip()
