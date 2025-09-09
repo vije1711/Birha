@@ -2020,22 +2020,29 @@ class GrammarApp:
         ]
 
         # Horizontal row of three groups: Number | Gender | Part of Speech
+        # Inside 'right', use grid for all children to avoid pack/grid mix conflicts
+        right.grid_columnconfigure(0, weight=1)
         grp_row = tk.Frame(right, bg="light gray")
-        grp_row.pack(fill=tk.X)
+        grp_row.grid(row=0, column=0, sticky="nsew")
+        # Give more weight to POS group to use width better
         for c in range(3):
-            grp_row.grid_columnconfigure(c, weight=1)
+            grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
 
         # Number
         num_frame = tk.LabelFrame(grp_row, text="Number",
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
         num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
-        for txt, val in nums:
-            tk.Radiobutton(
+        # Arrange Number radios in 2 columns / 2 rows (Singular | Plural on row 0; Unknown on row 1)
+        for i, (txt, val) in enumerate(nums):
+            r = 0 if i < 2 else 1
+            c = i if i < 2 else 0
+            rb = tk.Radiobutton(
                 num_frame, text=txt, variable=self.number_var, value=val,
-                bg="light gray", font=("Arial", 12),
-                anchor="w", justify="left"
-            ).pack(anchor="w", pady=2)
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left")
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+        num_frame.grid_columnconfigure(0, weight=1)
+        num_frame.grid_columnconfigure(1, weight=1)
 
         # Gender
         gend_frame = tk.LabelFrame(grp_row, text="Gender",
@@ -2065,17 +2072,19 @@ class GrammarApp:
                                   bg="light gray", padx=8, pady=8)
         pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
 
-        # Arrange POS options into 3 columns to reduce vertical height
-        pos_cols = 3
-        rows = -(-len(pos_choices) // pos_cols)  # ceil division
+        # Arrange POS radios in two rows using multiple columns to minimize height
+        pos_rows = 2
+        pos_cols = -(-len(pos_choices) // pos_rows)
         for i, (txt, val) in enumerate(pos_choices):
-            r = i % rows
-            c = i // rows
+            r = i % pos_rows
+            c = i // pos_rows
             rb = tk.Radiobutton(
                 pos_frame, text=txt, variable=self.pos_var, value=val,
                 bg="light gray", font=("Arial", 12),
                 anchor="w", justify="left")
             rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+        for c in range(pos_cols):
+            pos_frame.grid_columnconfigure(c, weight=1)
 
         # Expert-prompt builder
         def ask_suggestion():
@@ -2405,7 +2414,7 @@ class GrammarApp:
                 "Paste it into ChatGPT for its recommendation."
             )
 
-        tk.Button(
+        btn_prompt = tk.Button(
             right,
             text="📋 Build Expert Prompt",
             font=("Arial", 14, "italic"),
@@ -2413,7 +2422,8 @@ class GrammarApp:
             fg="dark cyan",
             padx=6, pady=4,
             command=ask_suggestion
-        ).pack(pady=(10,0))
+        )
+        btn_prompt.grid(row=1, column=0, sticky='w', pady=(10,0))
 
         # 5) Bottom separator + buttons
         sep = tk.Frame(win, bg='#cccccc', height=2)
