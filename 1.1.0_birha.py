@@ -1219,6 +1219,12 @@ class GrammarApp:
 
         # keep track of which card is selected
         self._selected_verse_idx = tk.IntVar(value=-1)
+        # ensure safe defaults so Next can't crash before a search
+        self._last_filtered = []
+        try:
+            self._selected_verse_idx.trace_add("write", lambda *args: self._update_next_button_state())
+        except Exception:
+            pass
 
         # — Top frame: entry + Search button —
         top = tk.Frame(win, bg='light gray')
@@ -1279,12 +1285,40 @@ class GrammarApp:
             bg='dark cyan', fg='white',
             command=lambda: self.proceed_to_word_assessment(self._selected_verse_idx.get())
         ).pack(side=tk.RIGHT)
+        # Keep a reference to the Next button and disable it until selection
+        try:
+            self._next_btn = bottom.winfo_children()[-1]
+            self._next_btn.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+
+    def _update_next_button_state(self, *args):
+        """Enable Next only when there are results and a valid selection."""
+        try:
+            results = getattr(self, "_last_filtered", [])
+            idx = self._selected_verse_idx.get() if hasattr(self, "_selected_verse_idx") else -1
+            ok = bool(results) and (0 <= idx < len(results))
+            if hasattr(self, "_next_btn") and self._next_btn and self._next_btn.winfo_exists():
+                self._next_btn.configure(state=(tk.NORMAL if ok else tk.DISABLED))
+        except Exception:
+            try:
+                if hasattr(self, "_next_btn") and self._next_btn and self._next_btn.winfo_exists():
+                    self._next_btn.configure(state=tk.DISABLED)
+            except Exception:
+                pass
 
     def _populate_cards(self):
         """Perform the verse search, filter & then render up to 10 cards in two columns."""
         # first, clear any existing cards
         for w in self._cards_frame.winfo_children():
             w.destroy()
+        # disable Next and clear stale results on refresh
+        try:
+            self._last_filtered = []
+            self._selected_verse_idx.set(-1)
+            self._update_next_button_state()
+        except Exception:
+            pass
 
         # Ensure equal column widths using a uniform group to avoid asymmetry
         try:
@@ -1340,7 +1374,8 @@ class GrammarApp:
                 variable=self._selected_verse_idx,
                 value=idx,
                 bg="white",
-                activebackground="white"
+                activebackground="white",
+                command=self._update_next_button_state
             )
             rb.place(x=6, y=6)
             try:
@@ -1627,10 +1662,20 @@ class GrammarApp:
             self._translation_status_var.set(status if filled else "No structured data match found")
 
     def proceed_to_word_assessment(self, idx):
+        """Proceed only if there are results and a valid selected index; otherwise prompt the user."""
+        results = getattr(self, "_last_filtered", [])
+        try:
+            if not results or idx is None or idx < 0 or idx >= len(results):
+                messagebox.showinfo("Select a Verse", "Please search and select a verse first")
+                return
+        except Exception:
+            # Even if messagebox fails for any reason, do not crash
+            return
+
         # grab the metadata dict from the last search
-        self.selected_verse_meta = self._last_filtered[idx]
+        self.selected_verse_meta = results[idx]
         self.selected_verse_text = self.selected_verse_meta["Verse"]
-        # now pop up the translation‐paste window
+        # now pop up the translation-paste window
         self.show_translation_input()
 
     def process_next_word_assessment(self):
