@@ -1236,8 +1236,8 @@ class GrammarApp:
         btn_verse.grid(row=0, column=0, padx=20)
 
         btn_word = tk.Button(
-            nav, text="Assess by Word (coming soon)", **btn_kwargs,
-            state=tk.DISABLED, disabledforeground='#666666'
+            nav, text="Assess by Word", **btn_kwargs,
+            command=self.launch_word_assessment_dashboard
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1256,6 +1256,12 @@ class GrammarApp:
         # — Bottom Back Button —
         bottom = tk.Frame(win, bg='#e0e0e0')
         bottom.pack(side=tk.BOTTOM, pady=30)
+        def _back_to_dashboard_update():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.show_dashboard()
         back_btn = tk.Button(
             bottom,
             text="← Back to Dashboard",
@@ -1263,12 +1269,113 @@ class GrammarApp:
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=self.show_dashboard
+            command=_back_to_dashboard_update
         )
         back_btn.pack()
 
         # Optional: make ESC key close this window
         win.bind("<Escape>", lambda e: win.destroy())
+
+    def launch_word_assessment_dashboard(self):
+        """Landing UI for Assess by Word: shows three primary actions.
+
+        UI only (no underlying logic yet), per plan Section 11 Task 1:
+        - New assessment
+        - Continue incomplete
+        - View completed
+        """
+        win = tk.Toplevel(self.root)
+        win.title("Assess by Word")
+        win.configure(bg='#e0e0e0')
+        try:
+            win.state("zoomed")
+        except Exception:
+            pass
+
+        # Header
+        header = tk.Frame(win, bg='#2f4f4f', height=60)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Assess by Word — Dashboard",
+            font=('Arial', 20, 'bold'),
+            bg='#2f4f4f', fg='white'
+        ).place(relx=0.5, rely=0.5, anchor='center')
+
+        # Separator
+        tk.Frame(win, bg='#cccccc', height=2).pack(fill=tk.X)
+
+        # Primary actions
+        body = tk.Frame(win, bg='#e0e0e0')
+        body.pack(pady=30)
+
+        btn_opts = dict(
+            font=('Arial', 16, 'bold'),
+            width=22,
+            padx=16, pady=14,
+            relief='flat',
+            bg='#008c8c', fg='white',
+            activebackground='#007d7d'
+        )
+
+        def _coming_soon(label: str):
+            try:
+                messagebox.showinfo("Not implemented", f"{label} — coming soon.")
+            except Exception:
+                pass
+
+        tk.Button(
+            body, text="New assessment", **btn_opts,
+            command=lambda: _coming_soon("New assessment")
+        ).grid(row=0, column=0, padx=20, pady=10)
+
+        tk.Button(
+            body, text="Continue incomplete", **btn_opts,
+            command=lambda: _coming_soon("Continue incomplete")
+        ).grid(row=0, column=1, padx=20, pady=10)
+
+        tk.Button(
+            body, text="View completed", **btn_opts,
+            command=lambda: _coming_soon("View completed")
+        ).grid(row=0, column=2, padx=20, pady=10)
+
+        # Helper text
+        tk.Label(
+            win,
+            text=(
+                "Manage word-centric assessments. Start a new word search, "
+                "resume in-progress items, or review completed analyses."
+            ),
+            font=('Arial', 14),
+            bg='#e0e0e0', fg='#333333',
+            justify='center', wraplength=900
+        ).pack(pady=(10, 0))
+
+        # Bottom actions
+        bottom = tk.Frame(win, bg='#e0e0e0')
+        bottom.pack(side=tk.BOTTOM, pady=24)
+        def _back_to_dashboard_word():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.show_dashboard()
+
+        tk.Button(
+            bottom,
+            text="Back to Dashboard",
+            font=('Arial', 14),
+            bg='#2f4f4f', fg='white',
+            activebackground='#3f6f6f',
+            padx=20, pady=10,
+            command=_back_to_dashboard_word
+        ).pack()
+
+        # Allow ESC to close
+        try:
+            win.bind("<Escape>", lambda e: win.destroy())
+        except Exception:
+            pass
 
     def launch_verse_assessment(self):
         """Window for searching & selecting verses to assess grammar using a 2‑column card layout."""
@@ -1346,9 +1453,15 @@ class GrammarApp:
             bottom, text="‹ Back", font=("Arial", 14),
             bg='gray', fg='white', command=win.destroy
         ).pack(side=tk.LEFT)
+        def _back_to_dashboard_verse():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.show_dashboard()
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=self.show_dashboard
+            bg='gray', fg='white', command=_back_to_dashboard_verse
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
