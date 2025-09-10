@@ -125,10 +125,44 @@ def check_grammar_update_back_button_destroys_win():
         pass
 
 
+def check_word_dashboard_back_button_no_error():
+    # Ensure the Back to Dashboard button in the Word dashboard does not reference a Toplevel
+    root = tk.Tk(); root.withdraw()
+    app = GrammarApp(root)
+    # Open Grammar DB Update and navigate to Word dashboard
+    app.launch_grammar_update_dashboard()
+    win = _find_toplevel_by_title(root, 'Grammar Database Update')
+    assert win is not None, 'Grammar Database Update window not found'
+    word_btn = _find_button_by_text(win, 'Assess by Word')
+    assert word_btn is not None, 'Assess by Word button not found in Grammar DB Update'
+    word_btn.invoke()
+    root.update_idletasks()
+
+    # Intercept Tk callback exceptions
+    errors = []
+    def _report_cb(self, exc, val, tb):
+        errors.append((exc, val))
+    orig = tk.Misc.report_callback_exception
+    tk.Misc.report_callback_exception = _report_cb
+    try:
+        back_btn = _find_button_by_text(root, 'Back to Dashboard')
+        assert back_btn is not None, 'Back to Dashboard button not found in Word dashboard'
+        back_btn.invoke()
+        root.update_idletasks()
+    finally:
+        tk.Misc.report_callback_exception = orig
+    assert not errors, f'Exception during Word dashboard Back to Dashboard: {errors!r}'
+    try:
+        root.destroy()
+    except Exception:
+        pass
+
+
 def main():
     check_back_button_closes_toplevel()
     check_word_button_grouped_under_grammar_update()
     check_grammar_update_back_button_destroys_win()
+    check_word_dashboard_back_button_no_error()
     print('ui_smoke_checks: OK')
 
 
