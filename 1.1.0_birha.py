@@ -5130,7 +5130,7 @@ class GrammarApp:
             text="Back to Dashboard",
             font=('Arial', 12, 'bold'),
             bg='#2f4f4f', fg='white', padx=16, pady=8,
-            command=self.show_dashboard
+            command=lambda: (win.destroy(), self.show_dashboard())
         ).pack(side=tk.RIGHT)
 
 

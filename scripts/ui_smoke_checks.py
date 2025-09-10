@@ -47,6 +47,15 @@ def _find_button_by_text(container, text: str):
             continue
     return None
 
+def _find_button_text_contains(container, needle: str):
+    for w in _iter_children_recursive(container):
+        try:
+            if isinstance(w, tk.Button) and needle in str(w.cget('text')):
+                return w
+        except Exception:
+            continue
+    return None
+
 
 def check_back_button_closes_toplevel():
     root = tk.Tk()
@@ -93,9 +102,33 @@ def check_word_button_grouped_under_grammar_update():
         pass
 
 
+def check_grammar_update_back_button_destroys_win():
+    root = tk.Tk()
+    root.withdraw()
+    app = GrammarApp(root)
+    app.launch_grammar_update_dashboard()
+    win = _find_toplevel_by_title(root, 'Grammar Database Update')
+    assert win is not None, 'Grammar Database Update window not found'
+    back_btn = _find_button_text_contains(win, 'Back to Dashboard')
+    assert back_btn is not None, 'Back to Dashboard button not found in Grammar DB Update'
+    back_btn.invoke()
+    root.update_idletasks()
+    exists = 1
+    try:
+        exists = int(win.winfo_exists())
+    except Exception:
+        exists = 0
+    assert exists == 0, 'Back to Dashboard did not destroy the Grammar DB window'
+    try:
+        root.destroy()
+    except Exception:
+        pass
+
+
 def main():
     check_back_button_closes_toplevel()
     check_word_button_grouped_under_grammar_update()
+    check_grammar_update_back_button_destroys_win()
     print('ui_smoke_checks: OK')
 
 
