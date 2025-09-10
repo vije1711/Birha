@@ -24,6 +24,8 @@ import webbrowser
 # GLOBAL HELPER  –  build live noun-morphology lookup
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
+from datetime import datetime
+from typing import Optional, Iterable
 
 # ------------------------------------------------------------------
 # CSV helper: load Predefined-only keyset for Top Matches filtering
@@ -1111,6 +1113,214 @@ class GrammarApp:
         if state.get("last_whats_new") != WHATS_NEW_ID:
             # Ask the user if they'd like to view details, then record as shown
             self.root.after(100, lambda: self._do_prompt_whats_new_fixed(state))
+
+    # -------------------------------------------------------------
+    # Assess-by-Word tracker helpers (Section 11 · Task 2)
+    #   - create/ensure workbook
+    #   - load sheets
+    #   - append rows (safe, idempotent schema handling)
+    # Uses pandas with openpyxl engine
+    # -------------------------------------------------------------
+
+    def _word_tracker_label(self) -> str:
+        """Return the default label for the tracker filename.
+
+        Override with env var `BIRHA_WORD_TRACKER_LABEL` if set.
+        """
+        try:
+            val = os.getenv('BIRHA_WORD_TRACKER_LABEL')
+            return val.strip() if val and val.strip() else "AssessByWordTracker"
+        except Exception:
+            return "AssessByWordTracker"
+
+    def _word_tracker_path(self, label: Optional[str] = None) -> str:
+        """Compute the tracker path: `1.1.6 {label}.xlsx`.
+
+        Env override: `BIRHA_WORD_TRACKER_PATH` for full path.
+        """
+        try:
+            p = os.getenv('BIRHA_WORD_TRACKER_PATH')
+            if p and p.strip():
+                return p.strip()
+        except Exception:
+            pass
+        label = label or self._word_tracker_label()
+        return f"1.1.6 {label}.xlsx"
+
+    def _word_tracker_specs(self):
+        """Return ordered column specs for Words and Progress sheets.
+
+        Each spec item is (name, kind, default).
+        Kinds: 'str' | 'bool' | 'dt' | 'int'.
+        """
+        words = [
+            ("word",                   'str',  ""),
+            ("word_key_norm",          'str',  ""),
+            ("listed_by_user",         'bool', False),
+            ("listed_at",              'dt',   pd.NaT),
+            ("selected_for_analysis",  'bool', False),
+            ("selected_at",            'dt',   pd.NaT),
+            ("analysis_started",       'bool', False),
+            ("analysis_started_at",    'dt',   pd.NaT),
+            ("analysis_completed",     'bool', False),
+            ("analysis_completed_at",  'dt',   pd.NaT),
+            ("sequence_index",         'int',  pd.NA),
+            ("notes",                  'str',  ""),
+        ]
+        progress = [
+            ("word",                 'str',  ""),
+            ("word_key_norm",        'str',  ""),
+            ("word_index",           'int',  pd.NA),
+            ("verse",                'str',  ""),
+            ("page_number",          'str',  ""),
+            ("selected_for_analysis",'bool', False),
+            ("selected_at",          'dt',   pd.NaT),
+            ("status",               'str',  "not started"),
+            ("completed_at",         'dt',   pd.NaT),
+            ("reanalyzed_count",     'int',  0),
+            ("last_reanalyzed_at",   'dt',   pd.NaT),
+        ]
+        return {"Words": words, "Progress": progress}
+
+    def _df_align_to_spec(self, df: pd.DataFrame, spec: list[tuple[str, str, object]]) -> pd.DataFrame:
+        """Ensure df contains all columns in spec with appropriate dtypes and defaults.
+
+        - Adds missing columns with defaults
+        - Coerces basic dtypes (best-effort)
+        - Reorders columns to put spec columns first, preserving any extra trailing columns
+        """
+        if df is None:
+            df = pd.DataFrame()
+
+        # Add missing with defaults
+        for name, kind, default in spec:
+            if name not in df.columns:
+                df[name] = default
+
+        # Coerce types best-effort
+        for name, kind, default in spec:
+            try:
+                if kind == 'bool':
+                    df[name] = df[name].astype('boolean')
+                elif kind == 'int':
+                    df[name] = pd.to_numeric(df[name], errors='coerce').astype('Int64')
+                elif kind == 'dt':
+                    df[name] = pd.to_datetime(df[name], errors='coerce')
+                else:
+                    # str
+                    df[name] = df[name].astype(str).where(df[name].notna(), "")
+            except Exception:
+                # Leave as-is if coercion fails
+                pass
+
+        # Order: spec columns first (in order), then any extras
+        spec_cols = [c[0] for c in spec]
+        extras = [c for c in df.columns if c not in spec_cols]
+        return df[spec_cols + extras]
+
+    def ensure_word_tracker(self, path: Optional[str] = None) -> str:
+        """Create or normalize the Assess-by-Word tracker workbook.
+
+        - Path default: `1.1.6 {label}.xlsx` in CWD
+        - Ensures both sheets exist with the expected schema
+        - If workbook exists, updates only schema where needed
+        Returns the resolved path.
+        """
+        path = path or self._word_tracker_path()
+        specs = self._word_tracker_specs()
+
+        if not os.path.exists(path):
+            # Create fresh workbook with both sheets
+            with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
+                for sheet, spec in specs.items():
+                    empty = pd.DataFrame(columns=[c[0] for c in spec])
+                    empty = self._df_align_to_spec(empty, spec)
+                    empty.to_excel(wr, sheet_name=sheet, index=False)
+            return path
+
+        # If exists, check/repair sheets
+        try:
+            xf = pd.ExcelFile(path, engine='openpyxl')
+            existing = set(xf.sheet_names)
+        except Exception:
+            # If workbook invalid, recreate
+            with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
+                for sheet, spec in specs.items():
+                    empty = pd.DataFrame(columns=[c[0] for c in spec])
+                    empty = self._df_align_to_spec(empty, spec)
+                    empty.to_excel(wr, sheet_name=sheet, index=False)
+            return path
+
+        with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as wr:
+            for sheet, spec in specs.items():
+                if sheet in existing:
+                    try:
+                        df = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
+                    except Exception:
+                        df = pd.DataFrame()
+                    df2 = self._df_align_to_spec(df, spec)
+                    # Replace sheet with normalized frame
+                    with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='replace') as wr2:
+                        df2.to_excel(wr2, sheet_name=sheet, index=False)
+                else:
+                    # Add missing sheet
+                    empty = pd.DataFrame(columns=[c[0] for c in spec])
+                    empty = self._df_align_to_spec(empty, spec)
+                    empty.to_excel(wr, sheet_name=sheet, index=False)
+        return path
+
+    def load_word_tracker(self, path: Optional[str] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Load (Words, Progress) DataFrames from the tracker workbook.
+
+        Ensures the workbook exists first. Returns (df_words, df_progress).
+        """
+        path = self.ensure_word_tracker(path)
+        specs = self._word_tracker_specs()
+        try:
+            w = pd.read_excel(path, sheet_name='Words', engine='openpyxl')
+        except Exception:
+            w = pd.DataFrame()
+        try:
+            p = pd.read_excel(path, sheet_name='Progress', engine='openpyxl')
+        except Exception:
+            p = pd.DataFrame()
+        w = self._df_align_to_spec(w, specs['Words'])
+        p = self._df_align_to_spec(p, specs['Progress'])
+        return w, p
+
+    def _append_tracker_rows(self, sheet: str, rows: Iterable[dict], path: Optional[str] = None) -> int:
+        """Append rows to the given sheet name.
+
+        Reads existing sheet, aligns schema, concatenates, and replaces only that sheet.
+        Returns count of appended rows.
+        """
+        path = self.ensure_word_tracker(path)
+        specs = self._word_tracker_specs()
+        spec = specs[sheet]
+
+        incoming = pd.DataFrame(list(rows) if rows is not None else [])
+        incoming = self._df_align_to_spec(incoming, spec)
+
+        try:
+            current = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
+        except Exception:
+            current = pd.DataFrame()
+        current = self._df_align_to_spec(current, spec)
+
+        combined = pd.concat([current, incoming], ignore_index=True)
+
+        # Replace only this sheet
+        with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='replace') as wr:
+            combined.to_excel(wr, sheet_name=sheet, index=False)
+        return len(incoming)
+
+    def append_word_tracker_words(self, rows: Iterable[dict], path: Optional[str] = None) -> int:
+        """Append rows to the Words sheet. Returns rows appended count."""
+        return self._append_tracker_rows('Words', rows, path)
+
+    def append_word_tracker_progress(self, rows: Iterable[dict], path: Optional[str] = None) -> int:
+        """Append rows to the Progress sheet. Returns rows appended count."""
+        return self._append_tracker_rows('Progress', rows, path)
 
     def _do_prompt_whats_new(self, state: dict):
         try:
