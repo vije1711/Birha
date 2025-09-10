@@ -951,8 +951,6 @@ class GrammarApp:
         )
         verse_analysis_btn.pack(pady=10)
 
-        # (Assess by Word entry now lives inside Grammar DB Update window)
-
         # Button to open the Grammar‑DB Update window
         grammar_update_btn = tk.Button(
             button_frame,
@@ -1238,8 +1236,8 @@ class GrammarApp:
         btn_verse.grid(row=0, column=0, padx=20)
 
         btn_word = tk.Button(
-            nav, text="Assess by Word", **btn_kwargs,
-            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
+            nav, text="Assess by Word (coming soon)", **btn_kwargs,
+            state=tk.DISABLED, disabledforeground='#666666'
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1350,7 +1348,7 @@ class GrammarApp:
         ).pack(side=tk.LEFT)
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=lambda: (win.destroy(), self.show_dashboard())
+            bg='gray', fg='white', command=self.show_dashboard
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
@@ -5061,10 +5059,9 @@ class GrammarApp:
         def back_to_dashboard():
             self.setup_verse_analysis_dashboard()
 
-        # Buttons for reanalysis actions and navigation
         tk.Button(
             btn_frame,
-            text="Analyze Selected",
+            text="Analyze Selected Words",
             bg="navy", fg="white",
             font=("Arial", 12, "bold"),
             padx=15, pady=5,
@@ -5089,78 +5086,10 @@ class GrammarApp:
             command=back_to_dashboard
         ).pack(side=tk.LEFT, padx=10)
 
-    def launch_word_assessment_dashboard(self):
-        """Clears the main dashboard and launches the Assess by Word dashboard (UI only)."""
-        for widget in self.root.winfo_children():
-            widget.destroy()
-        self.root.title("Assess by Word Dashboard")
-        self.setup_word_assessment_dashboard()
-
-    def setup_word_assessment_dashboard(self):
-        """Builds the Assess by Word dashboard UI with three primary actions.
-
-        UI only: buttons are placeholders without workflow logic for now.
-        """
-        # Root styling
-        self.root.configure(bg='light gray')
-        try:
-            self.root.state("zoomed")
-        except Exception:
-            pass
-
-        # Main surface
-        main = tk.Frame(self.root, bg='light gray', padx=10, pady=10)
-        main.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-        # Header
-        header = tk.Label(
-            main,
-            text="Assess by Word",
-            font=('Arial', 18, 'bold'),
-            bg='dark slate gray',
-            fg='white',
-            pady=10
-        )
-        header.pack(fill=tk.X, pady=(0, 16))
-
-        # Button area
-        center = tk.Frame(main, bg='light gray')
-        center.pack(expand=True)
-
-        def _coming_soon(title: str):
-            try:
-                messagebox.showinfo(title, "This action will be available soon.")
-            except Exception:
-                pass
-
-        btn_style = dict(font=('Arial', 14, 'bold'), padx=20, pady=12, fg='white', width=24)
-
-        new_btn = tk.Button(
-            center, text="New assessment", bg='dark cyan', command=lambda: _coming_soon('New assessment'), **btn_style
-        )
-        new_btn.pack(pady=10)
-
-        cont_btn = tk.Button(
-            center, text="Continue incomplete", bg='teal', command=lambda: _coming_soon('Continue incomplete'), **btn_style
-        )
-        cont_btn.pack(pady=10)
-
-        view_btn = tk.Button(
-            center, text="View completed", bg='#2f4f4f', command=lambda: _coming_soon('View completed'), **btn_style
-        )
-        view_btn.pack(pady=10)
-
-        # Footer actions
-        footer = tk.Frame(main, bg='light gray')
-        footer.pack(fill=tk.X, pady=(20, 0))
-        tk.Button(
-            footer,
-            text="Back to Dashboard",
-            font=('Arial', 12, 'bold'),
-            bg='#2f4f4f', fg='white', padx=16, pady=8,
-            command=self.show_dashboard
-        ).pack(side=tk.RIGHT)
-
+        # === Optional: Customize style ===
+        style = ttk.Style()
+        style.configure("Treeview.Heading", font=('Arial', 11, 'bold'))
+        style.configure("Treeview", rowheight=28, font=('Arial', 11))
 
     def process_next_selected_word(self):
         """Process the next word from re-analysis queue, or prompt to save if finished."""
