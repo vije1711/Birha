@@ -1276,16 +1276,12 @@ class GrammarApp:
         # Write everything back in a single pass (no nested writers)
         with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
             # Maintain a stable order: non-spec sheets first in their original order, then spec sheets alpha
-            # Recompute original order safely (without keeping the file locked)
-            try:
-                with pd.ExcelFile(path, engine='openpyxl') as xf_verify:
-                    existing_order = list(xf_verify.sheet_names)
-            except Exception:
-                existing_order = []
+            # Use the original order captured earlier (existing_names) BEFORE opening writer
+            existing_order = existing_names if 'existing_names' in locals() else []
             for sname in existing_order:
                 if sname in frames and sname not in specs:
                     frames[sname].to_excel(wr, sheet_name=sname, index=False)
-            for sname in sorted(k for k in frames.keys() if k in specs):
+            for sname in sorted(specs.keys()):
                 frames[sname].to_excel(wr, sheet_name=sname, index=False)
 
         # Quick regression check to ensure schema persisted
