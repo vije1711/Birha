@@ -951,18 +951,7 @@ class GrammarApp:
         )
         verse_analysis_btn.pack(pady=10)
 
-        # Button to open the Assess by Word Dashboard (UI only)
-        word_assess_btn = tk.Button(
-            button_frame,
-            text="Assess by Word Dashboard",
-            font=('Arial', 14, 'bold'),
-            bg='navy',
-            fg='white',
-            padx=20,
-            pady=10,
-            command=self.launch_word_assessment_dashboard
-        )
-        word_assess_btn.pack(pady=10)
+        # (Assess by Word entry now lives inside Grammar DB Update window)
 
         # Button to open the Grammar‑DB Update window
         grammar_update_btn = tk.Button(
@@ -1249,8 +1238,8 @@ class GrammarApp:
         btn_verse.grid(row=0, column=0, padx=20)
 
         btn_word = tk.Button(
-            nav, text="Assess by Word (coming soon)", **btn_kwargs,
-            state=tk.DISABLED, disabledforeground='#666666'
+            nav, text="Assess by Word", **btn_kwargs,
+            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1361,7 +1350,7 @@ class GrammarApp:
         ).pack(side=tk.LEFT)
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=self.show_dashboard
+            bg='gray', fg='white', command=lambda: (win.destroy(), self.show_dashboard())
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
@@ -5144,37 +5133,6 @@ class GrammarApp:
             command=self.show_dashboard
         ).pack(side=tk.RIGHT)
 
-        tk.Button(
-            btn_frame,
-            text="Analyze Selected Words",
-            bg="navy", fg="white",
-            font=("Arial", 12, "bold"),
-            padx=15, pady=5,
-            command=analyze_selected_words
-        ).pack(side=tk.LEFT, padx=10)
-
-        tk.Button(
-            btn_frame,
-            text="Back to Search",
-            bg="gray", fg="white",
-            font=("Arial", 12, "bold"),
-            padx=15, pady=5,
-            command=back_to_search
-        ).pack(side=tk.LEFT, padx=10)
-
-        tk.Button(
-            btn_frame,
-            text="Back to Dashboard",
-            bg="red", fg="white",
-            font=("Arial", 12, "bold"),
-            padx=15, pady=5,
-            command=back_to_dashboard
-        ).pack(side=tk.LEFT, padx=10)
-
-        # === Optional: Customize style ===
-        style = ttk.Style()
-        style.configure("Treeview.Heading", font=('Arial', 11, 'bold'))
-        style.configure("Treeview", rowheight=28, font=('Arial', 11))
 
     def process_next_selected_word(self):
         """Process the next word from re-analysis queue, or prompt to save if finished."""
