@@ -1256,6 +1256,12 @@ class GrammarApp:
         # — Bottom Back Button —
         bottom = tk.Frame(win, bg='#e0e0e0')
         bottom.pack(side=tk.BOTTOM, pady=30)
+        def _back_to_dashboard_update():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.show_dashboard()
         back_btn = tk.Button(
             bottom,
             text="← Back to Dashboard",
@@ -1263,7 +1269,7 @@ class GrammarApp:
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=self.show_dashboard
+            command=_back_to_dashboard_update
         )
         back_btn.pack()
 
@@ -1348,6 +1354,13 @@ class GrammarApp:
         # Bottom actions
         bottom = tk.Frame(win, bg='#e0e0e0')
         bottom.pack(side=tk.BOTTOM, pady=24)
+        def _back_to_dashboard_word():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.show_dashboard()
+
         tk.Button(
             bottom,
             text="Back to Dashboard",
@@ -1355,7 +1368,7 @@ class GrammarApp:
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=self.show_dashboard
+            command=_back_to_dashboard_word
         ).pack()
 
         # Allow ESC to close
@@ -1440,9 +1453,15 @@ class GrammarApp:
             bottom, text="‹ Back", font=("Arial", 14),
             bg='gray', fg='white', command=win.destroy
         ).pack(side=tk.LEFT)
+        def _back_to_dashboard_verse():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.show_dashboard()
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=self.show_dashboard
+            bg='gray', fg='white', command=_back_to_dashboard_verse
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
