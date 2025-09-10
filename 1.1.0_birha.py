@@ -24,8 +24,6 @@ import webbrowser
 # GLOBAL HELPER  –  build live noun-morphology lookup
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
-from datetime import datetime
-from typing import Optional, Iterable
 
 # ------------------------------------------------------------------
 # CSV helper: load Predefined-only keyset for Top Matches filtering
@@ -953,6 +951,8 @@ class GrammarApp:
         )
         verse_analysis_btn.pack(pady=10)
 
+        # (Assess by Word entry now lives inside Grammar DB Update window)
+
         # Button to open the Grammar‑DB Update window
         grammar_update_btn = tk.Button(
             button_frame,
@@ -1114,214 +1114,6 @@ class GrammarApp:
             # Ask the user if they'd like to view details, then record as shown
             self.root.after(100, lambda: self._do_prompt_whats_new_fixed(state))
 
-    # -------------------------------------------------------------
-    # Assess-by-Word tracker helpers (Section 11 · Task 2)
-    #   - create/ensure workbook
-    #   - load sheets
-    #   - append rows (safe, idempotent schema handling)
-    # Uses pandas with openpyxl engine
-    # -------------------------------------------------------------
-
-    def _word_tracker_label(self) -> str:
-        """Return the default label for the tracker filename.
-
-        Override with env var `BIRHA_WORD_TRACKER_LABEL` if set.
-        """
-        try:
-            val = os.getenv('BIRHA_WORD_TRACKER_LABEL')
-            return val.strip() if val and val.strip() else "AssessByWordTracker"
-        except Exception:
-            return "AssessByWordTracker"
-
-    def _word_tracker_path(self, label: Optional[str] = None) -> str:
-        """Compute the tracker path: `1.1.6 {label}.xlsx`.
-
-        Env override: `BIRHA_WORD_TRACKER_PATH` for full path.
-        """
-        try:
-            p = os.getenv('BIRHA_WORD_TRACKER_PATH')
-            if p and p.strip():
-                return p.strip()
-        except Exception:
-            pass
-        label = label or self._word_tracker_label()
-        return f"1.1.6 {label}.xlsx"
-
-    def _word_tracker_specs(self):
-        """Return ordered column specs for Words and Progress sheets.
-
-        Each spec item is (name, kind, default).
-        Kinds: 'str' | 'bool' | 'dt' | 'int'.
-        """
-        words = [
-            ("word",                   'str',  ""),
-            ("word_key_norm",          'str',  ""),
-            ("listed_by_user",         'bool', False),
-            ("listed_at",              'dt',   pd.NaT),
-            ("selected_for_analysis",  'bool', False),
-            ("selected_at",            'dt',   pd.NaT),
-            ("analysis_started",       'bool', False),
-            ("analysis_started_at",    'dt',   pd.NaT),
-            ("analysis_completed",     'bool', False),
-            ("analysis_completed_at",  'dt',   pd.NaT),
-            ("sequence_index",         'int',  pd.NA),
-            ("notes",                  'str',  ""),
-        ]
-        progress = [
-            ("word",                 'str',  ""),
-            ("word_key_norm",        'str',  ""),
-            ("word_index",           'int',  pd.NA),
-            ("verse",                'str',  ""),
-            ("page_number",          'str',  ""),
-            ("selected_for_analysis",'bool', False),
-            ("selected_at",          'dt',   pd.NaT),
-            ("status",               'str',  "not started"),
-            ("completed_at",         'dt',   pd.NaT),
-            ("reanalyzed_count",     'int',  0),
-            ("last_reanalyzed_at",   'dt',   pd.NaT),
-        ]
-        return {"Words": words, "Progress": progress}
-
-    def _df_align_to_spec(self, df: pd.DataFrame, spec: list[tuple[str, str, object]]) -> pd.DataFrame:
-        """Ensure df contains all columns in spec with appropriate dtypes and defaults.
-
-        - Adds missing columns with defaults
-        - Coerces basic dtypes (best-effort)
-        - Reorders columns to put spec columns first, preserving any extra trailing columns
-        """
-        if df is None:
-            df = pd.DataFrame()
-
-        # Add missing with defaults
-        for name, kind, default in spec:
-            if name not in df.columns:
-                df[name] = default
-
-        # Coerce types best-effort
-        for name, kind, default in spec:
-            try:
-                if kind == 'bool':
-                    df[name] = df[name].astype('boolean')
-                elif kind == 'int':
-                    df[name] = pd.to_numeric(df[name], errors='coerce').astype('Int64')
-                elif kind == 'dt':
-                    df[name] = pd.to_datetime(df[name], errors='coerce')
-                else:
-                    # str
-                    df[name] = df[name].astype(str).where(df[name].notna(), "")
-            except Exception:
-                # Leave as-is if coercion fails
-                pass
-
-        # Order: spec columns first (in order), then any extras
-        spec_cols = [c[0] for c in spec]
-        extras = [c for c in df.columns if c not in spec_cols]
-        return df[spec_cols + extras]
-
-    def ensure_word_tracker(self, path: Optional[str] = None) -> str:
-        """Create or normalize the Assess-by-Word tracker workbook.
-
-        - Path default: `1.1.6 {label}.xlsx` in CWD
-        - Ensures both sheets exist with the expected schema
-        - If workbook exists, updates only schema where needed
-        Returns the resolved path.
-        """
-        path = path or self._word_tracker_path()
-        specs = self._word_tracker_specs()
-
-        if not os.path.exists(path):
-            # Create fresh workbook with both sheets
-            with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
-                for sheet, spec in specs.items():
-                    empty = pd.DataFrame(columns=[c[0] for c in spec])
-                    empty = self._df_align_to_spec(empty, spec)
-                    empty.to_excel(wr, sheet_name=sheet, index=False)
-            return path
-
-        # If exists, check/repair sheets
-        try:
-            xf = pd.ExcelFile(path, engine='openpyxl')
-            existing = set(xf.sheet_names)
-        except Exception:
-            # If workbook invalid, recreate
-            with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
-                for sheet, spec in specs.items():
-                    empty = pd.DataFrame(columns=[c[0] for c in spec])
-                    empty = self._df_align_to_spec(empty, spec)
-                    empty.to_excel(wr, sheet_name=sheet, index=False)
-            return path
-
-        with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as wr:
-            for sheet, spec in specs.items():
-                if sheet in existing:
-                    try:
-                        df = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
-                    except Exception:
-                        df = pd.DataFrame()
-                    df2 = self._df_align_to_spec(df, spec)
-                    # Replace sheet with normalized frame
-                    with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='replace') as wr2:
-                        df2.to_excel(wr2, sheet_name=sheet, index=False)
-                else:
-                    # Add missing sheet
-                    empty = pd.DataFrame(columns=[c[0] for c in spec])
-                    empty = self._df_align_to_spec(empty, spec)
-                    empty.to_excel(wr, sheet_name=sheet, index=False)
-        return path
-
-    def load_word_tracker(self, path: Optional[str] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """Load (Words, Progress) DataFrames from the tracker workbook.
-
-        Ensures the workbook exists first. Returns (df_words, df_progress).
-        """
-        path = self.ensure_word_tracker(path)
-        specs = self._word_tracker_specs()
-        try:
-            w = pd.read_excel(path, sheet_name='Words', engine='openpyxl')
-        except Exception:
-            w = pd.DataFrame()
-        try:
-            p = pd.read_excel(path, sheet_name='Progress', engine='openpyxl')
-        except Exception:
-            p = pd.DataFrame()
-        w = self._df_align_to_spec(w, specs['Words'])
-        p = self._df_align_to_spec(p, specs['Progress'])
-        return w, p
-
-    def _append_tracker_rows(self, sheet: str, rows: Iterable[dict], path: Optional[str] = None) -> int:
-        """Append rows to the given sheet name.
-
-        Reads existing sheet, aligns schema, concatenates, and replaces only that sheet.
-        Returns count of appended rows.
-        """
-        path = self.ensure_word_tracker(path)
-        specs = self._word_tracker_specs()
-        spec = specs[sheet]
-
-        incoming = pd.DataFrame(list(rows) if rows is not None else [])
-        incoming = self._df_align_to_spec(incoming, spec)
-
-        try:
-            current = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
-        except Exception:
-            current = pd.DataFrame()
-        current = self._df_align_to_spec(current, spec)
-
-        combined = pd.concat([current, incoming], ignore_index=True)
-
-        # Replace only this sheet
-        with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='replace') as wr:
-            combined.to_excel(wr, sheet_name=sheet, index=False)
-        return len(incoming)
-
-    def append_word_tracker_words(self, rows: Iterable[dict], path: Optional[str] = None) -> int:
-        """Append rows to the Words sheet. Returns rows appended count."""
-        return self._append_tracker_rows('Words', rows, path)
-
-    def append_word_tracker_progress(self, rows: Iterable[dict], path: Optional[str] = None) -> int:
-        """Append rows to the Progress sheet. Returns rows appended count."""
-        return self._append_tracker_rows('Progress', rows, path)
-
     def _do_prompt_whats_new(self, state: dict):
         try:
             if messagebox.askyesno(
@@ -1447,7 +1239,7 @@ class GrammarApp:
 
         btn_word = tk.Button(
             nav, text="Assess by Word", **btn_kwargs,
-            command=self.launch_word_assessment_dashboard
+            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1466,12 +1258,6 @@ class GrammarApp:
         # — Bottom Back Button —
         bottom = tk.Frame(win, bg='#e0e0e0')
         bottom.pack(side=tk.BOTTOM, pady=30)
-        def _back_to_dashboard_update():
-            try:
-                win.destroy()
-            except Exception:
-                pass
-            self.show_dashboard()
         back_btn = tk.Button(
             bottom,
             text="← Back to Dashboard",
@@ -1479,113 +1265,12 @@ class GrammarApp:
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=_back_to_dashboard_update
+            command=self.show_dashboard
         )
         back_btn.pack()
 
         # Optional: make ESC key close this window
         win.bind("<Escape>", lambda e: win.destroy())
-
-    def launch_word_assessment_dashboard(self):
-        """Landing UI for Assess by Word: shows three primary actions.
-
-        UI only (no underlying logic yet), per plan Section 11 Task 1:
-        - New assessment
-        - Continue incomplete
-        - View completed
-        """
-        win = tk.Toplevel(self.root)
-        win.title("Assess by Word")
-        win.configure(bg='#e0e0e0')
-        try:
-            win.state("zoomed")
-        except Exception:
-            pass
-
-        # Header
-        header = tk.Frame(win, bg='#2f4f4f', height=60)
-        header.pack(fill=tk.X)
-        tk.Label(
-            header,
-            text="Assess by Word — Dashboard",
-            font=('Arial', 20, 'bold'),
-            bg='#2f4f4f', fg='white'
-        ).place(relx=0.5, rely=0.5, anchor='center')
-
-        # Separator
-        tk.Frame(win, bg='#cccccc', height=2).pack(fill=tk.X)
-
-        # Primary actions
-        body = tk.Frame(win, bg='#e0e0e0')
-        body.pack(pady=30)
-
-        btn_opts = dict(
-            font=('Arial', 16, 'bold'),
-            width=22,
-            padx=16, pady=14,
-            relief='flat',
-            bg='#008c8c', fg='white',
-            activebackground='#007d7d'
-        )
-
-        def _coming_soon(label: str):
-            try:
-                messagebox.showinfo("Not implemented", f"{label} — coming soon.")
-            except Exception:
-                pass
-
-        tk.Button(
-            body, text="New assessment", **btn_opts,
-            command=lambda: _coming_soon("New assessment")
-        ).grid(row=0, column=0, padx=20, pady=10)
-
-        tk.Button(
-            body, text="Continue incomplete", **btn_opts,
-            command=lambda: _coming_soon("Continue incomplete")
-        ).grid(row=0, column=1, padx=20, pady=10)
-
-        tk.Button(
-            body, text="View completed", **btn_opts,
-            command=lambda: _coming_soon("View completed")
-        ).grid(row=0, column=2, padx=20, pady=10)
-
-        # Helper text
-        tk.Label(
-            win,
-            text=(
-                "Manage word-centric assessments. Start a new word search, "
-                "resume in-progress items, or review completed analyses."
-            ),
-            font=('Arial', 14),
-            bg='#e0e0e0', fg='#333333',
-            justify='center', wraplength=900
-        ).pack(pady=(10, 0))
-
-        # Bottom actions
-        bottom = tk.Frame(win, bg='#e0e0e0')
-        bottom.pack(side=tk.BOTTOM, pady=24)
-        def _back_to_dashboard_word():
-            try:
-                win.destroy()
-            except Exception:
-                pass
-            self.show_dashboard()
-
-        tk.Button(
-            bottom,
-            text="Back to Dashboard",
-            font=('Arial', 14),
-            bg='#2f4f4f', fg='white',
-            activebackground='#3f6f6f',
-            padx=20, pady=10,
-            command=_back_to_dashboard_word
-        ).pack()
-
-        # Allow ESC to close
-        try:
-            win.bind("<Escape>", lambda e: win.destroy())
-        except Exception:
-            pass
 
     def launch_verse_assessment(self):
         """Window for searching & selecting verses to assess grammar using a 2‑column card layout."""
@@ -1663,15 +1348,9 @@ class GrammarApp:
             bottom, text="‹ Back", font=("Arial", 14),
             bg='gray', fg='white', command=win.destroy
         ).pack(side=tk.LEFT)
-        def _back_to_dashboard_verse():
-            try:
-                win.destroy()
-            except Exception:
-                pass
-            self.show_dashboard()
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=_back_to_dashboard_verse
+            bg='gray', fg='white', command=lambda: (win.destroy(), self.show_dashboard())
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
@@ -5382,9 +5061,10 @@ class GrammarApp:
         def back_to_dashboard():
             self.setup_verse_analysis_dashboard()
 
+        # Buttons for reanalysis actions and navigation
         tk.Button(
             btn_frame,
-            text="Analyze Selected Words",
+            text="Analyze Selected",
             bg="navy", fg="white",
             font=("Arial", 12, "bold"),
             padx=15, pady=5,
@@ -5409,10 +5089,78 @@ class GrammarApp:
             command=back_to_dashboard
         ).pack(side=tk.LEFT, padx=10)
 
-        # === Optional: Customize style ===
-        style = ttk.Style()
-        style.configure("Treeview.Heading", font=('Arial', 11, 'bold'))
-        style.configure("Treeview", rowheight=28, font=('Arial', 11))
+    def launch_word_assessment_dashboard(self):
+        """Clears the main dashboard and launches the Assess by Word dashboard (UI only)."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self.root.title("Assess by Word Dashboard")
+        self.setup_word_assessment_dashboard()
+
+    def setup_word_assessment_dashboard(self):
+        """Builds the Assess by Word dashboard UI with three primary actions.
+
+        UI only: buttons are placeholders without workflow logic for now.
+        """
+        # Root styling
+        self.root.configure(bg='light gray')
+        try:
+            self.root.state("zoomed")
+        except Exception:
+            pass
+
+        # Main surface
+        main = tk.Frame(self.root, bg='light gray', padx=10, pady=10)
+        main.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        # Header
+        header = tk.Label(
+            main,
+            text="Assess by Word",
+            font=('Arial', 18, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=10
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        # Button area
+        center = tk.Frame(main, bg='light gray')
+        center.pack(expand=True)
+
+        def _coming_soon(title: str):
+            try:
+                messagebox.showinfo(title, "This action will be available soon.")
+            except Exception:
+                pass
+
+        btn_style = dict(font=('Arial', 14, 'bold'), padx=20, pady=12, fg='white', width=24)
+
+        new_btn = tk.Button(
+            center, text="New assessment", bg='dark cyan', command=lambda: _coming_soon('New assessment'), **btn_style
+        )
+        new_btn.pack(pady=10)
+
+        cont_btn = tk.Button(
+            center, text="Continue incomplete", bg='teal', command=lambda: _coming_soon('Continue incomplete'), **btn_style
+        )
+        cont_btn.pack(pady=10)
+
+        view_btn = tk.Button(
+            center, text="View completed", bg='#2f4f4f', command=lambda: _coming_soon('View completed'), **btn_style
+        )
+        view_btn.pack(pady=10)
+
+        # Footer actions
+        footer = tk.Frame(main, bg='light gray')
+        footer.pack(fill=tk.X, pady=(20, 0))
+        tk.Button(
+            footer,
+            text="Back to Dashboard",
+            font=('Arial', 12, 'bold'),
+            bg='#2f4f4f', fg='white', padx=16, pady=8,
+            command=self.show_dashboard
+        ).pack(side=tk.RIGHT)
+
 
     def process_next_selected_word(self):
         """Process the next word from re-analysis queue, or prompt to save if finished."""
