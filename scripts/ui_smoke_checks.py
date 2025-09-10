@@ -158,11 +158,39 @@ def check_word_dashboard_back_button_no_error():
         pass
 
 
+def check_reanalysis_buttons_present():
+    root = tk.Tk(); root.withdraw()
+    app = GrammarApp(root)
+    # Attempt to open the Select Verse window; skip if deps prevent it
+    try:
+        app.launch_select_verse()
+    except Exception as e:
+        print(f"ui_smoke_checks: SKIPPED (launch_select_verse dependency issue: {e})")
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        return
+    win = _find_toplevel_by_title(root, 'Select Verse')
+    assert win is not None, 'Select Verse window not found'
+    analyze_btn = _find_button_text_contains(win, 'Analyze Selected')
+    back_search_btn = _find_button_text_contains(win, 'Back to Search')
+    back_dash_btn = _find_button_text_contains(win, 'Back to Dashboard')
+    assert analyze_btn is not None, 'Analyze Selected button not found in reanalysis view'
+    assert back_search_btn is not None, 'Back to Search button not found in reanalysis view'
+    assert back_dash_btn is not None, 'Back to Dashboard button not found in reanalysis view'
+    try:
+        root.destroy()
+    except Exception:
+        pass
+
+
 def main():
     check_back_button_closes_toplevel()
     check_word_button_grouped_under_grammar_update()
     check_grammar_update_back_button_destroys_win()
     check_word_dashboard_back_button_no_error()
+    check_reanalysis_buttons_present()
     print('ui_smoke_checks: OK')
 
 

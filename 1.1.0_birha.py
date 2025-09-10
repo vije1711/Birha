@@ -5061,6 +5061,34 @@ class GrammarApp:
         def back_to_dashboard():
             self.setup_verse_analysis_dashboard()
 
+        # Buttons for reanalysis actions and navigation
+        tk.Button(
+            btn_frame,
+            text="Analyze Selected",
+            bg="navy", fg="white",
+            font=("Arial", 12, "bold"),
+            padx=15, pady=5,
+            command=analyze_selected_words
+        ).pack(side=tk.LEFT, padx=10)
+
+        tk.Button(
+            btn_frame,
+            text="Back to Search",
+            bg="gray", fg="white",
+            font=("Arial", 12, "bold"),
+            padx=15, pady=5,
+            command=back_to_search
+        ).pack(side=tk.LEFT, padx=10)
+
+        tk.Button(
+            btn_frame,
+            text="Back to Dashboard",
+            bg="red", fg="white",
+            font=("Arial", 12, "bold"),
+            padx=15, pady=5,
+            command=back_to_dashboard
+        ).pack(side=tk.LEFT, padx=10)
+
     def launch_word_assessment_dashboard(self):
         """Clears the main dashboard and launches the Assess by Word dashboard (UI only)."""
         for widget in self.root.winfo_children():
