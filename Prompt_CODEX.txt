@@ -1,0 +1,53 @@
+Task: Tidy the layout of the “Assess Grammar” window (function user_input_grammar) to use vertical stacking with denser row-based content.
+
+What to change
+
+“Meanings for …” frame
+
+Reduce the frame’s vertical height so more space is available for options below.
+
+Increase the number of content columns (grid inside the scrolled area) so meanings flow in more columns across the width (fewer rows). Keep bullets and word-wrapping. Preserve the scrollbar.
+
+The frame should remain full-width, but not taller than necessary (target ~35–40% of the available height at 1080p).
+
+“Select Grammar Options” frame
+
+Present the three subgroups Number, Gender, Part of Speech as columns on a single row.
+
+Number: arrange its three radios in two columns (e.g., Singular | Plural on row1 and Unknown centered/left on row2).
+
+Gender: keep the current 2×2 layout but reduce the group’s width so it doesn’t waste horizontal space.
+
+Part of Speech: lay its radios in two rows using multiple columns (wrap across columns to minimize height). Aim for compact rows that use the full width.
+
+Overall layout / behavior
+
+Keep the verse banner at the top unchanged.
+
+Keep “Back to Translation”, “Skip Word”, and “Submit” anchored at the bottom; ensure the meanings/options stack sits above the buttons (no pack order inversion).
+
+Use grid with column/row weights for the meanings grid and the options row so the UI scales nicely on resize.
+
+No functional changes to variables, callbacks, or state; this is purely layout/geometry.
+
+Match existing fonts/colors; reuse helper fonts already on self (no new local Font objects that get GC’d).
+
+Acceptance checks
+
+At 1366×768 and 1920×1080, the meanings frame is shorter and shows more columns; options row fits comfortably in one band above the buttons.
+
+Number radios are 2 columns / 2 rows; Gender group is narrower; Part of Speech radios occupy two rows.
+
+Buttons remain fixed to the bottom; no content overlaps; scrollbars work.
+
+Code pointers
+
+Edit only the layout portions under the “Meanings for …” and “Select Grammar Options” sections in user_input_grammar.
+
+Prefer grid for the options band; if mixing pack/grid, keep them confined to separate containers to avoid geometry conflicts.
+
+Housekeeping
+
+Keep all behavior, strings, and data flow intact.
+
+Please push a feature branch and draft the PR description summarizing the layout changes (no merge to main yet).
