@@ -1239,9 +1239,31 @@ class GrammarApp:
             return path
 
         # If exists, check/repair sheets — single-writer strategy to avoid nested writers
+        # Important on Windows: ensure the ExcelFile handle is closed before writing
         try:
-            xf = pd.ExcelFile(path, engine='openpyxl')
-            existing_names = list(xf.sheet_names)
+            frames: dict[str, pd.DataFrame] = {}
+            with pd.ExcelFile(path, engine='openpyxl') as xf:
+                existing_names = list(xf.sheet_names)
+
+                # Preserve non-spec sheets exactly as-is
+                for sname in existing_names:
+                    if sname not in specs:
+                        try:
+                            frames[sname] = xf.parse(sname)
+                        except Exception:
+                            # If a sheet fails to load, skip it rather than blocking schema repair
+                            continue
+
+                # Ensure/normalize spec sheets
+                for sheet, spec in specs.items():
+                    if sheet in existing_names:
+                        try:
+                            df = xf.parse(sheet)
+                        except Exception:
+                            df = pd.DataFrame()
+                    else:
+                        df = pd.DataFrame(columns=[c[0] for c in spec])
+                    frames[sheet] = self._df_align_to_spec(df, spec)
         except Exception:
             # If workbook invalid, recreate from scratch
             with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
@@ -1251,36 +1273,19 @@ class GrammarApp:
                     empty.to_excel(wr, sheet_name=sheet, index=False)
             return path
 
-        # Read all existing sheets; we'll rewrite the whole file to ensure changes persist
-        frames: dict[str, pd.DataFrame] = {}
-
-        # Preserve non-spec sheets exactly as-is
-        for sname in existing_names:
-            if sname not in specs:
-                try:
-                    frames[sname] = pd.read_excel(path, sheet_name=sname, engine='openpyxl')
-                except Exception:
-                    # If a sheet fails to load, skip it rather than blocking schema repair
-                    continue
-
-        # Ensure/normalize spec sheets
-        for sheet, spec in specs.items():
-            if sheet in existing_names:
-                try:
-                    df = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
-                except Exception:
-                    df = pd.DataFrame()
-            else:
-                df = pd.DataFrame(columns=[c[0] for c in spec])
-            frames[sheet] = self._df_align_to_spec(df, spec)
-
         # Write everything back in a single pass (no nested writers)
         with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
             # Maintain a stable order: non-spec sheets first in their original order, then spec sheets alpha
-            for sname in existing_names:
+            # Recompute original order safely (without keeping the file locked)
+            try:
+                with pd.ExcelFile(path, engine='openpyxl') as xf_verify:
+                    existing_order = list(xf_verify.sheet_names)
+            except Exception:
+                existing_order = []
+            for sname in existing_order:
                 if sname in frames and sname not in specs:
                     frames[sname].to_excel(wr, sheet_name=sname, index=False)
-            for sname in sorted(specs.keys()):
+            for sname in sorted(k for k in frames.keys() if k in specs):
                 frames[sname].to_excel(wr, sheet_name=sname, index=False)
 
         # Quick regression check to ensure schema persisted
