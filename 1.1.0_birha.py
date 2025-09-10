@@ -1238,12 +1238,12 @@ class GrammarApp:
                     empty.to_excel(wr, sheet_name=sheet, index=False)
             return path
 
-        # If exists, check/repair sheets
+        # If exists, check/repair sheets — single-writer strategy to avoid nested writers
         try:
             xf = pd.ExcelFile(path, engine='openpyxl')
-            existing = set(xf.sheet_names)
+            existing_names = list(xf.sheet_names)
         except Exception:
-            # If workbook invalid, recreate
+            # If workbook invalid, recreate from scratch
             with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
                 for sheet, spec in specs.items():
                     empty = pd.DataFrame(columns=[c[0] for c in spec])
@@ -1251,22 +1251,46 @@ class GrammarApp:
                     empty.to_excel(wr, sheet_name=sheet, index=False)
             return path
 
-        with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as wr:
-            for sheet, spec in specs.items():
-                if sheet in existing:
-                    try:
-                        df = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
-                    except Exception:
-                        df = pd.DataFrame()
-                    df2 = self._df_align_to_spec(df, spec)
-                    # Replace sheet with normalized frame
-                    with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='replace') as wr2:
-                        df2.to_excel(wr2, sheet_name=sheet, index=False)
-                else:
-                    # Add missing sheet
-                    empty = pd.DataFrame(columns=[c[0] for c in spec])
-                    empty = self._df_align_to_spec(empty, spec)
-                    empty.to_excel(wr, sheet_name=sheet, index=False)
+        # Read all existing sheets; we'll rewrite the whole file to ensure changes persist
+        frames: dict[str, pd.DataFrame] = {}
+
+        # Preserve non-spec sheets exactly as-is
+        for sname in existing_names:
+            if sname not in specs:
+                try:
+                    frames[sname] = pd.read_excel(path, sheet_name=sname, engine='openpyxl')
+                except Exception:
+                    # If a sheet fails to load, skip it rather than blocking schema repair
+                    continue
+
+        # Ensure/normalize spec sheets
+        for sheet, spec in specs.items():
+            if sheet in existing_names:
+                try:
+                    df = pd.read_excel(path, sheet_name=sheet, engine='openpyxl')
+                except Exception:
+                    df = pd.DataFrame()
+            else:
+                df = pd.DataFrame(columns=[c[0] for c in spec])
+            frames[sheet] = self._df_align_to_spec(df, spec)
+
+        # Write everything back in a single pass (no nested writers)
+        with pd.ExcelWriter(path, engine='openpyxl', mode='w') as wr:
+            # Maintain a stable order: non-spec sheets first in their original order, then spec sheets alpha
+            for sname in existing_names:
+                if sname in frames and sname not in specs:
+                    frames[sname].to_excel(wr, sheet_name=sname, index=False)
+            for sname in sorted(specs.keys()):
+                frames[sname].to_excel(wr, sheet_name=sname, index=False)
+
+        # Quick regression check to ensure schema persisted
+        try:
+            ok = self._selfcheck_word_tracker_schema(path)
+            if not ok:
+                print("[ensure_word_tracker] Warning: schema self-check failed; file may be locked or overwritten by another process.")
+        except Exception:
+            # Best effort only
+            pass
         return path
 
     def load_word_tracker(self, path: Optional[str] = None) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -1287,6 +1311,24 @@ class GrammarApp:
         w = self._df_align_to_spec(w, specs['Words'])
         p = self._df_align_to_spec(p, specs['Progress'])
         return w, p
+
+    def _selfcheck_word_tracker_schema(self, path: Optional[str] = None) -> bool:
+        """Verify that the persisted Excel has spec columns in-order as a prefix.
+
+        Returns True if both Words and Progress have expected leading columns; False otherwise.
+        """
+        path = path or self._word_tracker_path()
+        specs = self._word_tracker_specs()
+        for sheet, spec in specs.items():
+            try:
+                df_head = pd.read_excel(path, sheet_name=sheet, engine='openpyxl', nrows=0)
+            except Exception:
+                return False
+            spec_cols = [c[0] for c in spec]
+            cols = list(df_head.columns)
+            if cols[:len(spec_cols)] != spec_cols:
+                return False
+        return True
 
     def _append_tracker_rows(self, sheet: str, rows: Iterable[dict], path: Optional[str] = None) -> int:
         """Append rows to the given sheet name.
