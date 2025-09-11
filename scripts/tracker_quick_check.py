@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import shutil
+import zipfile
 import importlib.util
 import pandas as pd
 from openpyxl import load_workbook
@@ -78,7 +80,32 @@ def main():
 
     print("OK: tracker quick check passed")
 
+    # Optional: macro-enabled quick check if a template is available
+    macro_tpl = os.getenv("TRACKER_VBA_TEMPLATE") or "macro_template.xlsm"
+    tpl_path = Path(macro_tpl)
+    if tpl_path.exists():
+        xlsm = Path("tmp_tracker_macro_check.xlsm").resolve()
+        try:
+            if xlsm.exists():
+                xlsm.unlink()
+        except Exception:
+            pass
+        shutil.copyfile(str(tpl_path), str(xlsm))
+
+        # ensure twice; verify vbaProject.bin preserved
+        mod.ensure_word_tracker(str(xlsm))
+        mod.ensure_word_tracker(str(xlsm))
+        # check for vba_project presence in the zip
+        has_vba = False
+        try:
+            with zipfile.ZipFile(str(xlsm), 'r') as zf:
+                namelist = set(zf.namelist())
+                has_vba = any(name.lower().endswith("vbaProject.bin".lower()) or name.lower()=="xl/vbaproject.bin" for name in namelist)
+        except Exception:
+            has_vba = False
+        assert has_vba, "Macro project missing after ensure_word_tracker on .xlsm"
+        print("OK: macro-enabled tracker VBA preserved")
+
 
 if __name__ == "__main__":
     main()
-

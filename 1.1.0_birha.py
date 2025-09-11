@@ -342,7 +342,13 @@ def ensure_word_tracker(
         pass
 
     # Now overlay the DataFrames into the cleared sheets without mutating writer internals
-    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="a", if_sheet_exists="overlay") as writer:
+    with pd.ExcelWriter(
+        tracker_path,
+        engine="openpyxl",
+        mode="a",
+        if_sheet_exists="overlay",
+        engine_kwargs={"keep_vba": True},
+    ) as writer:
         words_df.to_excel(writer, index=False, sheet_name=words_sheet)
         prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
@@ -428,7 +434,13 @@ def _save_tracker(
     except Exception:
         pass
 
-    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="a", if_sheet_exists="overlay") as writer:
+    with pd.ExcelWriter(
+        tracker_path,
+        engine="openpyxl",
+        mode="a",
+        if_sheet_exists="overlay",
+        engine_kwargs={"keep_vba": True},
+    ) as writer:
         words_df.to_excel(writer, index=False, sheet_name=words_sheet)
         progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
