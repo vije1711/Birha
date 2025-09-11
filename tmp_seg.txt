@@ -1,0 +1,74 @@
+﻿            win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
+
+    def launch_grammar_update_dashboard(self):
+        win = tk.Toplevel(self.root)
+        win.title("Grammar Database Update")
+        win.configure(bg='#e0e0e0')  # light neutral background
+        win.state("zoomed")
+
+        # — Header Bar —
+        header = tk.Frame(win, bg='#2f4f4f', height=60)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Grammar Database Update",
+            font=('Arial', 20, 'bold'),
+            bg='#2f4f4f',
+            fg='white'
+        ).place(relx=0.5, rely=0.5, anchor='center')
+
+        # — Separator —
+        sep = tk.Frame(win, bg='#cccccc', height=2)
+        sep.pack(fill=tk.X)
+
+        # — Navigation Buttons —
+        nav = tk.Frame(win, bg='#e0e0e0')
+        nav.pack(pady=30)
+        btn_kwargs = dict(
+            font=('Arial', 14, 'bold'),
+            width=20,
+            padx=10, pady=10,
+            relief='flat',
+            activebackground='#007d7d',
+            bg='#008c8c', fg='white'
+        )
+
+        btn_verse = tk.Button(
+            nav, text="Assess by Verse", **btn_kwargs,
+            command=self.launch_verse_assessment
+        )
+        btn_verse.grid(row=0, column=0, padx=20)
+
+        btn_word = tk.Button(
+            nav, text="Assess by Word (coming soon)", **btn_kwargs,
+            state=tk.DISABLED, disabledforeground='#666666'
+        )
+        btn_word.grid(row=0, column=1, padx=20)
+
+        # — Instruction / Description —
+        instr = (
+            "Choose “Assess by Verse” to look up verses and refine grammar entries.\n"
+            "The “Assess by Word” workflow is coming in the next release."
+        )
+        tk.Label(
+            win, text=instr,
+            font=('Arial', 16),
+            bg='#e0e0e0', fg='#333333',
+            justify='center', wraplength=800
+        ).pack(pady=20)
+
+        # — Bottom Back Button —
+        bottom = tk.Frame(win, bg='#e0e0e0')
+        bottom.pack(side=tk.BOTTOM, pady=30)
+        back_btn = tk.Button(
+            bottom,
+            text="← Back to Dashboard",
+            font=('Arial', 14),
+            bg='#2f4f4f', fg='white',
+            activebackground='#3f6f6f',
+            padx=20, pady=10,
+            command=self.show_dashboard
+        )
+        back_btn.pack()
