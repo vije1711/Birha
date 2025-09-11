@@ -1582,19 +1582,6 @@ class GrammarApp:
         )
         future_btn.pack(pady=10)
 
-        # Word Search (Lexicon)
-        word_search_btn = tk.Button(
-            button_frame,
-            text="Word Search (Lexicon)",
-            font=('Arial', 14, 'bold'),
-            bg='#4b8bbe',
-            fg='white',
-            padx=20,
-            pady=10,
-            command=self.show_word_search_modal
-        )
-        word_search_btn.pack(pady=10)
-
         # What's New / Releases button
         whats_new_btn = tk.Button(
             button_frame,
@@ -1735,14 +1722,64 @@ class GrammarApp:
         body = tk.Frame(self.root, bg='light gray')
         body.pack(expand=True)
 
-        # New Assessment → opens a small menu with launchers (e.g., Word Search)
+        # New Assessment menu housing the Word Search (Lexicon) launcher
+        def open_new_word_assessment_menu():
+            win = tk.Toplevel(self.root)
+            win.title("New Assessment – Assess by Word")
+            win.configure(bg='light gray')
+            try:
+                win.state('zoomed')
+            except tk.TclError:
+                # Some platforms/window managers may not support zoomed state
+                pass
+
+            header = tk.Label(
+                win,
+                text="Start a New Assessment",
+                font=('Arial', 18, 'bold'),
+                bg='dark slate gray', fg='white', pady=10
+            )
+            header.pack(fill=tk.X)
+
+            body_inner = tk.Frame(win, bg='light gray')
+            body_inner.pack(expand=True, padx=24, pady=20)
+
+            # Launcher: Word Search (Lexicon) → opens existing modal
+            tk.Button(
+                body_inner,
+                text="Word Search (Lexicon)",
+                font=('Arial', 14, 'bold'),
+                bg='#4b8bbe', fg='white',
+                padx=20, pady=10,
+                command=self.show_word_search_modal
+            ).pack(pady=10)
+
+            footer = tk.Frame(win, bg='light gray')
+            footer.pack(fill=tk.X, padx=24, pady=(0, 16))
+            tk.Button(
+                footer,
+                text="< Back",
+                font=('Arial', 12, 'bold'),
+                bg='#2f4f4f', fg='white',
+                padx=16, pady=6,
+                command=lambda: self._go_back_to_dashboard(win)
+            ).pack(side=tk.LEFT)
+            tk.Button(
+                footer,
+                text="Close",
+                font=('Arial', 12, 'bold'),
+                bg='gray', fg='white',
+                padx=16, pady=6,
+                command=win.destroy
+            ).pack(side=tk.RIGHT)
+
         tk.Button(
             body,
             text="New Assessment",
             font=('Arial', 14, 'bold'),
             bg='dark cyan', fg='white',
             padx=20, pady=10,
-            command=self._open_new_word_assessment_menu
+            command=open_new_word_assessment_menu
         ).pack(pady=8)
 
         tk.Button(
@@ -1772,64 +1809,6 @@ class GrammarApp:
             padx=14, pady=6,
             command=self._go_back_to_dashboard  # no 'win' arg
         ).pack(side=tk.LEFT)
-
-
-    def _open_new_word_assessment_menu(self):
-        """Toplevel menu for starting a new 'Assess by Word' session.
-        Contains launchers like 'Word Search (Lexicon)'.
-        """
-        win = tk.Toplevel(self.root)
-        win.title("New Assessment – Assess by Word")
-        win.configure(bg='light gray')
-        try:
-            win.state('zoomed')
-        except tk.TclError:
-            # Some platforms/window managers may not support zoomed state
-            pass
-
-        # Header bar
-        header = tk.Label(
-            win,
-            text="Start a New Assessment",
-            font=('Arial', 18, 'bold'),
-            bg='dark slate gray', fg='white', pady=10
-        )
-        header.pack(fill=tk.X)
-
-        # Body frame
-        body = tk.Frame(win, bg='light gray')
-        body.pack(expand=True, padx=24, pady=20)
-
-        # Launcher: Word Search (Lexicon) → opens existing modal
-        tk.Button(
-            body,
-            text="Word Search (Lexicon)",
-            font=('Arial', 14, 'bold'),
-            bg='#4b8bbe', fg='white',
-            padx=20, pady=10,
-            command=self.show_word_search_modal
-        ).pack(pady=10)
-
-        # Footer: Back to main dashboard and Close
-        footer = tk.Frame(win, bg='light gray')
-        footer.pack(fill=tk.X, padx=24, pady=(0, 16))
-        tk.Button(
-            footer,
-            text="< Back",
-            font=('Arial', 12, 'bold'),
-            bg='#2f4f4f', fg='white',
-            padx=16, pady=6,
-            command=lambda: self._go_back_to_dashboard(win)
-        ).pack(side=tk.LEFT)
-        tk.Button(
-            footer,
-            text="Close",
-            font=('Arial', 12, 'bold'),
-            bg='gray', fg='white',
-            padx=16, pady=6,
-            command=win.destroy
-        ).pack(side=tk.RIGHT)
-
 
     # ---------------------------
     # One-time "What's New" helpers
