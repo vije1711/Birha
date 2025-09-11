@@ -11,7 +11,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 import threading
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
 import numpy as np
 import textwrap
 import webbrowser
@@ -1044,6 +1044,10 @@ class GrammarApp:
         self.all_matches                   = []
         self.all_new_entries               = []   # global accumulator
 
+        # Lexicon index cache (built lazily from 1.1.3 Excel)
+        self._lexicon_index = None
+        self._lexicon_index_path = "1.1.3_lexicon_index.json"
+
         # word‑by‑word navigation
         self.current_word_index = 0
         self.pankti_words       = []
@@ -1100,6 +1104,242 @@ class GrammarApp:
         cleaned = re.sub(r"[।॥]", "", verse_text).strip()
         cleaned = re.sub(r"\s+", " ", cleaned)
         return unicodedata.normalize("NFC", cleaned)
+
+    # ------------------------------------------------------------------
+    # Lexicon index: build from 1.1.3 Excel (tokenize, normalize, aggregate counts)
+    # ------------------------------------------------------------------
+    def _tokenize_and_normalize(self, text: str) -> list[str]:
+        try:
+            s = str(text or "")
+        except Exception:
+            s = ""
+        # strip danda/double-danda before split to avoid them as separate tokens
+        s = re.sub(r"[??]", "", s)
+        toks = []
+        for raw in s.split():
+            t = self._norm_tok(raw)
+            if t:
+                toks.append(t)
+        return toks
+
+    def build_lexicon_index(self, force_rebuild: bool = False) -> dict:
+        """Build or load a word->count index from 1.1.3 sggs_extracted_with_page_numbers.xlsx.
+
+        - Tokenize verses, normalize each token via _norm_tok, and aggregate counts.
+        - Caches to JSON on disk for faster subsequent loads.
+        - Returns a dict {token: count}.
+        """
+        if getattr(self, "_lexicon_index", None) is not None and not force_rebuild:
+            return self._lexicon_index
+
+        cache_path = getattr(self, "_lexicon_index_path", None)
+        excel_path = "1.1.3 sggs_extracted_with_page_numbers.xlsx"
+
+        # Try to load cache if present and not forcing rebuild
+        if not force_rebuild and cache_path and os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    self._lexicon_index = {str(k): int(v) for k, v in data.items()}
+                    return self._lexicon_index
+            except Exception:
+                pass
+
+        # Build fresh from Excel
+        try:
+            df = pd.read_excel(excel_path, engine="openpyxl")
+        except Exception as e:
+            try:
+                messagebox.showerror("Lexicon Error", f"Failed to read '{excel_path}':\n{e}")
+            except Exception:
+                pass
+            self._lexicon_index = {}
+            return self._lexicon_index
+
+        counts: dict[str, int] = {}
+        verse_col = "Verse"
+        if verse_col not in df.columns:
+            candidates = [c for c in df.columns if str(c).strip().lower() == "verse"]
+            if candidates:
+                verse_col = candidates[0]
+            else:
+                try:
+                    messagebox.showerror("Lexicon Error", "Excel is missing 'Verse' column for lexicon build.")
+                except Exception:
+                    pass
+                self._lexicon_index = {}
+                return self._lexicon_index
+
+        for _, row in df.iterrows():
+            verse = row.get(verse_col, "")
+            for tok in self._tokenize_and_normalize(verse):
+                counts[tok] = counts.get(tok, 0) + 1
+
+        self._lexicon_index = counts
+
+        # Write cache (best-effort)
+        try:
+            if cache_path:
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    json.dump(self._lexicon_index, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+        return self._lexicon_index
+
+    def search_lexicon(self, query: str, limit: int = 50, min_score: int = 55) -> list[dict]:
+        """Fuzzy-search the lexicon for closest matches to query.
+
+        - Normalizes the query similar to _norm_tok (drop dandas/ZW chars).
+        - Returns up to `limit` unique tokens sorted by score desc, then count desc.
+        - Each result is {"token": str, "count": int, "score": int}.
+        """
+        index = self.build_lexicon_index()
+        if not index:
+            return []
+
+        q = self._norm_tok(query or "")
+        if not q:
+            return []
+
+        candidates = list(index.keys())
+        try:
+            scored = process.extract(q, candidates, scorer=fuzz.WRatio, limit=limit * 3)
+        except Exception:
+            scored = [(cand, fuzz.WRatio(q, cand), None) for cand in candidates]
+
+        seen = set()
+        results = []
+        for cand, score, _ in scored:
+            if score < min_score:
+                continue
+            if cand in seen:
+                continue
+            seen.add(cand)
+            results.append({
+                "token": cand,
+                "count": int(index.get(cand, 0)),
+                "score": int(score),
+            })
+            if len(results) >= (limit * 2):
+                break
+
+        results.sort(key=lambda r: (r["score"], r["count"]), reverse=True)
+        return results[:limit]
+
+    def show_word_search_modal(self):
+        """Modal: search lexicon tokens with fuzzy matching and multi-select tick-list."""
+        # Ensure index is built (may show an error and yield empty)
+        self.build_lexicon_index()
+
+        win = tk.Toplevel(self.root)
+        win.title("Lexicon Word Search")
+        win.configure(bg='light gray')
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+
+        header = tk.Label(
+            win,
+            text="Search Words (Lexicon)",
+            font=("Arial", 16, "bold"),
+            bg='dark slate gray', fg='white', pady=8
+        )
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+
+        # Search row
+        sr = tk.Frame(body, bg='light gray')
+        sr.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(sr, text="Query:", font=("Arial", 12), bg='light gray').pack(side=tk.LEFT)
+        q_var = tk.StringVar(value="")
+        q_entry = tk.Entry(sr, textvariable=q_var, font=("Arial", 12), width=40)
+        q_entry.pack(side=tk.LEFT, padx=(8, 8))
+
+        status_var = tk.StringVar(value="Type to search; press Enter to refresh")
+        tk.Label(sr, textvariable=status_var, font=("Arial", 10, "italic"),
+                 bg='light gray', fg='#333').pack(side=tk.LEFT)
+
+        # Results area
+        res_frame = tk.Frame(body, bg='light gray')
+        res_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(res_frame, bg='light gray', highlightthickness=0)
+        vsb = tk.Scrollbar(res_frame, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas, bg='light gray')
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor='nw')
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Select-all
+        sel_all_var = tk.BooleanVar(value=False)
+        def _toggle_all():
+            for var, _ in getattr(self, "_lex_chk_vars", []):
+                var.set(bool(sel_all_var.get()))
+        tk.Checkbutton(body, text="Select/Deselect All", variable=sel_all_var,
+                       bg='light gray', command=_toggle_all).pack(anchor='w', pady=(8, 6))
+
+        # Footer actions
+        btns = tk.Frame(body, bg='light gray')
+        btns.pack(fill=tk.X, pady=(6, 0))
+        def _copy_selected():
+            chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
+            if not chosen:
+                messagebox.showinfo("No Selection", "Please select one or more words to copy.")
+                return
+            try:
+                pyperclip.copy("\n".join(chosen))
+                messagebox.showinfo("Copied", f"Copied {len(chosen)} word(s) to clipboard.")
+            except Exception as e:
+                messagebox.showerror("Copy Failed", str(e))
+        tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
+                  command=_copy_selected).pack(side=tk.LEFT)
+        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11),
+                  command=win.destroy).pack(side=tk.RIGHT)
+
+        self._lex_chk_vars = []
+
+        def _render_results(items: list[dict]):
+            for w in list(inner.winfo_children()):
+                w.destroy()
+            self._lex_chk_vars = []
+            # header row
+            header_row = tk.Frame(inner, bg='light gray')
+            header_row.grid(row=0, column=0, sticky='ew', padx=2, pady=(0, 6))
+            tk.Label(header_row, text="Select", font=("Arial", 11, "bold"), width=8, anchor='w', bg='light gray').pack(side=tk.LEFT)
+            tk.Label(header_row, text="Word", font=("Arial", 11, "bold"), width=28, anchor='w', bg='light gray').pack(side=tk.LEFT)
+            tk.Label(header_row, text="Count", font=("Arial", 11, "bold"), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+            tk.Label(header_row, text="Score", font=("Arial", 11, "bold"), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+
+            for i, r in enumerate(items, start=1):
+                rowf = tk.Frame(inner, bg='light gray')
+                rowf.grid(row=i, column=0, sticky='ew', padx=2, pady=2)
+                v = tk.BooleanVar(value=False)
+                tk.Checkbutton(rowf, variable=v, bg='light gray').pack(side=tk.LEFT, padx=(0, 8))
+                tk.Label(rowf, text=r["token"], font=("Arial", 12), width=28, anchor='w', bg='light gray').pack(side=tk.LEFT)
+                tk.Label(rowf, text=str(r["count"]), font=("Arial", 12), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+                tk.Label(rowf, text=str(r["score"]), font=("Arial", 12), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+                self._lex_chk_vars.append((v, r["token"]))
+
+        def _do_search(event=None):
+            q = q_var.get()
+            if not q.strip():
+                status_var.set("Type to search; press Enter to refresh")
+                _render_results([])
+                return
+            results = self.search_lexicon(q)
+            status_var.set(f"{len(results)} result(s)")
+            _render_results(results)
+
+        tk.Button(sr, text="Search", command=_do_search, bg='teal', fg='white').pack(side=tk.LEFT, padx=(8,0))
+        q_entry.bind("<Return>", _do_search)
+        q_entry.focus_set()
 
     def _banner_wraplength(self, win=None) -> int:
         """Return a wraplength tuned to the window width (clamped 600–900)."""
@@ -1332,6 +1572,19 @@ class GrammarApp:
             state=tk.DISABLED
         )
         future_btn.pack(pady=10)
+
+        # Word Search (Lexicon)
+        word_search_btn = tk.Button(
+            button_frame,
+            text="Word Search (Lexicon)",
+            font=('Arial', 14, 'bold'),
+            bg='#4b8bbe',
+            fg='white',
+            padx=20,
+            pady=10,
+            command=self.show_word_search_modal
+        )
+        word_search_btn.pack(pady=10)
 
         # What's New / Releases button
         whats_new_btn = tk.Button(
