@@ -1723,7 +1723,7 @@ class GrammarApp:
         # Header
         header = tk.Label(
             self.root,
-            text="Assess by Word – Dashboard",
+            text="Assess by Word - Dashboard",
             font=('Arial', 18, 'bold'),
             bg='dark slate gray',
             fg='white',
@@ -1735,13 +1735,14 @@ class GrammarApp:
         body = tk.Frame(self.root, bg='light gray')
         body.pack(expand=True)
 
-        # UI-only buttons (no business logic yet)
+        # New Assessment → opens a small menu with launchers (e.g., Word Search)
         tk.Button(
             body,
             text="New Assessment",
             font=('Arial', 14, 'bold'),
             bg='dark cyan', fg='white',
-            padx=20, pady=10
+            padx=20, pady=10,
+            command=self._open_new_word_assessment_menu
         ).pack(pady=8)
 
         tk.Button(
@@ -1771,6 +1772,63 @@ class GrammarApp:
             padx=14, pady=6,
             command=self._go_back_to_dashboard  # no 'win' arg
         ).pack(side=tk.LEFT)
+
+
+    def _open_new_word_assessment_menu(self):
+        """Toplevel menu for starting a new 'Assess by Word' session.
+        Contains launchers like 'Word Search (Lexicon)'.
+        """
+        win = tk.Toplevel(self.root)
+        win.title("New Assessment – Assess by Word")
+        win.configure(bg='light gray')
+        try:
+            win.state('zoomed')
+        except tk.TclError:
+            # Some platforms/window managers may not support zoomed state
+            pass
+
+        # Header bar
+        header = tk.Label(
+            win,
+            text="Start a New Assessment",
+            font=('Arial', 18, 'bold'),
+            bg='dark slate gray', fg='white', pady=10
+        )
+        header.pack(fill=tk.X)
+
+        # Body frame
+        body = tk.Frame(win, bg='light gray')
+        body.pack(expand=True, padx=24, pady=20)
+
+        # Launcher: Word Search (Lexicon) → opens existing modal
+        tk.Button(
+            body,
+            text="Word Search (Lexicon)",
+            font=('Arial', 14, 'bold'),
+            bg='#4b8bbe', fg='white',
+            padx=20, pady=10,
+            command=self.show_word_search_modal
+        ).pack(pady=10)
+
+        # Footer: Back to main dashboard and Close
+        footer = tk.Frame(win, bg='light gray')
+        footer.pack(fill=tk.X, padx=24, pady=(0, 16))
+        tk.Button(
+            footer,
+            text="< Back",
+            font=('Arial', 12, 'bold'),
+            bg='#2f4f4f', fg='white',
+            padx=16, pady=6,
+            command=lambda: self._go_back_to_dashboard(win)
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            footer,
+            text="Close",
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=16, pady=6,
+            command=win.destroy
+        ).pack(side=tk.RIGHT)
 
 
     # ---------------------------
@@ -1900,7 +1958,10 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
-        win.state("zoomed")
+        try:
+            win.state("zoomed")
+        except tk.TclError:
+            pass
 
         # — Header Bar —
         header = tk.Frame(win, bg='#2f4f4f', height=60)
@@ -1971,11 +2032,14 @@ class GrammarApp:
         win.bind("<Escape>", lambda e: win.destroy())
 
     def launch_verse_assessment(self):
-        """Window for searching & selecting verses to assess grammar using a 2‑column card layout."""
+        """Window for searching & selecting verses to assess grammar using a 2-column card layout."""
         win = tk.Toplevel(self.root)
         win.title("Assess by Verse")
         win.configure(bg='light gray')
-        win.state("zoomed")
+        try:
+            win.state("zoomed")
+        except tk.TclError:
+            pass
         
         # — Optional page‐wide heading —
         tk.Label(
@@ -5200,7 +5264,10 @@ class GrammarApp:
         select_win = tk.Toplevel(self.root)
         select_win.title("Select Verse")
         select_win.geometry("800x600")
-        select_win.state("zoomed")
+        try:
+            select_win.state("zoomed")
+        except tk.TclError:
+            pass
         select_win.configure(bg="light gray")
 
         # === Load Excel data ===
