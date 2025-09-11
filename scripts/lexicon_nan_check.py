@@ -17,8 +17,12 @@ def _load_birha_module():
 
 
 def main():
-    root = tk.Tk()
-    root.withdraw()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+    except tk.TclError:
+        print("Headless environment: no display available. Skipping lexicon NaN quick-check.")
+        return
     mod = _load_birha_module()
     app = mod.GrammarApp(root)
 
@@ -48,4 +52,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
