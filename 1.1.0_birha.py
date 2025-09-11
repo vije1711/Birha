@@ -15,6 +15,7 @@ from rapidfuzz import fuzz
 import numpy as np
 import textwrap
 import webbrowser
+from datetime import datetime
 import subprocess
 import json
 import webbrowser
@@ -194,6 +195,298 @@ def extract_darpan_translation(text: str) -> str:
         return original
 
     return "\n\n".join(parts)
+
+# ------------------------------------------------------------------
+# Tracker helpers: 'Assess by Word' Excel (1.1.6 XXXX.xlsx)
+# - create, load, append
+# - enforce: no nested writers; ExcelFile closed before writing
+# - preserve and rewrite non-spec sheets in original order
+# ------------------------------------------------------------------
+
+TRACKER_WORDS_SHEET = "Words"
+TRACKER_PROGRESS_SHEET = "Progress"
+
+_WORDS_COLUMNS = [
+    "word",
+    "word_key_norm",
+    "listed_by_user",
+    "listed_at",
+    "selected_for_analysis",
+    "selected_at",
+    "analysis_started",
+    "analysis_started_at",
+    "analysis_completed",
+    "analysis_completed_at",
+    "sequence_index",
+    "notes",
+]
+
+_PROGRESS_COLUMNS = [
+    "word",
+    "word_key_norm",
+    "word_index",
+    "verse",
+    "page_number",
+    "selected_for_analysis",
+    "selected_at",
+    "status",
+    "completed_at",
+    "reanalyzed_count",
+    "last_reanalyzed_at",
+]
+
+
+def _empty_tracker_frames():
+    words_df = pd.DataFrame(columns=_WORDS_COLUMNS)
+    progress_df = pd.DataFrame(columns=_PROGRESS_COLUMNS)
+    return words_df, progress_df
+
+
+def _coerce_dt(val):
+    """Best-effort parse for datetime-like values; returns unchanged if parsing fails."""
+    if val is None or val == "":
+        return None
+    if isinstance(val, (datetime,)):
+        return val
+    try:
+        # pandas will serialize datetime if already dtype-compatible; leave as str otherwise
+        return pd.to_datetime(val)
+    except Exception:
+        return val
+
+
+def _ensure_columns(df: pd.DataFrame, required: list[str]) -> pd.DataFrame:
+    # Add missing columns as empty; keep existing order for present columns
+    for col in required:
+        if col not in df.columns:
+            df[col] = pd.Series([None] * len(df))
+    # Reorder to required first, then any extras in original relative order
+    extras = [c for c in df.columns if c not in required]
+    return df[required + extras]
+
+
+def ensure_word_tracker(
+    tracker_path: str,
+    words_sheet: str = TRACKER_WORDS_SHEET,
+    progress_sheet: str = TRACKER_PROGRESS_SHEET,
+):
+    """Ensure a tracker workbook exists with 'Words' and 'Progress' sheets.
+
+    - If file is missing: create with empty required columns.
+    - If present: guarantee required sheets exist and have at least required columns
+      (missing columns are added empty, extras are preserved).
+    - Non-spec sheets are preserved and re-written in original order.
+
+    Implementation constraints:
+    - Never nest ExcelWriter inside an open ExcelFile; close read handles first.
+    - Use a single ExcelWriter per save (mode='w', engine='openpyxl').
+    - Always use a context manager for pd.ExcelFile so it is closed before writing.
+    """
+    # Gather existing sheets (if any) using a closed ExcelFile context
+    existing_order: list[str] = []
+    frames: dict[str, pd.DataFrame] = {}
+
+    if os.path.exists(tracker_path):
+        try:
+            with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
+                existing_order = list(xls.sheet_names)
+                for name in existing_order:
+                    try:
+                        frames[name] = pd.read_excel(xls, sheet_name=name)
+                    except Exception:
+                        frames[name] = pd.DataFrame()
+        except Exception:
+            # If file unreadable, fall back to creating new with just spec sheets
+            existing_order = []
+            frames = {}
+
+    # Ensure spec sheets exist and include required columns
+    if words_sheet in frames:
+        frames[words_sheet] = _ensure_columns(frames[words_sheet], _WORDS_COLUMNS)
+    else:
+        frames[words_sheet] = _empty_tracker_frames()[0]
+        existing_order.append(words_sheet)
+
+    if progress_sheet in frames:
+        frames[progress_sheet] = _ensure_columns(frames[progress_sheet], _PROGRESS_COLUMNS)
+    else:
+        frames[progress_sheet] = _empty_tracker_frames()[1]
+        # If it's a brand-new file (no existing sheets), write Words then Progress
+        if words_sheet not in existing_order:
+            existing_order.extend([words_sheet, progress_sheet])
+        else:
+            existing_order.append(progress_sheet)
+
+    # If there were no existing sheets at all, order spec sheets canonically
+    if not os.path.exists(tracker_path) or not existing_order:
+        existing_order = [words_sheet, progress_sheet]
+
+    # Write out using a single ExcelWriter (no nesting with ExcelFile)
+    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
+        # Preserve non-spec sheets by original order; write spec at their positions
+        seen = set()
+        for name in existing_order:
+            df = frames.get(name)
+            if df is None:
+                df = pd.DataFrame()
+            # Coerce known datetime-like columns for serialization friendliness
+            if name == words_sheet:
+                for c in [
+                    "listed_at",
+                    "selected_at",
+                    "analysis_started_at",
+                    "analysis_completed_at",
+                ]:
+                    if c in df.columns:
+                        df[c] = df[c].map(_coerce_dt)
+            elif name == progress_sheet:
+                for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
+                    if c in df.columns:
+                        df[c] = df[c].map(_coerce_dt)
+            df.to_excel(writer, index=False, sheet_name=name)
+            seen.add(name)
+
+        # In case spec sheets weren't in existing_order for some reason, append them now
+        for fallback_name in (words_sheet, progress_sheet):
+            if fallback_name not in seen:
+                frames[fallback_name].to_excel(writer, index=False, sheet_name=fallback_name)
+
+    return True
+
+
+def load_word_tracker(
+    tracker_path: str,
+    words_sheet: str = TRACKER_WORDS_SHEET,
+    progress_sheet: str = TRACKER_PROGRESS_SHEET,
+):
+    """Load tracker workbook and return (words_df, progress_df, other_sheets_ordered).
+
+    Uses a context-managed ExcelFile to ensure clean close before any write.
+    """
+    if not os.path.exists(tracker_path):
+        # Create a new in-memory structure if missing
+        words_df, prog_df = _empty_tracker_frames()
+        return words_df, prog_df, []
+
+    with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
+        names = list(xls.sheet_names)
+        words_df = (
+            pd.read_excel(xls, sheet_name=words_sheet)
+            if words_sheet in names else pd.DataFrame(columns=_WORDS_COLUMNS)
+        )
+        words_df = _ensure_columns(words_df, _WORDS_COLUMNS)
+        prog_df = (
+            pd.read_excel(xls, sheet_name=progress_sheet)
+            if progress_sheet in names else pd.DataFrame(columns=_PROGRESS_COLUMNS)
+        )
+        prog_df = _ensure_columns(prog_df, _PROGRESS_COLUMNS)
+        others = [n for n in names if n not in {words_sheet, progress_sheet}]
+    return words_df, prog_df, others
+
+
+def _save_tracker(
+    tracker_path: str,
+    words_df: pd.DataFrame,
+    progress_df: pd.DataFrame,
+    others: list[str],
+    words_sheet: str = TRACKER_WORDS_SHEET,
+    progress_sheet: str = TRACKER_PROGRESS_SHEET,
+):
+    """Save the tracker workbook, preserving other sheets in their original order.
+
+    This function assumes all reading has already finished and uses a single
+    ExcelWriter context for writing (no nested writers).
+    """
+    # Read the other sheets' contents fresh but ensure ExcelFile is closed before writing
+    other_frames: dict[str, pd.DataFrame] = {}
+    if os.path.exists(tracker_path) and others:
+        with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
+            for name in others:
+                try:
+                    other_frames[name] = pd.read_excel(xls, sheet_name=name)
+                except Exception:
+                    other_frames[name] = pd.DataFrame()
+
+    # Rebuild order: others (as-is), then ensure Words/Progress are present at the end
+    order = list(others)
+    if words_sheet not in order:
+        order.append(words_sheet)
+    if progress_sheet not in order:
+        order.append(progress_sheet)
+
+    # Coerce datetime-like columns just before writing
+    for c in [
+        "listed_at",
+        "selected_at",
+        "analysis_started_at",
+        "analysis_completed_at",
+    ]:
+        if c in words_df.columns:
+            words_df[c] = words_df[c].map(_coerce_dt)
+    for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
+        if c in progress_df.columns:
+            progress_df[c] = progress_df[c].map(_coerce_dt)
+
+    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
+        for name in order:
+            if name == words_sheet:
+                words_df.to_excel(writer, index=False, sheet_name=name)
+            elif name == progress_sheet:
+                progress_df.to_excel(writer, index=False, sheet_name=name)
+            else:
+                other_frames.get(name, pd.DataFrame()).to_excel(writer, index=False, sheet_name=name)
+
+
+def append_to_word_tracker(
+    tracker_path: str,
+    words_rows: list[dict] | pd.DataFrame | None = None,
+    progress_rows: list[dict] | pd.DataFrame | None = None,
+    words_sheet: str = TRACKER_WORDS_SHEET,
+    progress_sheet: str = TRACKER_PROGRESS_SHEET,
+):
+    """Append rows to Words and/or Progress sheets.
+
+    - Ensures the workbook and sheets exist (creating them if necessary).
+    - Loads the current frames using a context-managed ExcelFile.
+    - Appends the provided rows and writes back using a single ExcelWriter.
+    - Preserves other sheets by re-writing them in original order.
+    """
+    # Ensure base file and sheets exist
+    ensure_word_tracker(tracker_path, words_sheet, progress_sheet)
+
+    words_df, prog_df, others = load_word_tracker(tracker_path, words_sheet, progress_sheet)
+
+    if words_rows is not None:
+        w_add = pd.DataFrame(words_rows) if not isinstance(words_rows, pd.DataFrame) else words_rows.copy()
+        w_add = _ensure_columns(w_add, _WORDS_COLUMNS)
+        # Normalize booleans where applicable to avoid stringy truth values
+        for c in ["listed_by_user", "selected_for_analysis", "analysis_started", "analysis_completed"]:
+            if c in w_add.columns:
+                try:
+                    w_add[c] = w_add[c].astype("boolean")
+                except Exception:
+                    pass
+        words_df = pd.concat([words_df, w_add], ignore_index=True)
+
+    if progress_rows is not None:
+        p_add = pd.DataFrame(progress_rows) if not isinstance(progress_rows, pd.DataFrame) else progress_rows.copy()
+        p_add = _ensure_columns(p_add, _PROGRESS_COLUMNS)
+        for c in ["selected_for_analysis"]:
+            if c in p_add.columns:
+                try:
+                    p_add[c] = p_add[c].astype("boolean")
+                except Exception:
+                    pass
+        for c in ["reanalyzed_count", "word_index"]:
+            if c in p_add.columns:
+                try:
+                    p_add[c] = pd.to_numeric(p_add[c], errors="ignore")
+                except Exception:
+                    pass
+        prog_df = pd.concat([prog_df, p_add], ignore_index=True)
+
+    _save_tracker(tracker_path, words_df, prog_df, others, words_sheet, progress_sheet)
+    return True
 
 # Structured Darpan sources: JSON/CSV loader helpers
 def _normalize_simple(text: str) -> str:
