@@ -1069,6 +1069,39 @@ class GrammarApp:
         self.lexicon_counts = None  # dict[token -> count]
         self.lexicon_tokens = None  # list of tokens for fuzzy search
 
+    def _default_tracker_path(self) -> str:
+        """Return default Assess-by-Word tracker workbook path."""
+        return "1.1.6 assess_by_word.xlsx"
+
+    def start_word_analysis(self, tokens: list[str]):
+        """Kick off the (placeholder) Word Analysis view for selected tokens."""
+        if not tokens:
+            try:
+                messagebox.showwarning("No Words", "No words provided for analysis.")
+            except Exception:
+                pass
+            return
+        win = tk.Toplevel(self.root)
+        win.title("Word Analysis")
+        win.configure(bg='light gray')
+        try:
+            win.transient(self.root)
+        except Exception:
+            pass
+        header = tk.Label(win, text="Word Analysis", bg='dark slate gray', fg='white', font=('Arial', 16, 'bold'), pady=8)
+        header.pack(fill=tk.X)
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+        tk.Label(body, text="Selected words:", bg='light gray', font=('Arial', 12, 'bold')).pack(anchor='w')
+        lb = tk.Listbox(body, font=('Arial', 12))
+        lb.pack(fill=tk.BOTH, expand=True, pady=6)
+        for t in tokens:
+            lb.insert(tk.END, t)
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(pady=8)
+        tk.Button(btns, text="Back to Dashboard", command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.LEFT, padx=6)
+        tk.Button(btns, text="Close", command=win.destroy).pack(side=tk.LEFT, padx=6)
+
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
         # ------------------------------------------------------------------
@@ -8353,7 +8386,16 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Word Search (Lexicon)")
         win.configure(bg='light gray')
-        win.state('zoomed')
+        # Prefer zoom on Windows; guard for macOS/Linux
+        try:
+            win.state('zoomed')
+        except tk.TclError:
+            try:
+                sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+                # Leave a small margin for OS taskbars/docks
+                win.geometry(f"{sw}x{sh}+0+0")
+            except Exception:
+                pass
         win.transient(self.root)
 
         header = tk.Label(
@@ -8382,6 +8424,7 @@ class GrammarApp:
                 min_score = 60
             results = self.find_words_fuzzy(q, limit=100, min_score=min_score)
             populate_results(results)
+            update_next_state()
 
         tk.Button(search_frame, text="Search", command=do_search, bg='navy', fg='white', font=('Arial', 12, 'bold')).pack(side=tk.LEFT, padx=8)
 
@@ -8424,7 +8467,12 @@ class GrammarApp:
                 row = tk.Frame(inner, bg='white', bd=1, relief='solid')
                 row.pack(fill=tk.X, padx=6, pady=4)
                 var = tk.BooleanVar(value=False)
-                cb = tk.Checkbutton(row, variable=var, bg='white')
+                def _on_toggle(v=var):
+                    try:
+                        update_next_state()
+                    except Exception:
+                        pass
+                cb = tk.Checkbutton(row, variable=var, bg='white', command=_on_toggle)
                 cb.pack(side=tk.LEFT, padx=8, pady=6)
                 lbl = tk.Label(row, text=f"{tok}  —  {cnt}  (match {scr:.1f}%)", bg='white', font=('Arial', 13))
                 lbl.pack(side=tk.LEFT, padx=6, pady=6)
@@ -8443,24 +8491,137 @@ class GrammarApp:
         def clear_all():
             for v, _ in checks:
                 v.set(False)
-        def submit():
-            picked = [tok for v, tok in checks if v.get()]
-            self.selected_lexicon_words = picked
+        def get_selected_tokens():
+            return [tok for v, tok in checks if v.get()]
+
+        def update_next_state():
+            sel = get_selected_tokens()
             try:
-                if picked:
-                    pyperclip.copy("\n".join(picked))
-            except Exception:
-                pass
-            messagebox.showinfo("Selected", f"Selected {len(picked)} words. Copied to clipboard.")
-            try:
-                win.destroy()
+                if sel:
+                    next_btn.config(state=tk.NORMAL)
+                else:
+                    next_btn.config(state=tk.DISABLED)
             except Exception:
                 pass
 
+        def write_words_to_tracker(selected_tokens, order=None):
+            # order: optional list of tokens in desired sequence; defaults to selected order
+            if not selected_tokens:
+                return False
+            seq_tokens = order if order else selected_tokens
+            now = pd.Timestamp.now(tz='UTC')
+            rows = []
+            for i, t in enumerate(seq_tokens):
+                rows.append({
+                    "word": t,
+                    "word_key_norm": self._norm_tok(t),
+                    "listed_by_user": True,
+                    "listed_at": now,
+                    "selected_for_analysis": True,
+                    "selected_at": now,
+                    "analysis_started": False,
+                    "analysis_completed": False,
+                    "sequence_index": i,
+                    "notes": "",
+                })
+            try:
+                append_to_word_tracker(self._default_tracker_path(), words_rows=rows)
+                return True
+            except Exception as e:
+                try:
+                    messagebox.showerror("Tracker Error", f"Failed to write selections: {e}")
+                except Exception:
+                    print(f"Failed to write selections: {e}")
+                return False
+
+        def proceed_to_analysis(tokens):
+            try:
+                self.start_word_analysis(tokens)
+            except Exception:
+                # Fallback: basic notice
+                messagebox.showinfo("Analysis", f"Starting analysis for {len(tokens)} word(s).")
+
+        def open_sequence_ui(tokens):
+            seq_win = tk.Toplevel(win)
+            seq_win.title("Arrange Word Order")
+            seq_win.configure(bg='light gray')
+            try:
+                seq_win.transient(win)
+                seq_win.grab_set()
+            except Exception:
+                pass
+            tk.Label(seq_win, text="Arrange the selected words (top to bottom)", bg='dark slate gray', fg='white', font=('Arial', 14, 'bold'), pady=6).pack(fill=tk.X)
+            frame = tk.Frame(seq_win, bg='light gray')
+            frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+            lb = tk.Listbox(frame, selectmode=tk.SINGLE, font=('Arial', 12))
+            lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            for t in tokens:
+                lb.insert(tk.END, t)
+            btns_side = tk.Frame(frame, bg='light gray')
+            btns_side.pack(side=tk.LEFT, padx=10)
+            def move_up():
+                i = lb.curselection()
+                if not i:
+                    return
+                idx = i[0]
+                if idx == 0:
+                    return
+                val = lb.get(idx)
+                lb.delete(idx)
+                lb.insert(idx-1, val)
+                lb.selection_set(idx-1)
+            def move_down():
+                i = lb.curselection()
+                if not i:
+                    return
+                idx = i[0]
+                if idx >= lb.size()-1:
+                    return
+                val = lb.get(idx)
+                lb.delete(idx)
+                lb.insert(idx+1, val)
+                lb.selection_set(idx+1)
+            tk.Button(btns_side, text="▲", width=4, command=move_up).pack(pady=6)
+            tk.Button(btns_side, text="▼", width=4, command=move_down).pack(pady=6)
+
+            bottom = tk.Frame(seq_win, bg='light gray')
+            bottom.pack(pady=8)
+            def confirm_sequence():
+                ordered = list(lb.get(0, tk.END))
+                if write_words_to_tracker(tokens, order=ordered):
+                    try:
+                        seq_win.destroy()
+                        win.destroy()
+                    except Exception:
+                        pass
+                    proceed_to_analysis(ordered)
+            tk.Button(bottom, text="Confirm", command=confirm_sequence, bg='navy', fg='white', font=('Arial', 12, 'bold'), padx=12, pady=6).pack(side=tk.LEFT, padx=6)
+            tk.Button(bottom, text="Back", command=seq_win.destroy).pack(side=tk.LEFT, padx=6)
+
+        def on_next():
+            sel = get_selected_tokens()
+            if not sel:
+                messagebox.showwarning("No Selection", "Please select at least one word.")
+                return
+            if len(sel) == 1:
+                if write_words_to_tracker(sel):
+                    try:
+                        win.destroy()
+                    except Exception:
+                        pass
+                    proceed_to_analysis(sel)
+            else:
+                open_sequence_ui(sel)
+
         tk.Button(btns, text="Select All", command=select_all).pack(side=tk.LEFT, padx=6)
         tk.Button(btns, text="Clear", command=clear_all).pack(side=tk.LEFT, padx=6)
-        tk.Button(btns, text="Submit", command=submit, bg='navy', fg='white', font=('Arial', 12, 'bold')).pack(side=tk.LEFT, padx=10)
+        next_btn = tk.Button(btns, text="Next / Add Selected", command=on_next, state=tk.DISABLED, bg='navy', fg='white', font=('Arial', 12, 'bold'))
+        next_btn.pack(side=tk.LEFT, padx=10)
+        tk.Button(btns, text="Back", command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.LEFT, padx=6)
         tk.Button(btns, text="Cancel", command=win.destroy, bg='red', fg='white', font=('Arial', 12, 'bold')).pack(side=tk.LEFT, padx=6)
+
+        # initialize next state
+        update_next_state()
 
     def match_sggs_verse(self, user_input, max_results=10, min_score=25):
         """
