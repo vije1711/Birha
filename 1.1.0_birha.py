@@ -997,7 +997,7 @@ class GrammarApp:
             pass
 
     def show_whats_new(self):
-        """Display a small dialog with links to the latest UI updates and releases."""
+        """Display a dialog with recent UI updates and release links."""
         win = tk.Toplevel(self.root)
         win.title("What's New")
         win.configure(bg='light gray')
@@ -1072,6 +1072,88 @@ class GrammarApp:
             win.geometry(f"{w}x{h}+{x}+{y}")
         except Exception:
             pass
+
+    def _go_back_to_dashboard(self, win=None):
+        """Minimal helper: return to main dashboard in the root window.
+
+        Optional 'win' is ignored for API compatibility with other back buttons.
+        """
+        try:
+            if win is not None and hasattr(win, 'destroy'):
+                # If a child window was passed accidentally, close it safely
+                win.destroy()
+        except Exception:
+            pass
+        self.show_dashboard()
+
+    def launch_word_assessment_dashboard(self):
+        """Root-rendered UI for 'Assess by Word' dashboard (UI-only, no logic)."""
+        # Clear any existing widgets from the root and prep the surface
+        for widget in self.root.winfo_children():
+            try:
+                widget.destroy()
+            except Exception:
+                pass
+
+        self.root.title("Assess by Word")
+        try:
+            self.root.configure(bg='light gray')
+            self.root.state("zoomed")
+        except Exception:
+            pass
+
+        # Header
+        header = tk.Label(
+            self.root,
+            text="Assess by Word – Dashboard",
+            font=('Arial', 18, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=10
+        )
+        header.pack(fill=tk.X, pady=(0, 10))
+
+        # Central buttons container
+        body = tk.Frame(self.root, bg='light gray')
+        body.pack(expand=True)
+
+        # UI-only buttons (no business logic yet)
+        tk.Button(
+            body,
+            text="New Assessment",
+            font=('Arial', 14, 'bold'),
+            bg='dark cyan', fg='white',
+            padx=20, pady=10
+        ).pack(pady=8)
+
+        tk.Button(
+            body,
+            text="Continue Incomplete",
+            font=('Arial', 14, 'bold'),
+            bg='teal', fg='white',
+            padx=20, pady=10
+        ).pack(pady=8)
+
+        tk.Button(
+            body,
+            text="View Completed",
+            font=('Arial', 14, 'bold'),
+            bg='#2f4f4f', fg='white',
+            padx=20, pady=10
+        ).pack(pady=8)
+
+        # Bottom bar with Back
+        bottom = tk.Frame(self.root, bg='light gray')
+        bottom.pack(fill=tk.X, padx=20, pady=15)
+        tk.Button(
+            bottom,
+            text="< Back",
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=14, pady=6,
+            command=self._go_back_to_dashboard  # no 'win' arg
+        ).pack(side=tk.LEFT)
+
 
     # ---------------------------
     # One-time "What's New" helpers
@@ -1236,8 +1318,8 @@ class GrammarApp:
         btn_verse.grid(row=0, column=0, padx=20)
 
         btn_word = tk.Button(
-            nav, text="Assess by Word (coming soon)", **btn_kwargs,
-            state=tk.DISABLED, disabledforeground='#666666'
+            nav, text="Assess by Word", **btn_kwargs,
+            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1263,7 +1345,7 @@ class GrammarApp:
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=self.show_dashboard
+            command=lambda: self._go_back_to_dashboard(win)
         )
         back_btn.pack()
 
@@ -1348,7 +1430,7 @@ class GrammarApp:
         ).pack(side=tk.LEFT)
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=self.show_dashboard
+            bg='gray', fg='white', command=lambda: self._go_back_to_dashboard(win)
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
