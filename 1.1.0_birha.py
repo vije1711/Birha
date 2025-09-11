@@ -997,13 +997,79 @@ class GrammarApp:
             pass
 
     def show_whats_new(self):
-        """Display a small dialog with links to the latest UI updates and releases."""
+        """Display a dialog with recent UI updates and release links."""
         win = tk.Toplevel(self.root)
         win.title("What's New")
         win.configure(bg='light gray')
         win.transient(self.root)
         try:
             win.grab_set()
+        except Exception:
+            pass
+
+        header = tk.Label(
+            win,
+            text="What's New",
+            font=('Arial', 16, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=8
+        )
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+
+        tk.Label(
+            body,
+            text=(
+                "Recent UI improvements: two-column card parity in matches view, "
+                "centered layout, equal column widths, radios never overlap text, and a centered final "
+                "card without stretching when there's an odd number of results."
+            ),
+            font=('Arial', 12),
+            bg='light gray',
+            wraplength=800,
+            justify='left'
+        ).pack(anchor='w', pady=(0, 10))
+
+        links = tk.Frame(body, bg='light gray')
+        links.pack(anchor='w', pady=(0, 8))
+
+        def link(label_parent, text, url):
+            lbl = tk.Label(
+                label_parent,
+                text=text,
+                font=('Arial', 12, 'underline'),
+                fg='blue',
+                bg='light gray',
+                cursor='hand2'
+            )
+            lbl.pack(anchor='w', pady=2)
+            lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
+
+        link(links, f"View UI tag: {WHATS_NEW_ID}",
+             f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
+        link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
+
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(fill=tk.X, padx=20, pady=(0, 16))
+        tk.Button(
+            btns,
+            text='Close',
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=16, pady=6,
+            command=win.destroy
+        ).pack(side=tk.RIGHT)
+
+        # Center over root
+        win.update_idletasks()
+        try:
+            w, h = win.winfo_width(), win.winfo_height()
+            x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
+            y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
+            win.geometry(f"{w}x{h}+{x}+{y}")
         except Exception:
             pass
 
@@ -1087,7 +1153,7 @@ class GrammarApp:
             padx=14, pady=6,
             command=self._go_back_to_dashboard  # no 'win' arg
         ).pack(side=tk.LEFT)
-def launch_word_assessment_dashboard(self):
+
         header = tk.Label(
             win,
             text="What's New",
@@ -1317,8 +1383,8 @@ def launch_word_assessment_dashboard(self):
         btn_verse.grid(row=0, column=0, padx=20)
 
         btn_word = tk.Button(
-            nav, text="Assess by Word (coming soon)", **btn_kwargs,
-            state=tk.DISABLED, disabledforeground='#666666'
+            nav, text="Assess by Word", **btn_kwargs,
+            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1344,7 +1410,7 @@ def launch_word_assessment_dashboard(self):
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=self.show_dashboard
+            command=lambda: self._go_back_to_dashboard(win)
         )
         back_btn.pack()
 
@@ -1429,7 +1495,7 @@ def launch_word_assessment_dashboard(self):
         ).pack(side=tk.LEFT)
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=self.show_dashboard
+            bg='gray', fg='white', command=lambda: self._go_back_to_dashboard(win)
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
