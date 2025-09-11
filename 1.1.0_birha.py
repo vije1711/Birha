@@ -12,6 +12,7 @@ import tkinter.font as tkfont
 from tkinter import ttk
 import threading
 from rapidfuzz import fuzz
+from rapidfuzz import process
 import numpy as np
 import textwrap
 import webbrowser
@@ -1063,6 +1064,10 @@ class GrammarApp:
             "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
             "adjust if the current context differs."
         )
+
+        # Lexicon (built from SGGS) for word search
+        self.lexicon_counts = None  # dict[token -> count]
+        self.lexicon_tokens = None  # list of tokens for fuzzy search
 
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
@@ -4913,6 +4918,19 @@ class GrammarApp:
         )
         management_btn.pack(pady=10)
 
+        # Word Search (Lexicon) button
+        word_search_btn = tk.Button(
+            button_frame,
+            text="Word Search (Lexicon)",
+            font=('Arial', 14, 'bold'),
+            bg='dark cyan',
+            fg='white',
+            padx=20,
+            pady=10,
+            command=self.show_word_search_modal
+        )
+        word_search_btn.pack(pady=10)
+
         # Back button to return to the main dashboard
         back_btn = tk.Button(
             self.main_frame,
@@ -8191,6 +8209,259 @@ class GrammarApp:
         # Re-enable the main window now that the heavy work is complete
         self.root.attributes("-disabled", False)
         self.stop_progress()
+
+    # -----------------------------
+    # Lexicon: build/load + search
+    # -----------------------------
+    def _build_lexicon_index(self) -> dict:
+        """Build a lexicon of token -> count from SGGS Excel using _norm_tok normalization.
+
+        Returns the counts dict.
+        """
+        # Ensure SGGS is available (for consistency with file presence); we'll read Excel directly here
+        excel_path = "1.1.3 sggs_extracted_with_page_numbers.xlsx"
+        try:
+            df = pd.read_excel(excel_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to read SGGS Excel: {e}")
+            return {}
+        if 'Verse' not in df.columns:
+            messagebox.showerror("Error", "SGGS file missing 'Verse' column.")
+            return {}
+        counts = {}
+        for _, row in df.iterrows():
+            verse = row.get('Verse', '')
+            if verse is None:
+                continue
+            verse = unicodedata.normalize("NFC", str(verse))
+            for tok in verse.split():
+                nt = self._norm_tok(tok)
+                if nt:
+                    counts[nt] = counts.get(nt, 0) + 1
+        # Persist JSON for reuse
+        try:
+            payload = {
+                "meta": {
+                    "source": excel_path,
+                    "built_at": datetime.now(timezone.utc).isoformat(),
+                    "unique_tokens": len(counts),
+                },
+                "counts": counts,
+            }
+            with open("1.1.3_lexicon.json", "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        return counts
+
+    def load_or_build_lexicon(self, rebuild: bool = False):
+        """Load the lexicon JSON if available; otherwise build from Excel.
+
+        Uses a modal progress window and performs heavy work on a background thread.
+        Sets self.lexicon_counts and self.lexicon_tokens.
+        """
+        if (not rebuild) and isinstance(self.lexicon_counts, dict) and self.lexicon_counts:
+            # already loaded
+            return
+
+        self.root.attributes("-disabled", True)
+        self.start_progress()
+        self.root.update()
+
+        self._lexicon_done = False
+        result_holder = {"counts": {}}
+
+        def heavy():
+            counts = {}
+            # Try reading JSON first
+            try:
+                with open("1.1.3_lexicon.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                counts = dict(data.get("counts", {}))
+            except Exception:
+                counts = {}
+            if rebuild or not counts:
+                counts = self._build_lexicon_index()
+            def finish():
+                result_holder["counts"] = counts
+                self._lexicon_done = True
+            self.root.after(0, finish)
+
+        threading.Thread(target=heavy, daemon=True).start()
+
+        while not getattr(self, "_lexicon_done", False):
+            self.root.update_idletasks()
+            self.root.update()
+
+        self.root.attributes("-disabled", False)
+        self.stop_progress()
+
+        self.lexicon_counts = result_holder["counts"]
+        self.lexicon_tokens = sorted(self.lexicon_counts.keys())
+
+    def find_words_fuzzy(self, query: str, limit: int = 50, min_score: int = 60):
+        """Fuzzy match query against lexicon tokens; return list of dicts with token, count, score.
+
+        Deduplicate by token and sort by score desc, then count desc, then token.
+        Normalization mirrors _norm_tok for the query.
+        """
+        self.load_or_build_lexicon()
+        if not self.lexicon_tokens:
+            return []
+        norm_q = self._norm_tok(query or "").strip()
+        candidates = []
+        try:
+            if norm_q:
+                # RapidFuzz process.extract with default scorer (ratio)
+                for token, score, _ in process.extract(norm_q, self.lexicon_tokens, limit=limit * 2):
+                    if int(score) >= int(min_score):
+                        candidates.append({
+                            "token": token,
+                            "count": int(self.lexicon_counts.get(token, 0)),
+                            "score": float(score),
+                        })
+            else:
+                # If no query, return top-N by count
+                top = sorted(
+                    ({"token": t, "count": c, "score": 0.0} for t, c in self.lexicon_counts.items()),
+                    key=lambda x: (-x["count"], x["token"])
+                )
+                candidates = top[:limit]
+        except Exception:
+            # Fallback: simple contains matching if RapidFuzz fails
+            norm_q_l = norm_q
+            for t in self.lexicon_tokens:
+                if norm_q_l and norm_q_l in t:
+                    candidates.append({"token": t, "count": int(self.lexicon_counts.get(t, 0)), "score": 0.0})
+
+        # Dedup and final sort
+        seen = set()
+        uniq = []
+        for item in candidates:
+            tok = item["token"]
+            if tok in seen:
+                continue
+            seen.add(tok)
+            uniq.append(item)
+        uniq.sort(key=lambda x: (-x.get("score", 0.0), -x.get("count", 0), x.get("token", "")))
+        return uniq[:limit]
+
+    def show_word_search_modal(self):
+        """Show a modal window for lexicon word search with fuzzy matching and multi-select tick-list."""
+        # Ensure lexicon is ready
+        self.load_or_build_lexicon()
+
+        win = tk.Toplevel(self.root)
+        win.title("Word Search (Lexicon)")
+        win.configure(bg='light gray')
+        win.state('zoomed')
+        win.transient(self.root)
+
+        header = tk.Label(
+            win, text="Search words across SGGS (fuzzy)", bg='dark slate gray', fg='white',
+            font=('Arial', 16, 'bold'), pady=8
+        )
+        header.pack(fill=tk.X)
+
+        # Search bar
+        search_frame = tk.Frame(win, bg='light gray')
+        search_frame.pack(fill=tk.X, pady=(8, 4))
+        tk.Label(search_frame, text="Search:", bg='light gray', font=('Arial', 12)).pack(side=tk.LEFT, padx=(12, 6))
+        query_var = tk.StringVar(value="")
+        query_ent = tk.Entry(search_frame, textvariable=query_var, font=('Arial', 12), width=50)
+        query_ent.pack(side=tk.LEFT, padx=(0, 8))
+        min_var = tk.IntVar(value=60)
+        tk.Label(search_frame, text="Min score:", bg='light gray', font=('Arial', 12)).pack(side=tk.LEFT, padx=(10, 6))
+        min_ent = ttk.Spinbox(search_frame, from_=0, to=100, width=5, textvariable=min_var)
+        min_ent.pack(side=tk.LEFT)
+
+        def do_search():
+            q = query_var.get()
+            try:
+                min_score = int(min_var.get())
+            except Exception:
+                min_score = 60
+            results = self.find_words_fuzzy(q, limit=100, min_score=min_score)
+            populate_results(results)
+
+        tk.Button(search_frame, text="Search", command=do_search, bg='navy', fg='white', font=('Arial', 12, 'bold')).pack(side=tk.LEFT, padx=8)
+
+        # Results: scrollable with tick-list
+        outer = tk.Frame(win, bg='light gray')
+        outer.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
+        canvas = tk.Canvas(outer, bg='light gray', highlightthickness=0)
+        vsb = tk.Scrollbar(outer, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        inner = tk.Frame(canvas, bg='light gray')
+        win_id = canvas.create_window((0, 0), window=inner, anchor='nw')
+
+        def on_config(_e=None):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+        inner.bind('<Configure>', on_config)
+        def on_size(e):
+            try:
+                canvas.itemconfigure(win_id, width=e.width)
+            except Exception:
+                pass
+        canvas.bind('<Configure>', on_size)
+
+        checks = []  # list[(var, token)]
+
+        def populate_results(items):
+            # Clear
+            for w in list(inner.children.values()):
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+            checks.clear()
+            # Build rows
+            for i, item in enumerate(items):
+                tok = str(item.get('token', ''))
+                cnt = int(item.get('count', 0))
+                scr = float(item.get('score', 0))
+                row = tk.Frame(inner, bg='white', bd=1, relief='solid')
+                row.pack(fill=tk.X, padx=6, pady=4)
+                var = tk.BooleanVar(value=False)
+                cb = tk.Checkbutton(row, variable=var, bg='white')
+                cb.pack(side=tk.LEFT, padx=8, pady=6)
+                lbl = tk.Label(row, text=f"{tok}  —  {cnt}  (match {scr:.1f}%)", bg='white', font=('Arial', 13))
+                lbl.pack(side=tk.LEFT, padx=6, pady=6)
+                checks.append((var, tok))
+
+        # initial view: top frequent words
+        populate_results(self.find_words_fuzzy("", limit=100, min_score=0))
+
+        # Action buttons
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(pady=8)
+
+        def select_all():
+            for v, _ in checks:
+                v.set(True)
+        def clear_all():
+            for v, _ in checks:
+                v.set(False)
+        def submit():
+            picked = [tok for v, tok in checks if v.get()]
+            self.selected_lexicon_words = picked
+            try:
+                if picked:
+                    pyperclip.copy("\n".join(picked))
+            except Exception:
+                pass
+            messagebox.showinfo("Selected", f"Selected {len(picked)} words. Copied to clipboard.")
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        tk.Button(btns, text="Select All", command=select_all).pack(side=tk.LEFT, padx=6)
+        tk.Button(btns, text="Clear", command=clear_all).pack(side=tk.LEFT, padx=6)
+        tk.Button(btns, text="Submit", command=submit, bg='navy', fg='white', font=('Arial', 12, 'bold')).pack(side=tk.LEFT, padx=10)
+        tk.Button(btns, text="Cancel", command=win.destroy, bg='red', fg='white', font=('Arial', 12, 'bold')).pack(side=tk.LEFT, padx=6)
 
     def match_sggs_verse(self, user_input, max_results=10, min_score=25):
         """
