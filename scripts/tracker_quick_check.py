@@ -37,7 +37,7 @@ def main():
             "word": "foo",
             "word_key_norm": "foo",
             "listed_by_user": True,
-            "listed_at": pd.Timestamp.now(),
+            "listed_at": pd.Timestamp.now(tz='UTC'),  # tz-aware to exercise _coerce_dt
             "sequence_index": 0,
         }],
         progress_rows=[{
@@ -45,7 +45,7 @@ def main():
             "word_key_norm": "foo",
             "verse": "test verse",
             "selected_for_analysis": True,
-            "selected_at": pd.Timestamp.now(),
+            "selected_at": pd.Timestamp.now(tz='UTC'),  # tz-aware
         }]
     )
 
@@ -60,8 +60,8 @@ def main():
     # 4) append again
     mod.append_to_word_tracker(
         str(tmp),
-        words_rows=[{"word": "bar", "word_key_norm": "bar", "listed_by_user": False, "sequence_index": 1}],
-        progress_rows=[{"word": "bar", "word_key_norm": "bar", "verse": "v2", "selected_for_analysis": False}]
+        words_rows=[{"word": "bar", "word_key_norm": "bar", "listed_by_user": False, "sequence_index": 1, "listed_at": pd.Timestamp.now(tz='UTC')}],
+        progress_rows=[{"word": "bar", "word_key_norm": "bar", "verse": "v2", "selected_for_analysis": False, "selected_at": pd.Timestamp.now(tz='UTC') }]
     )
 
     # 5) verify
@@ -77,6 +77,11 @@ def main():
         assert required in words_headers, f"Words header missing: {required}"
     for required in mod._PROGRESS_COLUMNS:
         assert required in progress_headers, f"Progress header missing: {required}"
+
+    # 6) direct check: tz-aware conversion returns naive datetime
+    ts_naive = mod._coerce_dt(pd.Timestamp.now(tz='UTC'))
+    from datetime import datetime as _dt
+    assert isinstance(ts_naive, _dt) and (ts_naive.tzinfo is None), "_coerce_dt should drop tzinfo after UTC normalize"
 
     print("OK: tracker quick check passed")
 

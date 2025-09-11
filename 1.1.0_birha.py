@@ -15,7 +15,7 @@ from rapidfuzz import fuzz
 import numpy as np
 import textwrap
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timezone
 import subprocess
 import json
 import webbrowser
@@ -244,14 +244,69 @@ def _empty_tracker_frames():
 
 
 def _coerce_dt(val):
-    """Best-effort parse for datetime-like values; returns unchanged if parsing fails."""
+    """Best-effort parse for datetime-like values with Excel-safe semantics.
+
+    Rules:
+    - None/empty -> None
+    - If datetime-like and tz-aware -> convert to UTC and drop tzinfo (Excel can't store tz).
+    - If datetime-like and naive -> return as-is.
+    - Else try pd.to_datetime; if tz-aware result, convert to UTC and drop tz; return python datetime.
+    - On failure, return original value.
+    """
+    # Empty
     if val is None or val == "":
         return None
-    if isinstance(val, (datetime,)):
+
+    # pandas Timestamp handling
+    if isinstance(val, pd.Timestamp):
+        if val.tz is not None:
+            try:
+                return val.tz_convert('UTC').tz_localize(None).to_pydatetime()
+            except Exception:
+                try:
+                    # Fallback: drop tz without convert (may shift interpretation)
+                    return val.tz_localize(None).to_pydatetime()
+                except Exception:
+                    return val
+        # Naive Timestamp -> python datetime
+        try:
+            return val.to_pydatetime()
+        except Exception:
+            return val
+
+    # Python datetime handling
+    if isinstance(val, datetime):
+        try:
+            aware = (val.tzinfo is not None) and (val.tzinfo.utcoffset(val) is not None)
+        except Exception:
+            aware = val.tzinfo is not None
+        if aware:
+            try:
+                return val.astimezone(timezone.utc).replace(tzinfo=None)
+            except Exception:
+                try:
+                    return val.replace(tzinfo=None)
+                except Exception:
+                    return val
         return val
+
+    # Generic parse
     try:
-        # pandas will serialize datetime if already dtype-compatible; leave as str otherwise
-        return pd.to_datetime(val)
+        dt = pd.to_datetime(val, utc=False)
+        if isinstance(dt, pd.Timestamp):
+            if dt.tz is not None:
+                try:
+                    dt = dt.tz_convert('UTC').tz_localize(None)
+                except Exception:
+                    try:
+                        dt = dt.tz_localize(None)
+                    except Exception:
+                        return val
+            try:
+                return dt.to_pydatetime()
+            except Exception:
+                return dt
+        return dt
     except Exception:
         return val
 
