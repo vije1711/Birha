@@ -26,37 +26,43 @@ def _norm_tok(t: str) -> str:
     return t
 
 
-def build_lexicon(excel_path: str = "1.1.3 sggs_extracted_with_page_numbers.xlsx",
-                  out_json: str = "1.1.3_lexicon.json") -> dict:
-    df = pd.read_excel(excel_path)
+def build_lexicon_from_df(df: pd.DataFrame) -> dict:
     if 'Verse' not in df.columns:
-        raise ValueError("Expected a 'Verse' column in the SGGS Excel.")
+        raise ValueError("Expected a 'Verse' column in the SGGS DataFrame.")
 
     counter = Counter()
     total_rows = len(df)
 
     for _, row in df.iterrows():
-        verse = row.get('Verse', '')
-        if not isinstance(verse, str):
-            verse = str(verse)
-        # quick clean of danda inside verse text before splitting
-        verse = unicodedata.normalize("NFC", verse)
-        # Tokenize by whitespace, then normalize per-token
+        verse = row.get('Verse', None)
+        # Skip NaN/None rows entirely to avoid 'nan' strings
+        if verse is None or pd.isna(verse):
+            continue
+        # Normalize whole-verse NFC prior to split
+        verse = unicodedata.normalize("NFC", str(verse))
         for tok in verse.split():
             nt = _norm_tok(tok)
             if nt:
                 counter[nt] += 1
 
     counts = dict(counter)
-    payload = {
+    return {
         "meta": {
-            "source": excel_path,
-            "built_at": datetime.utcnow().isoformat() + "Z",
             "unique_tokens": len(counts),
             "rows": int(total_rows),
         },
         "counts": counts,
     }
+
+
+def build_lexicon(excel_path: str = "1.1.3 sggs_extracted_with_page_numbers.xlsx",
+                  out_json: str = "1.1.3_lexicon.json") -> dict:
+    df = pd.read_excel(excel_path)
+    payload = build_lexicon_from_df(df)
+    payload["meta"].update({
+        "source": excel_path,
+        "built_at": datetime.utcnow().isoformat() + "Z",
+    })
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     return payload
@@ -65,4 +71,3 @@ def build_lexicon(excel_path: str = "1.1.3 sggs_extracted_with_page_numbers.xlsx
 if __name__ == "__main__":
     payload = build_lexicon()
     print(f"Lexicon built with {payload['meta']['unique_tokens']} unique tokens.")
-

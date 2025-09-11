@@ -8247,8 +8247,9 @@ class GrammarApp:
             raise ValueError("SGGS file missing 'Verse' column")
         counts = {}
         for _, row in df.iterrows():
-            verse = row.get('Verse', '')
-            if verse is None:
+            verse = row.get('Verse', None)
+            # Skip NaN / None verses to avoid 'nan' tokens
+            if verse is None or pd.isna(verse):
                 continue
             verse = unicodedata.normalize("NFC", str(verse))
             for tok in verse.split():
