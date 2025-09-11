@@ -1087,7 +1087,7 @@ class GrammarApp:
             padx=14, pady=6,
             command=self._go_back_to_dashboard  # no 'win' arg
         ).pack(side=tk.LEFT)
-
+def launch_word_assessment_dashboard(self):
         header = tk.Label(
             win,
             text="What's New",
