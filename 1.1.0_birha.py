@@ -19,6 +19,7 @@ from datetime import datetime
 import subprocess
 import json
 import webbrowser
+from openpyxl import load_workbook
 
 
 # ────────────────────────────────────────────────────────────────
@@ -272,84 +273,74 @@ def ensure_word_tracker(
 ):
     """Ensure a tracker workbook exists with 'Words' and 'Progress' sheets.
 
-    - If file is missing: create with empty required columns.
-    - If present: guarantee required sheets exist and have at least required columns
-      (missing columns are added empty, extras are preserved).
-    - Non-spec sheets are preserved and re-written in original order.
+    Non-spec sheets are NEVER reserialized. If the file exists, we only
+    modify the Words/Progress sheets and leave all other sheets intact.
 
-    Implementation constraints:
-    - Never nest ExcelWriter inside an open ExcelFile; close read handles first.
-    - Use a single ExcelWriter per save (mode='w', engine='openpyxl').
-    - Always use a context manager for pd.ExcelFile so it is closed before writing.
+    Constraints:
+    - Single ExcelWriter per save.
+    - Close pd.ExcelFile before writing.
+    - Preserve original sheet order (spec sheets keep their position; new ones append).
     """
-    # Gather existing sheets (if any) using a closed ExcelFile context
-    existing_order: list[str] = []
-    frames: dict[str, pd.DataFrame] = {}
+    if not os.path.exists(tracker_path):
+        # Create fresh workbook with the two spec sheets only
+        words_df, prog_df = _empty_tracker_frames()
+        # Coerce datetime-like columns (mostly N/A for empty frames)
+        for c in ["listed_at", "selected_at", "analysis_started_at", "analysis_completed_at"]:
+            if c in words_df.columns:
+                words_df[c] = words_df[c].map(_coerce_dt)
+        for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
+            if c in prog_df.columns:
+                prog_df[c] = prog_df[c].map(_coerce_dt)
+        with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
+            words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+            prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+        return True
 
-    if os.path.exists(tracker_path):
-        try:
-            with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
-                existing_order = list(xls.sheet_names)
-                for name in existing_order:
-                    try:
-                        frames[name] = pd.read_excel(xls, sheet_name=name)
-                    except Exception:
-                        frames[name] = pd.DataFrame()
-        except Exception:
-            # If file unreadable, fall back to creating new with just spec sheets
-            existing_order = []
-            frames = {}
-
-    # Ensure spec sheets exist and include required columns
-    if words_sheet in frames:
-        frames[words_sheet] = _ensure_columns(frames[words_sheet], _WORDS_COLUMNS)
-    else:
-        frames[words_sheet] = _empty_tracker_frames()[0]
-        existing_order.append(words_sheet)
-
-    if progress_sheet in frames:
-        frames[progress_sheet] = _ensure_columns(frames[progress_sheet], _PROGRESS_COLUMNS)
-    else:
-        frames[progress_sheet] = _empty_tracker_frames()[1]
-        # If it's a brand-new file (no existing sheets), write Words then Progress
-        if words_sheet not in existing_order:
-            existing_order.extend([words_sheet, progress_sheet])
+    # Load existing data for spec sheets only, using a context-managed ExcelFile
+    with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
+        names = list(xls.sheet_names)
+        if words_sheet in names:
+            words_df = pd.read_excel(xls, sheet_name=words_sheet)
         else:
-            existing_order.append(progress_sheet)
+            words_df = pd.DataFrame(columns=_WORDS_COLUMNS)
+        if progress_sheet in names:
+            prog_df = pd.read_excel(xls, sheet_name=progress_sheet)
+        else:
+            prog_df = pd.DataFrame(columns=_PROGRESS_COLUMNS)
 
-    # If there were no existing sheets at all, order spec sheets canonically
-    if not os.path.exists(tracker_path) or not existing_order:
-        existing_order = [words_sheet, progress_sheet]
+    words_df = _ensure_columns(words_df, _WORDS_COLUMNS)
+    prog_df = _ensure_columns(prog_df, _PROGRESS_COLUMNS)
 
-    # Write out using a single ExcelWriter (no nesting with ExcelFile)
-    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
-        # Preserve non-spec sheets by original order; write spec at their positions
-        seen = set()
-        for name in existing_order:
-            df = frames.get(name)
-            if df is None:
-                df = pd.DataFrame()
-            # Coerce known datetime-like columns for serialization friendliness
-            if name == words_sheet:
-                for c in [
-                    "listed_at",
-                    "selected_at",
-                    "analysis_started_at",
-                    "analysis_completed_at",
-                ]:
-                    if c in df.columns:
-                        df[c] = df[c].map(_coerce_dt)
-            elif name == progress_sheet:
-                for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
-                    if c in df.columns:
-                        df[c] = df[c].map(_coerce_dt)
-            df.to_excel(writer, index=False, sheet_name=name)
-            seen.add(name)
+    # Normalize datetime-like columns prior to write
+    for c in ["listed_at", "selected_at", "analysis_started_at", "analysis_completed_at"]:
+        if c in words_df.columns:
+            words_df[c] = words_df[c].map(_coerce_dt)
+    for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
+        if c in prog_df.columns:
+            prog_df[c] = prog_df[c].map(_coerce_dt)
 
-        # In case spec sheets weren't in existing_order for some reason, append them now
-        for fallback_name in (words_sheet, progress_sheet):
-            if fallback_name not in seen:
-                frames[fallback_name].to_excel(writer, index=False, sheet_name=fallback_name)
+    # Open the workbook once and write only the spec sheets
+    wb = load_workbook(tracker_path, keep_vba=True)
+
+    # Clear existing spec sheets (content only) to avoid stale rows; keep sheet objects to preserve order
+    if words_sheet in wb.sheetnames:
+        try:
+            ws = wb[words_sheet]
+            ws.delete_rows(1, ws.max_row or 1)
+        except Exception:
+            pass
+    if progress_sheet in wb.sheetnames:
+        try:
+            ws = wb[progress_sheet]
+            ws.delete_rows(1, ws.max_row or 1)
+        except Exception:
+            pass
+
+    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="a", if_sheet_exists="overlay") as writer:
+        writer.book = wb
+        writer.sheets = {ws.title: ws for ws in wb.worksheets}
+        words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+        prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
     return True
 
@@ -392,49 +383,46 @@ def _save_tracker(
     words_sheet: str = TRACKER_WORDS_SHEET,
     progress_sheet: str = TRACKER_PROGRESS_SHEET,
 ):
-    """Save the tracker workbook, preserving other sheets in their original order.
+    """Save tracker sheets without touching non-spec sheets.
 
-    This function assumes all reading has already finished and uses a single
-    ExcelWriter context for writing (no nested writers).
+    - Uses a single ExcelWriter bound to an openpyxl workbook.
+    - Does not reserialize other sheets; only updates Words/Progress.
+    - Preserves sheet order by clearing content within existing spec sheets
+      or appending new spec sheets to the end if missing.
     """
-    # Read the other sheets' contents fresh but ensure ExcelFile is closed before writing
-    other_frames: dict[str, pd.DataFrame] = {}
-    if os.path.exists(tracker_path) and others:
-        with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
-            for name in others:
-                try:
-                    other_frames[name] = pd.read_excel(xls, sheet_name=name)
-                except Exception:
-                    other_frames[name] = pd.DataFrame()
-
-    # Rebuild order: others (as-is), then ensure Words/Progress are present at the end
-    order = list(others)
-    if words_sheet not in order:
-        order.append(words_sheet)
-    if progress_sheet not in order:
-        order.append(progress_sheet)
-
     # Coerce datetime-like columns just before writing
-    for c in [
-        "listed_at",
-        "selected_at",
-        "analysis_started_at",
-        "analysis_completed_at",
-    ]:
+    for c in ["listed_at", "selected_at", "analysis_started_at", "analysis_completed_at"]:
         if c in words_df.columns:
             words_df[c] = words_df[c].map(_coerce_dt)
     for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
         if c in progress_df.columns:
             progress_df[c] = progress_df[c].map(_coerce_dt)
 
-    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
-        for name in order:
-            if name == words_sheet:
-                words_df.to_excel(writer, index=False, sheet_name=name)
-            elif name == progress_sheet:
-                progress_df.to_excel(writer, index=False, sheet_name=name)
-            else:
-                other_frames.get(name, pd.DataFrame()).to_excel(writer, index=False, sheet_name=name)
+    if not os.path.exists(tracker_path):
+        # Create new with spec sheets only
+        with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
+            words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+            progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+        return
+
+    # Update within existing workbook without touching other sheets
+    wb = load_workbook(tracker_path, keep_vba=True)
+    if words_sheet in wb.sheetnames:
+        try:
+            wb[words_sheet].delete_rows(1, wb[words_sheet].max_row or 1)
+        except Exception:
+            pass
+    if progress_sheet in wb.sheetnames:
+        try:
+            wb[progress_sheet].delete_rows(1, wb[progress_sheet].max_row or 1)
+        except Exception:
+            pass
+
+    with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="a", if_sheet_exists="overlay") as writer:
+        writer.book = wb
+        writer.sheets = {ws.title: ws for ws in wb.worksheets}
+        words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+        progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
 
 def append_to_word_tracker(
