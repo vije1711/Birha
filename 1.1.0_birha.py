@@ -1317,8 +1317,8 @@ class GrammarApp:
         btn_verse.grid(row=0, column=0, padx=20)
 
         btn_word = tk.Button(
-            nav, text="Assess by Word (coming soon)", **btn_kwargs,
-            state=tk.DISABLED, disabledforeground='#666666'
+            nav, text="Assess by Word", **btn_kwargs,
+            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
         )
         btn_word.grid(row=0, column=1, padx=20)
 
@@ -1344,7 +1344,7 @@ class GrammarApp:
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
             padx=20, pady=10,
-            command=self.show_dashboard
+            command=lambda: self._go_back_to_dashboard(win)
         )
         back_btn.pack()
 
@@ -1429,7 +1429,7 @@ class GrammarApp:
         ).pack(side=tk.LEFT)
         tk.Button(
             bottom, text="Back to Dashboard", font=("Arial", 14),
-            bg='gray', fg='white', command=self.show_dashboard
+            bg='gray', fg='white', command=lambda: self._go_back_to_dashboard(win)
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
             bottom, text="Next →", font=("Arial", 14, "bold"),
