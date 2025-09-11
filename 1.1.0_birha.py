@@ -319,26 +319,30 @@ def ensure_word_tracker(
         if c in prog_df.columns:
             prog_df[c] = prog_df[c].map(_coerce_dt)
 
-    # Open the workbook once and write only the spec sheets
+    # Open the workbook and ensure spec sheets exist; clear their contents
     wb = load_workbook(tracker_path, keep_vba=True)
+    if words_sheet not in wb.sheetnames:
+        wb.create_sheet(title=words_sheet)
+    if progress_sheet not in wb.sheetnames:
+        wb.create_sheet(title=progress_sheet)
+    try:
+        ws = wb[words_sheet]
+        ws.delete_rows(1, ws.max_row or 1)
+    except Exception:
+        pass
+    try:
+        ws = wb[progress_sheet]
+        ws.delete_rows(1, ws.max_row or 1)
+    except Exception:
+        pass
+    # Persist the cleared workbook to disk before using ExcelWriter overlay
+    try:
+        wb.save(tracker_path)
+    except Exception:
+        pass
 
-    # Clear existing spec sheets (content only) to avoid stale rows; keep sheet objects to preserve order
-    if words_sheet in wb.sheetnames:
-        try:
-            ws = wb[words_sheet]
-            ws.delete_rows(1, ws.max_row or 1)
-        except Exception:
-            pass
-    if progress_sheet in wb.sheetnames:
-        try:
-            ws = wb[progress_sheet]
-            ws.delete_rows(1, ws.max_row or 1)
-        except Exception:
-            pass
-
+    # Now overlay the DataFrames into the cleared sheets without mutating writer internals
     with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="a", if_sheet_exists="overlay") as writer:
-        writer.book = wb
-        writer.sheets = {ws.title: ws for ws in wb.worksheets}
         words_df.to_excel(writer, index=False, sheet_name=words_sheet)
         prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
@@ -407,20 +411,24 @@ def _save_tracker(
 
     # Update within existing workbook without touching other sheets
     wb = load_workbook(tracker_path, keep_vba=True)
-    if words_sheet in wb.sheetnames:
-        try:
-            wb[words_sheet].delete_rows(1, wb[words_sheet].max_row or 1)
-        except Exception:
-            pass
-    if progress_sheet in wb.sheetnames:
-        try:
-            wb[progress_sheet].delete_rows(1, wb[progress_sheet].max_row or 1)
-        except Exception:
-            pass
+    if words_sheet not in wb.sheetnames:
+        wb.create_sheet(title=words_sheet)
+    if progress_sheet not in wb.sheetnames:
+        wb.create_sheet(title=progress_sheet)
+    try:
+        wb[words_sheet].delete_rows(1, wb[words_sheet].max_row or 1)
+    except Exception:
+        pass
+    try:
+        wb[progress_sheet].delete_rows(1, wb[progress_sheet].max_row or 1)
+    except Exception:
+        pass
+    try:
+        wb.save(tracker_path)
+    except Exception:
+        pass
 
     with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="a", if_sheet_exists="overlay") as writer:
-        writer.book = wb
-        writer.sheets = {ws.title: ws for ws in wb.worksheets}
         words_df.to_excel(writer, index=False, sheet_name=words_sheet)
         progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
