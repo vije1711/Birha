@@ -1109,6 +1109,12 @@ class GrammarApp:
     # Lexicon index: build from 1.1.3 Excel (tokenize, normalize, aggregate counts)
     # ------------------------------------------------------------------
     def _tokenize_and_normalize(self, text: str) -> list[str]:
+        # Guard against pandas NaN becoming literal 'nan' tokens
+        try:
+            if pd.isna(text):
+                return []
+        except Exception:
+            pass
         try:
             s = str(text or "")
         except Exception:
