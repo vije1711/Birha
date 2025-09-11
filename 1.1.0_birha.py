@@ -1484,7 +1484,8 @@ class GrammarApp:
             text="New Assessment",
             font=('Arial', 14, 'bold'),
             bg='dark cyan', fg='white',
-            padx=20, pady=10
+            padx=20, pady=10,
+            command=self.show_word_search_modal
         ).pack(pady=8)
 
         tk.Button(
@@ -4918,18 +4919,7 @@ class GrammarApp:
         )
         management_btn.pack(pady=10)
 
-        # Word Search (Lexicon) button
-        word_search_btn = tk.Button(
-            button_frame,
-            text="Word Search (Lexicon)",
-            font=('Arial', 14, 'bold'),
-            bg='dark cyan',
-            fg='white',
-            padx=20,
-            pady=10,
-            command=self.show_word_search_modal
-        )
-        word_search_btn.pack(pady=10)
+        # (Word Search UI relocated to Assess-by-Word flow)
 
         # Back button to return to the main dashboard
         back_btn = tk.Button(
@@ -8216,18 +8206,12 @@ class GrammarApp:
     def _build_lexicon_index(self) -> dict:
         """Build a lexicon of token -> count from SGGS Excel using _norm_tok normalization.
 
-        Returns the counts dict.
+        Pure worker: performs no Tk calls. Raises on read errors; returns dict otherwise.
         """
-        # Ensure SGGS is available (for consistency with file presence); we'll read Excel directly here
         excel_path = "1.1.3 sggs_extracted_with_page_numbers.xlsx"
-        try:
-            df = pd.read_excel(excel_path)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to read SGGS Excel: {e}")
-            return {}
+        df = pd.read_excel(excel_path)  # may raise
         if 'Verse' not in df.columns:
-            messagebox.showerror("Error", "SGGS file missing 'Verse' column.")
-            return {}
+            raise ValueError("SGGS file missing 'Verse' column")
         counts = {}
         for _, row in df.iterrows():
             verse = row.get('Verse', '')
@@ -8238,19 +8222,20 @@ class GrammarApp:
                 nt = self._norm_tok(tok)
                 if nt:
                     counts[nt] = counts.get(nt, 0) + 1
-        # Persist JSON for reuse
+        # Persist JSON for reuse (best-effort; no Tk calls)
+        payload = {
+            "meta": {
+                "source": excel_path,
+                "built_at": datetime.now(timezone.utc).isoformat(),
+                "unique_tokens": len(counts),
+            },
+            "counts": counts,
+        }
         try:
-            payload = {
-                "meta": {
-                    "source": excel_path,
-                    "built_at": datetime.now(timezone.utc).isoformat(),
-                    "unique_tokens": len(counts),
-                },
-                "counts": counts,
-            }
             with open("1.1.3_lexicon.json", "w", encoding="utf-8") as f:
                 json.dump(payload, f, ensure_ascii=False, indent=2)
         except Exception:
+            # Ignore file write failures for worker purity
             pass
         return counts
 
@@ -8269,21 +8254,27 @@ class GrammarApp:
         self.root.update()
 
         self._lexicon_done = False
-        result_holder = {"counts": {}}
+        result_holder = {"counts": {}, "error": None}
 
         def heavy():
             counts = {}
-            # Try reading JSON first
+            error_msg = None
             try:
-                with open("1.1.3_lexicon.json", "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                counts = dict(data.get("counts", {}))
-            except Exception:
+                # Try reading JSON first
+                try:
+                    with open("1.1.3_lexicon.json", "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    counts = dict(data.get("counts", {}))
+                except Exception:
+                    counts = {}
+                if rebuild or not counts:
+                    counts = self._build_lexicon_index()
+            except Exception as e:
                 counts = {}
-            if rebuild or not counts:
-                counts = self._build_lexicon_index()
+                error_msg = f"Failed to build/read lexicon: {e}"
             def finish():
                 result_holder["counts"] = counts
+                result_holder["error"] = error_msg
                 self._lexicon_done = True
             self.root.after(0, finish)
 
@@ -8296,8 +8287,16 @@ class GrammarApp:
         self.root.attributes("-disabled", False)
         self.stop_progress()
 
-        self.lexicon_counts = result_holder["counts"]
+        self.lexicon_counts = result_holder["counts"] or {}
         self.lexicon_tokens = sorted(self.lexicon_counts.keys())
+
+        # Report any errors now (on the main thread)
+        if result_holder.get("error"):
+            try:
+                messagebox.showerror("Lexicon Error", result_holder["error"])
+            except Exception:
+                # As a last resort, print to console; avoid raising in UI
+                print(result_holder["error"]) 
 
     def find_words_fuzzy(self, query: str, limit: int = 50, min_score: int = 60):
         """Fuzzy match query against lexicon tokens; return list of dicts with token, count, score.
