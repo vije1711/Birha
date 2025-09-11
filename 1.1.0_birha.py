@@ -1129,8 +1129,9 @@ class GrammarApp:
         - Caches to JSON on disk for faster subsequent loads.
         - Returns a dict {token: count}.
         """
-        if getattr(self, "_lexicon_index", None) is not None and not force_rebuild:
-            return self._lexicon_index
+        existing = getattr(self, "_lexicon_index", None)
+        if (not force_rebuild) and isinstance(existing, dict) and len(existing) > 0:
+            return existing
 
         cache_path = getattr(self, "_lexicon_index_path", None)
         excel_path = "1.1.3 sggs_extracted_with_page_numbers.xlsx"
@@ -1140,7 +1141,7 @@ class GrammarApp:
             try:
                 with open(cache_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                if isinstance(data, dict):
+                if isinstance(data, dict) and len(data) > 0:
                     self._lexicon_index = {str(k): int(v) for k, v in data.items()}
                     return self._lexicon_index
             except Exception:
@@ -1154,8 +1155,8 @@ class GrammarApp:
                 messagebox.showerror("Lexicon Error", f"Failed to read '{excel_path}':\n{e}")
             except Exception:
                 pass
-            self._lexicon_index = {}
-            return self._lexicon_index
+            # Do not cache an empty/failed build; allow future retries
+            return {}
 
         counts: dict[str, int] = {}
         verse_col = "Verse"
@@ -1168,8 +1169,8 @@ class GrammarApp:
                     messagebox.showerror("Lexicon Error", "Excel is missing 'Verse' column for lexicon build.")
                 except Exception:
                     pass
-                self._lexicon_index = {}
-                return self._lexicon_index
+                # Do not cache an empty/failed build; allow future retries
+                return {}
 
         for _, row in df.iterrows():
             verse = row.get(verse_col, "")
@@ -1300,6 +1301,8 @@ class GrammarApp:
                 messagebox.showerror("Copy Failed", str(e))
         tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
                   command=_copy_selected).pack(side=tk.LEFT)
+        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
         tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11),
                   command=win.destroy).pack(side=tk.RIGHT)
 
