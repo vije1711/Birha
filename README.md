@@ -47,6 +47,15 @@ python 1.1.0_birha.py
 
 The dashboard opens with buttons to start verse analysis, update the grammar database, or work through literal meanings.
 
+## Lexicon Index & Word Search
+
+- Source: Builds a word→count lexicon from `1.1.3 sggs_extracted_with_page_numbers.xlsx`.
+- Normalization: Mirrors in-app token normalization (NFC, removes danda/double-danda and zero-width chars, trims trailing digits/punct) for consistent matching.
+- Caching: Writes a JSON cache at `1.1.3_lexicon_index.json` to speed subsequent runs.
+- Fuzzy search: Uses RapidFuzz to suggest closest unique tokens with counts; results are de‑duplicated and sorted by score, then frequency.
+- UI path: Dashboard → Grammar DB Update → Assess by Word → New Assessment → Word Search (Lexicon). The modal shows a tick‑list with multi‑select and a Copy Selected action.
+- Validation: See `scripts/lexicon_nan_check.py` and `scripts/lexicon_retry_check.py` for quick checks around NaN handling and missing‑file recovery.
+
 ## Usage Tips
 
 - Fonts: ensure a Gurmukhi/Punjabi font is installed so text renders correctly (e.g., Raavi, Saab, AnmolLipi, GurbaniAkhar).
