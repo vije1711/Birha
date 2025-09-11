@@ -1,8 +1,20 @@
 import os
 import shutil
 import time
+from pathlib import Path
+import importlib.util
 import tkinter as tk
 from tkinter import messagebox
+
+
+def _load_birha_module():
+    root = Path(__file__).resolve().parents[1]
+    mod_path = root / "1.1.0_birha.py"
+    spec = importlib.util.spec_from_file_location("birha_mod", str(mod_path))
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def main():
@@ -24,8 +36,7 @@ def main():
         except Exception:
             pass
 
-        from importlib import import_module
-        mod = import_module("1.1.0_birha".replace(".py", ""))
+        mod = _load_birha_module()
         app = mod.GrammarApp(root)
 
         # Ensure clean in-memory state
@@ -84,4 +95,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
