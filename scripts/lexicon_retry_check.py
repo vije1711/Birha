@@ -27,14 +27,19 @@ def main():
     root = None
     try:
         # Prepare environment: hide Tk windows and silence messageboxes
-        root = tk.Tk()
-        root.withdraw()
         try:
-            # Monkey-patch message boxes to avoid blocking UI during quick check
-            messagebox.showerror = lambda *a, **k: None
-            messagebox.showinfo = lambda *a, **k: None
-        except Exception:
-            pass
+            root = tk.Tk()
+            root.withdraw()
+            try:
+                # Monkey-patch message boxes to avoid blocking UI during quick check
+                messagebox.showerror = lambda *a, **k: None
+                messagebox.showinfo = lambda *a, **k: None
+            except Exception:
+                pass
+        except tk.TclError:
+            # Headless environment (no display). Skip GUI-based quick check gracefully.
+            print("Headless environment: no display available. Skipping lexicon retry quick-check.")
+            return
 
         mod = _load_birha_module()
         app = mod.GrammarApp(root)
