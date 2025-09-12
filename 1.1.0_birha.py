@@ -529,6 +529,8 @@ def append_to_word_tracker(
                     w_add[c] = w_add[c].astype("boolean")
                 except Exception:
                     pass
+        # Drop all-NA columns to avoid concat FutureWarnings
+        w_add = w_add.dropna(axis=1, how="all")
         words_df = pd.concat([words_df, w_add], ignore_index=True)
 
     if progress_rows is not None:
@@ -543,9 +545,12 @@ def append_to_word_tracker(
         for c in ["reanalyzed_count", "word_index"]:
             if c in p_add.columns:
                 try:
-                    p_add[c] = pd.to_numeric(p_add[c], errors="ignore")
+                    # Avoid 'errors="ignore"' to tame FutureWarning; coerce invalid to NaN
+                    p_add[c] = pd.to_numeric(p_add[c], errors="coerce")
                 except Exception:
                     pass
+        # Drop all-NA columns to avoid concat FutureWarnings
+        p_add = p_add.dropna(axis=1, how="all")
         prog_df = pd.concat([prog_df, p_add], ignore_index=True)
 
     _save_tracker(tracker_path, words_df, prog_df, others, words_sheet, progress_sheet)
@@ -974,7 +979,7 @@ def build_noun_map(csv_path="1.1.1_birha.csv"):
     raw.columns = raw.columns.str.replace("\ufeff", "").str.strip()
     df = (
         raw
-          .query("Type.str.startswith('Noun')", engine="python")
+          .loc[raw["Type"].astype(str).str.startswith("Noun", na=False)]
           .fillna("NA")
           .rename(columns={
               "Vowel Ending"        : "ending",
