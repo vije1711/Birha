@@ -403,19 +403,42 @@ def ensure_word_tracker(
             if c in prog_df.columns:
                 prog_df[c] = prog_df[c].map(_coerce_dt)
 
-        # Atomic in-place update: copy original, update spec sheets once via a single ExcelWriter, then replace
+        # Atomic in-place update: copy original, refresh spec sheets in-place without recreating them, then replace
         base_dir = os.path.dirname(os.path.abspath(tracker_path)) or os.getcwd()
         ext = os.path.splitext(tracker_path)[1] or ".xlsx"
         with tempfile.NamedTemporaryFile(prefix=".tmp_tracker_", suffix=ext, dir=base_dir, delete=False) as tf:
             tmp_path = tf.name
         try:
             shutil.copyfile(tracker_path, tmp_path)
+            # Pre-clear existing sheet contents without recreating sheets to preserve formatting/VBA
+            try:
+                wb = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+                if words_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=words_sheet)
+                if progress_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=progress_sheet)
+                try:
+                    ws = wb[words_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                try:
+                    ws = wb[progress_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                wb.save(tmp_path)
+            except Exception:
+                # If clearing fails, continue; overlay will still update data
+                pass
+
             engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
+            # Overlay into existing sheets to avoid replacing sheet objects
             with pd.ExcelWriter(
                 tmp_path,
                 engine="openpyxl",
                 mode="a",
-                if_sheet_exists="replace",
+                if_sheet_exists="overlay",
                 engine_kwargs=engine_kwargs,
             ) as writer:
                 words_df.to_excel(writer, index=False, sheet_name=words_sheet)
@@ -512,11 +535,33 @@ def _save_tracker(
 
         engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
         if mode == "a":
+            # Clear existing content without recreating sheets to preserve formatting/VBA
+            try:
+                wb = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+                if words_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=words_sheet)
+                if progress_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=progress_sheet)
+                try:
+                    ws = wb[words_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                try:
+                    ws = wb[progress_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                wb.save(tmp_path)
+            except Exception:
+                pass
+
+            # Overlay into existing sheets so sheet objects remain intact
             with pd.ExcelWriter(
                 tmp_path,
                 engine="openpyxl",
                 mode="a",
-                if_sheet_exists="replace",
+                if_sheet_exists="overlay",
                 engine_kwargs=engine_kwargs,
             ) as writer:
                 words_df.to_excel(writer, index=False, sheet_name=words_sheet)
