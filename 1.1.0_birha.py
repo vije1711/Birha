@@ -511,15 +511,25 @@ def _save_tracker(
             mode = "w"
 
         engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
-        with pd.ExcelWriter(
-            tmp_path,
-            engine="openpyxl",
-            mode=mode,
-            if_sheet_exists="replace",
-            engine_kwargs=engine_kwargs,
-        ) as writer:
-            words_df.to_excel(writer, index=False, sheet_name=words_sheet)
-            progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+        if mode == "a":
+            with pd.ExcelWriter(
+                tmp_path,
+                engine="openpyxl",
+                mode="a",
+                if_sheet_exists="replace",
+                engine_kwargs=engine_kwargs,
+            ) as writer:
+                words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+                progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+        else:
+            with pd.ExcelWriter(
+                tmp_path,
+                engine="openpyxl",
+                mode="w",
+                engine_kwargs=engine_kwargs,
+            ) as writer:
+                words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+                progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
         if not zipfile.is_zipfile(tmp_path):
             raise RuntimeError("Tracker temp file is not a valid XLSX/XL file (zip)")

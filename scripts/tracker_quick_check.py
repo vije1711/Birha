@@ -85,6 +85,26 @@ def main():
 
     print("OK: tracker quick check passed")
 
+    # 6b) self-check: _save_tracker create (mode='w') and append (mode='a') paths
+    tmp2 = Path("tmp_tracker_save_path.xlsx").resolve()
+    try:
+        if tmp2.exists():
+            tmp2.unlink()
+    except Exception:
+        pass
+    words_df2, prog_df2 = mod._empty_tracker_frames()
+    # Create path (mode='w'): should not pass if_sheet_exists
+    mod._save_tracker(str(tmp2), words_df2, prog_df2, [], mod.TRACKER_WORDS_SHEET, mod.TRACKER_PROGRESS_SHEET)
+    assert tmp2.exists() and zipfile.is_zipfile(str(tmp2)), "_save_tracker create did not produce a valid file"
+    wb = load_workbook(str(tmp2))
+    assert "Words" in wb.sheetnames and "Progress" in wb.sheetnames, "_save_tracker create missing spec sheets"
+    # Append path (mode='a'): uses if_sheet_exists='replace'
+    mod._save_tracker(str(tmp2), words_df2, prog_df2, [], mod.TRACKER_WORDS_SHEET, mod.TRACKER_PROGRESS_SHEET)
+    assert zipfile.is_zipfile(str(tmp2))
+    wb = load_workbook(str(tmp2))
+    assert "Words" in wb.sheetnames and "Progress" in wb.sheetnames
+    print("OK: _save_tracker create/append path works")
+
     # Optional: macro-enabled quick check if a template is available
     macro_tpl = os.getenv("TRACKER_VBA_TEMPLATE") or "macro_template.xlsm"
     tpl_path = Path(macro_tpl)
