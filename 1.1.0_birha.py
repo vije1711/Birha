@@ -20,6 +20,9 @@ import subprocess
 import json
 import webbrowser
 from openpyxl import load_workbook
+import tempfile
+import shutil
+import zipfile
 
 
 # ────────────────────────────────────────────────────────────────
@@ -336,78 +339,127 @@ def ensure_word_tracker(
     - Close pd.ExcelFile before writing.
     - Preserve original sheet order (spec sheets keep their position; new ones append).
     """
-    if not os.path.exists(tracker_path):
-        # Create fresh workbook with the two spec sheets only
-        words_df, prog_df = _empty_tracker_frames()
-        # Coerce datetime-like columns (mostly N/A for empty frames)
+    def _is_xlsm(path: str) -> bool:
+        try:
+            return str(path).lower().endswith(".xlsm")
+        except Exception:
+            return False
+
+    try:
+        if not os.path.exists(tracker_path):
+            # Create fresh workbook with the two spec sheets only (atomic write)
+            words_df, prog_df = _empty_tracker_frames()
+            # Coerce datetime-like columns
+            for c in ["listed_at", "selected_at", "analysis_started_at", "analysis_completed_at"]:
+                if c in words_df.columns:
+                    words_df[c] = words_df[c].map(_coerce_dt)
+            for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
+                if c in prog_df.columns:
+                    prog_df[c] = prog_df[c].map(_coerce_dt)
+
+            base_dir = os.path.dirname(os.path.abspath(tracker_path)) or os.getcwd()
+            ext = os.path.splitext(tracker_path)[1] or ".xlsx"
+            with tempfile.NamedTemporaryFile(prefix=".tmp_tracker_", suffix=ext, dir=base_dir, delete=False) as tf:
+                tmp_path = tf.name
+            try:
+                # Do NOT pass keep_vba when creating a new workbook; openpyxl does not support this.
+                engine_kwargs = None
+                with pd.ExcelWriter(tmp_path, engine="openpyxl", mode="w", engine_kwargs=engine_kwargs) as writer:
+                    words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+                    prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+                # Validate temp file before replacing
+                if not zipfile.is_zipfile(tmp_path):
+                    raise RuntimeError("Tracker temp file is not a valid XLSX/XL file (zip)")
+                _ = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+                os.replace(tmp_path, tracker_path)
+                return True
+            except Exception as e:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                print(f"ensure_word_tracker: aborted create due to error: {e}")
+                return False
+
+        # Load existing data for spec sheets only, using a context-managed ExcelFile
+        with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
+            names = list(xls.sheet_names)
+            if words_sheet in names:
+                words_df = pd.read_excel(xls, sheet_name=words_sheet)
+            else:
+                words_df = pd.DataFrame(columns=_WORDS_COLUMNS)
+            if progress_sheet in names:
+                prog_df = pd.read_excel(xls, sheet_name=progress_sheet)
+            else:
+                prog_df = pd.DataFrame(columns=_PROGRESS_COLUMNS)
+
+        words_df = _ensure_columns(words_df, _WORDS_COLUMNS)
+        prog_df = _ensure_columns(prog_df, _PROGRESS_COLUMNS)
+
+        # Normalize datetime-like columns prior to write
         for c in ["listed_at", "selected_at", "analysis_started_at", "analysis_completed_at"]:
             if c in words_df.columns:
                 words_df[c] = words_df[c].map(_coerce_dt)
         for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
             if c in prog_df.columns:
                 prog_df[c] = prog_df[c].map(_coerce_dt)
-        with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
-            words_df.to_excel(writer, index=False, sheet_name=words_sheet)
-            prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
-        return True
 
-    # Load existing data for spec sheets only, using a context-managed ExcelFile
-    with pd.ExcelFile(tracker_path, engine="openpyxl") as xls:
-        names = list(xls.sheet_names)
-        if words_sheet in names:
-            words_df = pd.read_excel(xls, sheet_name=words_sheet)
-        else:
-            words_df = pd.DataFrame(columns=_WORDS_COLUMNS)
-        if progress_sheet in names:
-            prog_df = pd.read_excel(xls, sheet_name=progress_sheet)
-        else:
-            prog_df = pd.DataFrame(columns=_PROGRESS_COLUMNS)
+        # Atomic in-place update: copy original, refresh spec sheets in-place without recreating them, then replace
+        base_dir = os.path.dirname(os.path.abspath(tracker_path)) or os.getcwd()
+        ext = os.path.splitext(tracker_path)[1] or ".xlsx"
+        with tempfile.NamedTemporaryFile(prefix=".tmp_tracker_", suffix=ext, dir=base_dir, delete=False) as tf:
+            tmp_path = tf.name
+        try:
+            shutil.copyfile(tracker_path, tmp_path)
+            # Pre-clear existing sheet contents without recreating sheets to preserve formatting/VBA
+            try:
+                wb = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+                if words_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=words_sheet)
+                if progress_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=progress_sheet)
+                try:
+                    ws = wb[words_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                try:
+                    ws = wb[progress_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                wb.save(tmp_path)
+            except Exception:
+                # If clearing fails, continue; overlay will still update data
+                pass
 
-    words_df = _ensure_columns(words_df, _WORDS_COLUMNS)
-    prog_df = _ensure_columns(prog_df, _PROGRESS_COLUMNS)
+            engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
+            # Overlay into existing sheets to avoid replacing sheet objects
+            with pd.ExcelWriter(
+                tmp_path,
+                engine="openpyxl",
+                mode="a",
+                if_sheet_exists="overlay",
+                engine_kwargs=engine_kwargs,
+            ) as writer:
+                words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+                prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
-    # Normalize datetime-like columns prior to write
-    for c in ["listed_at", "selected_at", "analysis_started_at", "analysis_completed_at"]:
-        if c in words_df.columns:
-            words_df[c] = words_df[c].map(_coerce_dt)
-    for c in ["selected_at", "completed_at", "last_reanalyzed_at"]:
-        if c in prog_df.columns:
-            prog_df[c] = prog_df[c].map(_coerce_dt)
-
-    # Open the workbook and ensure spec sheets exist; clear their contents
-    wb = load_workbook(tracker_path, keep_vba=True)
-    if words_sheet not in wb.sheetnames:
-        wb.create_sheet(title=words_sheet)
-    if progress_sheet not in wb.sheetnames:
-        wb.create_sheet(title=progress_sheet)
-    try:
-        ws = wb[words_sheet]
-        ws.delete_rows(1, ws.max_row or 1)
-    except Exception:
-        pass
-    try:
-        ws = wb[progress_sheet]
-        ws.delete_rows(1, ws.max_row or 1)
-    except Exception:
-        pass
-    # Persist the cleared workbook to disk before using ExcelWriter overlay
-    try:
-        wb.save(tracker_path)
-    except Exception:
-        pass
-
-    # Now overlay the DataFrames into the cleared sheets without mutating writer internals
-    with pd.ExcelWriter(
-        tracker_path,
-        engine="openpyxl",
-        mode="a",
-        if_sheet_exists="overlay",
-        engine_kwargs={"keep_vba": True},
-    ) as writer:
-        words_df.to_excel(writer, index=False, sheet_name=words_sheet)
-        prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
-
-    return True
+            if not zipfile.is_zipfile(tmp_path):
+                raise RuntimeError("Tracker temp file is not a valid XLSX/XL file (zip)")
+            _ = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+            os.replace(tmp_path, tracker_path)
+            return True
+        except Exception as e:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+            print(f"ensure_word_tracker: aborted update due to error: {e}")
+            return False
+    except Exception as e:
+        print(f"ensure_word_tracker: unexpected error: {e}")
+        return False
 
 
 def load_word_tracker(
@@ -463,41 +515,79 @@ def _save_tracker(
         if c in progress_df.columns:
             progress_df[c] = progress_df[c].map(_coerce_dt)
 
-    if not os.path.exists(tracker_path):
-        # Create new with spec sheets only
-        with pd.ExcelWriter(tracker_path, engine="openpyxl", mode="w") as writer:
-            words_df.to_excel(writer, index=False, sheet_name=words_sheet)
-            progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+    def _is_xlsm(path: str) -> bool:
+        try:
+            return str(path).lower().endswith(".xlsm")
+        except Exception:
+            return False
+
+    # Atomic write: work on a temp file in the same directory, then replace
+    base_dir = os.path.dirname(os.path.abspath(tracker_path)) or os.getcwd()
+    ext = os.path.splitext(tracker_path)[1] or ".xlsx"
+    with tempfile.NamedTemporaryFile(prefix=".tmp_tracker_", suffix=ext, dir=base_dir, delete=False) as tf:
+        tmp_path = tf.name
+
+    try:
+        if os.path.exists(tracker_path):
+            shutil.copyfile(tracker_path, tmp_path)
+            mode = "a"
+        else:
+            mode = "w"
+
+        if mode == "a":
+            engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
+            # Clear existing content without recreating sheets to preserve formatting/VBA
+            try:
+                wb = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+                if words_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=words_sheet)
+                if progress_sheet not in wb.sheetnames:
+                    wb.create_sheet(title=progress_sheet)
+                try:
+                    ws = wb[words_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                try:
+                    ws = wb[progress_sheet]
+                    ws.delete_rows(1, ws.max_row or 1)
+                except Exception:
+                    pass
+                wb.save(tmp_path)
+            except Exception:
+                pass
+
+            # Overlay into existing sheets so sheet objects remain intact
+            with pd.ExcelWriter(
+                tmp_path,
+                engine="openpyxl",
+                mode="a",
+                if_sheet_exists="overlay",
+                engine_kwargs=engine_kwargs,
+            ) as writer:
+                words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+                progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+        else:
+            # New workbook: do NOT pass keep_vba; openpyxl cannot create macros from scratch.
+            with pd.ExcelWriter(
+                tmp_path,
+                engine="openpyxl",
+                mode="w",
+            ) as writer:
+                words_df.to_excel(writer, index=False, sheet_name=words_sheet)
+                progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
+
+        if not zipfile.is_zipfile(tmp_path):
+            raise RuntimeError("Tracker temp file is not a valid XLSX/XL file (zip)")
+        _ = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
+        os.replace(tmp_path, tracker_path)
+    except Exception as e:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        print(f"_save_tracker: aborted save due to error: {e}")
         return
-
-    # Update within existing workbook without touching other sheets
-    wb = load_workbook(tracker_path, keep_vba=True)
-    if words_sheet not in wb.sheetnames:
-        wb.create_sheet(title=words_sheet)
-    if progress_sheet not in wb.sheetnames:
-        wb.create_sheet(title=progress_sheet)
-    try:
-        wb[words_sheet].delete_rows(1, wb[words_sheet].max_row or 1)
-    except Exception:
-        pass
-    try:
-        wb[progress_sheet].delete_rows(1, wb[progress_sheet].max_row or 1)
-    except Exception:
-        pass
-    try:
-        wb.save(tracker_path)
-    except Exception:
-        pass
-
-    with pd.ExcelWriter(
-        tracker_path,
-        engine="openpyxl",
-        mode="a",
-        if_sheet_exists="overlay",
-        engine_kwargs={"keep_vba": True},
-    ) as writer:
-        words_df.to_excel(writer, index=False, sheet_name=words_sheet)
-        progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
 
 
 def append_to_word_tracker(
