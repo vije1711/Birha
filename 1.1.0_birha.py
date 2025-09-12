@@ -1813,6 +1813,33 @@ class GrammarApp:
             except Exception:
                 pass
 
+    def _word_driver_cancel_current(self):
+        """Cancel the current verse if driver is in-progress.
+
+        - Clears in-progress flag and current verse pointer.
+        - Advances the queue index to skip this verse.
+        - Updates the controller UI so Next is enabled and the driver can continue.
+        """
+        try:
+            # clear busy state
+            self._word_driver_in_progress = False
+            # skip the current verse if any
+            try:
+                total = len(getattr(self, '_word_driver_queue', []) or [])
+            except Exception:
+                total = 0
+            try:
+                idx = int(getattr(self, '_word_driver_index', 0))
+            except Exception:
+                idx = 0
+            if idx < total:
+                self._word_driver_index = idx + 1
+            self._word_driver_current_verse = None
+            # refresh controller UI
+            self._word_driver_update_ui()
+        except Exception:
+            pass
+
     def _word_driver_after_verse_finished(self):
         """Called when a verse finishes its assessment flow to update tracker and advance."""
         try:
@@ -2827,6 +2854,31 @@ class GrammarApp:
         win.state("zoomed")
         win.transient(self.root)
         win.grab_set()
+
+        # Ensure any close action (X or Back button wired to win.destroy) cancels driver state safely
+        try:
+            _orig_destroy = win.destroy
+
+            def _driver_safe_destroy():
+                try:
+                    if getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
+                finally:
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
+
+            win.destroy = _driver_safe_destroy
+            try:
+                win.protocol("WM_DELETE_WINDOW", win.destroy)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
         # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
         try:
