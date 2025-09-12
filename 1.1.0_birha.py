@@ -1472,6 +1472,62 @@ class GrammarApp:
         except Exception:
             return "1.1.6_assess_by_word.xlsx"
 
+    # ---------------------------
+    # Assess-by-Word: Progress updates (status/completed)
+    # ---------------------------
+    def _mark_progress_completed_if_tracked(self, word: str, verse: str, word_index: int | None = None):
+        """Mark the matching Progress row(s) as completed for the given word/verse.
+
+        - Matches primarily on normalized ``word_key_norm`` and normalized ``verse``.
+        - If ``word_index`` is provided and the sheet has numeric values in ``word_index``,
+          further narrows the match; otherwise skips index refinement to avoid filtering all rows out
+          when the column exists but contains only NaNs.
+        """
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            if prog_df.empty:
+                return
+
+            norm_word = self._norm_tok(word or "")
+            # Build base mask on word and verse (robust normalized compare)
+            try:
+                if 'word_key_norm' in prog_df.columns:
+                    mask_word = prog_df.get('word_key_norm', pd.Series(dtype=str)).astype(str)\
+                        .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm_word)
+                else:
+                    mask_word = prog_df.get('word', pd.Series(dtype=str)).astype(str)\
+                        .map(lambda s: _normalize_simple(s)) == _normalize_simple(word or "")
+            except Exception:
+                mask_word = pd.Series([False] * len(prog_df))
+
+            try:
+                mask_verse = prog_df.get('verse', pd.Series(dtype=str)).astype(str)\
+                    .map(lambda s: _normalize_simple(s)) == _normalize_simple(verse or "")
+            except Exception:
+                mask_verse = pd.Series([False] * len(prog_df))
+
+            mask = mask_word & mask_verse
+
+            # Optional refinement by word_index only if the column has any numeric values
+            if word_index is not None and 'word_index' in prog_df.columns:
+                try:
+                    idx_num = pd.to_numeric(prog_df['word_index'], errors='coerce')
+                    if idx_num.notna().any():
+                        mask = mask & (idx_num == pd.to_numeric(word_index, errors='coerce'))
+                except Exception:
+                    pass
+
+            if mask.any():
+                if 'status' in prog_df.columns:
+                    prog_df.loc[mask, 'status'] = 'completed'
+                if 'completed_at' in prog_df.columns:
+                    prog_df.loc[mask, 'completed_at'] = datetime.now()
+                _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+        except Exception:
+            # Non-fatal; do not surface errors to the user during save flow
+            pass
+
     def _compute_verse_hits_for_token(self, token: str) -> list[dict]:
         """Compute verse hits for an exact token (normalized) from SGGS Excel.
 
@@ -7811,11 +7867,13 @@ class GrammarApp:
 
                     mask_verse = prog_df.get('verse', pd.Series(dtype=str)).astype(str).map(_norm) == _norm(verse_raw)
                     mask = mask_word & mask_verse
-                    # If we have an index, further narrow by word_index where present
+                    # If we have an index, further narrow by word_index where present and numeric
                     if idx_raw is not None and 'word_index' in prog_df.columns:
                         try:
                             idx_num = pd.to_numeric(prog_df['word_index'], errors='coerce')
-                            mask = mask & (idx_num == pd.to_numeric(idx_raw, errors='coerce'))
+                            # Only refine if any numeric values exist; otherwise skip to avoid over-filtering
+                            if idx_num.notna().any():
+                                mask = mask & (idx_num == pd.to_numeric(idx_raw, errors='coerce'))
                         except Exception:
                             pass
 
@@ -10074,6 +10132,16 @@ class GrammarApp:
             df_existing.to_excel(file_path, index=False)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save assessment data: {e}")
+            
+        # Also mark the corresponding Progress row as completed when tracked
+        try:
+            self._mark_progress_completed_if_tracked(
+                new_entry.get("Word"),
+                new_entry.get("Verse"),
+                new_entry.get("Word Index")
+            )
+        except Exception:
+            pass
 
     def setup_options(self, parent_frame, label_text, options, variable):
         """
