@@ -1,53 +1,20 @@
-Task: Tidy the layout of the “Assess Grammar” window (function user_input_grammar) to use vertical stacking with denser row-based content.
+Study '0.1.3.2 Assess by Word Engineering contract.docx', and implement Task 1 from Section 11: create launch_word_assessment_dashboard() as a root-rendered UI with three buttons (UI only, no business logic yet). Wire the Back button to self._go_back_to_dashboard (no 'win' arg). If the helper is not present yet, add a minimal stub _go_back_to_dashboard(win=None): self.show_dashboard(). After implementing, please push the branch and draft the PR description.
 
-What to change
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 2 from Section 11: tracker helpers (create, load, append) with ensure_word_tracker using pandas+openpyxl. Enforce: single ExcelWriter per save (no nested writers), always close pd.ExcelFile via context manager before writing, and preserve/rewrite non-spec sheets in original order. After implementing, please push the branch and draft the PR description.
 
-“Meanings for …” frame
 
-Reduce the frame’s vertical height so more space is available for options below.
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 3 from Section 11: build the lexicon index from 1.1.3 sggs_extracted_with_page_numbers.xlsx (tokenize, normalize, aggregate counts) and add the word-search modal UI with fuzzy matching via RapidFuzz. Ensure normalization mirrors existing helpers (_norm_tok style), return deduplicated closest matches with counts, and show results in a tick-list modal with multi-select. After implementing, push the branch and draft a liberal, detailed PR describing the lexicon build, search UI, and validation steps.
 
-Increase the number of content columns (grid inside the scrolled area) so meanings flow in more columns across the width (fewer rows). Keep bullets and word-wrapping. Preserve the scrollbar.
 
-The frame should remain full-width, but not taller than necessary (target ~35–40% of the available height at 1080p).
+Open 1.1.0_birha.py and refactor the entry point for **Word Search (Lexicon)**: REMOVE any button/menu wiring under the Verse Analysis UI and ADD the launcher under **Assess by Word → New assessment** inside launch_word_assessment_dashboard() (the button should open the existing word-search modal). Keep Back wired via _go_back_to_dashboard (Toplevel: lambda: self._go_back_to_dashboard(win); root: self._go_back_to_dashboard), guard win.state('zoomed') with try/except tk.TclError, and ensure no duplicate buttons remain. Quick checks: from Home → Grammar DB Update → Assess by Word → New assessment → Word Search opens; Verse Analysis shows no Word Search button; py_compile passes. Push the branch and draft a liberal PR explaining the relocation, wiring, and tests.
 
-“Select Grammar Options” frame
 
-Present the three subgroups Number, Gender, Part of Speech as columns on a single row.
+Study 0.1.3.2 Assess by Word Engineering contract.docx and implement Task 4: build the verse-hit list for a chosen word with a scrollable checkbox UI (include Select All / Clear All that update the Next/Add button), show page numbers, and on Add Selected append rows to Progress via the tracker helpers (fields: word, word_key_norm, verse, page_number, selected_for_analysis=True, selected_at=now, status="not started"); reuse the plan’s normalization/tokenization (exact token match, no partials), guard Toplevel back-nav with _go_back_to_dashboard(win), and paginate if the result set is large; then push the branch and draft a detailed PR (include rationale, UI notes, and quick checks).
 
-Number: arrange its three radios in two columns (e.g., Singular | Plural on row1 and Unknown centered/left on row2).
 
-Gender: keep the current 2×2 layout but reduce the group’s width so it doesn’t waste horizontal space.
 
-Part of Speech: lay its radios in two rows using multiple columns (wrap across columns to minimize height). Aim for compact rows that use the full width.
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 5 from Section 11: add the driver that sequentially opens each selected verse in the existing Assess-by-Verse analyzer, writes results to 1.1.1_birha.csv, and updates the tracker (1.1.6 XXXX.xlsx → Progress: status/completed_at; Words: analysis_started/analysis_completed flags with timestamps); include Next Verse navigation and pause/resume flow; then push the branch and draft a detailed PR description.
 
-Overall layout / behavior
 
-Keep the verse banner at the top unchanged.
 
-Keep “Back to Translation”, “Skip Word”, and “Submit” anchored at the bottom; ensure the meanings/options stack sits above the buttons (no pack order inversion).
-
-Use grid with column/row weights for the meanings grid and the options row so the UI scales nicely on resize.
-
-No functional changes to variables, callbacks, or state; this is purely layout/geometry.
-
-Match existing fonts/colors; reuse helper fonts already on self (no new local Font objects that get GC’d).
-
-Acceptance checks
-
-At 1366×768 and 1920×1080, the meanings frame is shorter and shows more columns; options row fits comfortably in one band above the buttons.
-
-Number radios are 2 columns / 2 rows; Gender group is narrower; Part of Speech radios occupy two rows.
-
-Buttons remain fixed to the bottom; no content overlaps; scrollbars work.
-
-Code pointers
-
-Edit only the layout portions under the “Meanings for …” and “Select Grammar Options” sections in user_input_grammar.
-
-Prefer grid for the options band; if mixing pack/grid, keep them confined to separate containers to avoid geometry conflicts.
-
-Housekeeping
-
-Keep all behavior, strings, and data flow intact.
-
-Please push a feature branch and draft the PR description summarizing the layout changes (no merge to main yet).
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and proceed with Task 6 from Section 11: wire the 'Continue' and 'Completed' views with their filters and actions. After implementing, please push the branch and draft the PR description.
