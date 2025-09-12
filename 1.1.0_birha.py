@@ -1484,10 +1484,10 @@ class GrammarApp:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Selection state across pages
-        self._hit_vars = []  # list[(BooleanVar, index)] parallel to hits
+        # Selection state across pages (local to this modal)
+        hit_vars = []  # list[(BooleanVar, index)] parallel to hits
         for i in range(len(hits)):
-            self._hit_vars.append((tk.BooleanVar(value=False), i))
+            hit_vars.append((tk.BooleanVar(value=False), i))
 
         # Select/Clear All (page)
         selbar = tk.Frame(body, bg='light gray')
@@ -1497,7 +1497,7 @@ class GrammarApp:
             p  = max(1, int(cur_page_var.get() or 1))
             start = (p-1)*ps
             end   = min(len(hits), start+ps)
-            for bv, idx in self._hit_vars[start:end]:
+            for bv, idx in hit_vars[start:end]:
                 bv.set(val)
             _update_add_button()
         tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
@@ -1516,7 +1516,7 @@ class GrammarApp:
 
         # Row rendering
         def _update_add_button():
-            total = sum(1 for bv, _ in self._hit_vars if bv.get())
+            total = sum(1 for bv, _ in hit_vars if bv.get())
             add_btn_text.set(f"Add Selected ({total})")
             try:
                 add_btn.configure(state=tk.NORMAL if total > 0 else tk.DISABLED)
@@ -1541,7 +1541,7 @@ class GrammarApp:
                 row = hits[idx]
                 rf = tk.Frame(inner, bg='light gray')
                 rf.grid(row=i, column=0, sticky='ew', padx=2, pady=2)
-                bv, _ = self._hit_vars[idx]
+                bv, _ = hit_vars[idx]
                 def _mk_toggle(var):
                     return lambda: (_update_add_button())
                 tk.Checkbutton(rf, variable=bv, bg='light gray', command=_mk_toggle(bv)).pack(side=tk.LEFT, padx=(0, 8))
@@ -1566,7 +1566,7 @@ class GrammarApp:
             now = datetime.now()
             norm = self._norm_tok(word)
             rows = []
-            for bv, idx in self._hit_vars:
+            for bv, idx in hit_vars:
                 if not bv.get():
                     continue
                 rec = hits[idx]
