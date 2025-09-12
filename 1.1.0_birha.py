@@ -1307,6 +1307,20 @@ class GrammarApp:
                 messagebox.showerror("Copy Failed", str(e))
         tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
                   command=_copy_selected).pack(side=tk.LEFT)
+
+        def _proceed_to_hits():
+            chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
+            if len(chosen) != 1:
+                try:
+                    messagebox.showwarning("Pick One Word", "Please select exactly one word to proceed to verse hits.")
+                except Exception:
+                    pass
+                return
+            self.show_word_verse_hits_modal(chosen[0], parent=win)
+
+        tk.Button(btns, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
+                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8, 0))
+
         tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
                   command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
         tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11),
@@ -1349,6 +1363,239 @@ class GrammarApp:
         tk.Button(sr, text="Search", command=_do_search, bg='teal', fg='white').pack(side=tk.LEFT, padx=(8,0))
         q_entry.bind("<Return>", _do_search)
         q_entry.focus_set()
+
+    # ---------------------------
+    # Assess-by-Word: Verse hits UI
+    # ---------------------------
+    def _get_word_tracker_path(self) -> str:
+        """Return the workbook path for the Assess-by-Word tracker.
+
+        Kept simple: a project-local XLSX alongside datasets.
+        """
+        try:
+            return os.path.join(os.getcwd(), "1.1.6_assess_by_word.xlsx")
+        except Exception:
+            return "1.1.6_assess_by_word.xlsx"
+
+    def _compute_verse_hits_for_token(self, token: str) -> list[dict]:
+        """Compute verse hits for an exact token (normalized) from SGGS Excel.
+
+        Uses the existing tokenization/normalization pipeline and returns a list of
+        dicts with keys: verse, page_number.
+        """
+        # Ensure SGGS data is loaded (reused by other flows)
+        self.load_sggs_data()
+
+        norm_target = self._norm_tok(token or "")
+        if not norm_target:
+            return []
+
+        hits = []
+        df = getattr(self, 'sggs_data', None)
+        if df is None or df.empty:
+            return []
+        verse_col = 'Verse' if 'Verse' in df.columns else list(df.columns)[0]
+        page_col = 'Page Number' if 'Page Number' in df.columns else 'Page'
+
+        for _, row in df.iterrows():
+            verse_txt = row.get(verse_col, "")
+            toks = self._tokenize_and_normalize(verse_txt)
+            if norm_target in toks:
+                page_val = row.get(page_col, "")
+                try:
+                    page_str = str(int(page_val)) if isinstance(page_val, (int, float)) and not pd.isna(page_val) else str(page_val)
+                except Exception:
+                    page_str = str(page_val)
+                hits.append({
+                    'verse': str(verse_txt),
+                    'page_number': page_str,
+                })
+        return hits
+
+    def show_word_verse_hits_modal(self, word: str, parent=None):
+        """Modal window: show verse hits for a chosen word with checkbox selection.
+
+        - Scrollable list with pagination when large.
+        - Select All / Clear All buttons.
+        - Add Selected appends rows to Progress via tracker helpers.
+        - Back uses _go_back_to_dashboard(parent_win).
+        """
+        hits = self._compute_verse_hits_for_token(word)
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Verse Hits for: {word}")
+        win.configure(bg='light gray')
+        try:
+            win.transient(self.root)
+            win.grab_set()
+        except Exception:
+            pass
+
+        header = tk.Label(
+            win,
+            text=f"Verse Hits for: {word}",
+            font=("Arial", 16, "bold"),
+            bg='dark slate gray', fg='white', pady=8
+        )
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
+
+        # Pagination controls
+        ctrl = tk.Frame(body, bg='light gray')
+        ctrl.pack(fill=tk.X, pady=(0, 6))
+        tk.Label(ctrl, text=f"Total hits: {len(hits)}", bg='light gray', font=("Arial", 11)).pack(side=tk.LEFT)
+
+        page_size_var = tk.IntVar(value=50)
+        cur_page_var = tk.IntVar(value=1)
+
+        def _page_count():
+            ps = max(1, int(page_size_var.get() or 50))
+            return max(1, (len(hits) + ps - 1)//ps)
+
+        tk.Label(ctrl, text=" | Page size:", bg='light gray').pack(side=tk.LEFT, padx=(6,0))
+        ttk.Combobox(ctrl, values=[25, 50, 100, 200], width=5, textvariable=page_size_var, state='readonly').pack(side=tk.LEFT, padx=(3, 8))
+
+        nav = tk.Frame(ctrl, bg='light gray')
+        nav.pack(side=tk.RIGHT)
+        page_label_var = tk.StringVar(value=f"Page 1 / {_page_count()}")
+        tk.Label(nav, textvariable=page_label_var, bg='light gray').pack(side=tk.RIGHT, padx=(6,0))
+
+        def _change_page(delta):
+            newp = cur_page_var.get() + delta
+            newp = max(1, min(_page_count(), newp))
+            if newp != cur_page_var.get():
+                cur_page_var.set(newp)
+                _render_rows()
+
+        tk.Button(nav, text="Prev", command=lambda: _change_page(-1), bg='gray', fg='white').pack(side=tk.RIGHT, padx=(4,2))
+        tk.Button(nav, text="Next", command=lambda: _change_page(1),  bg='gray', fg='white').pack(side=tk.RIGHT, padx=(2,4))
+
+        # Scrollable area
+        list_frame = tk.Frame(body, bg='light gray')
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(list_frame, bg='light gray', highlightthickness=0)
+        vsb = tk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
+        inner = tk.Frame(canvas, bg='light gray')
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.create_window((0,0), window=inner, anchor='nw')
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Selection state across pages (local to this modal)
+        hit_vars = []  # list[(BooleanVar, index)] parallel to hits
+        for i in range(len(hits)):
+            hit_vars.append((tk.BooleanVar(value=False), i))
+
+        # Select/Clear All (page)
+        selbar = tk.Frame(body, bg='light gray')
+        selbar.pack(fill=tk.X, pady=(6, 0))
+        def _select_all_page(val: bool):
+            ps = max(1, int(page_size_var.get() or 50))
+            p  = max(1, int(cur_page_var.get() or 1))
+            start = (p-1)*ps
+            end   = min(len(hits), start+ps)
+            for bv, idx in hit_vars[start:end]:
+                bv.set(val)
+            _update_add_button()
+        tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
+        tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
+
+        # Footer
+        btns = tk.Frame(body, bg='light gray')
+        btns.pack(fill=tk.X, pady=(8,0))
+        add_btn_text = tk.StringVar(value="Add Selected (0)")
+        add_btn = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
+        add_btn.pack(side=tk.LEFT)
+
+        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
+        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
+
+        # Row rendering
+        def _update_add_button():
+            total = sum(1 for bv, _ in hit_vars if bv.get())
+            add_btn_text.set(f"Add Selected ({total})")
+            try:
+                add_btn.configure(state=tk.NORMAL if total > 0 else tk.DISABLED)
+            except Exception:
+                pass
+
+        def _render_rows():
+            for wdg in list(inner.winfo_children()):
+                wdg.destroy()
+            ps = max(1, int(page_size_var.get() or 50))
+            p  = max(1, int(cur_page_var.get() or 1))
+            start = (p-1)*ps
+            end   = min(len(hits), start+ps)
+            # header
+            hdr = tk.Frame(inner, bg='light gray')
+            hdr.grid(row=0, column=0, sticky='ew', padx=2, pady=(0, 6))
+            tk.Label(hdr, text="Select", font=("Arial", 11, 'bold'), width=8, anchor='w', bg='light gray').pack(side=tk.LEFT)
+            tk.Label(hdr, text="Verse", font=("Arial", 11, 'bold'), width=64, anchor='w', bg='light gray').pack(side=tk.LEFT)
+            tk.Label(hdr, text="Page", font=("Arial", 11, 'bold'), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+
+            for i, idx in enumerate(range(start, end), start=1):
+                row = hits[idx]
+                rf = tk.Frame(inner, bg='light gray')
+                rf.grid(row=i, column=0, sticky='ew', padx=2, pady=2)
+                bv, _ = hit_vars[idx]
+                def _mk_toggle(var):
+                    return lambda: (_update_add_button())
+                tk.Checkbutton(rf, variable=bv, bg='light gray', command=_mk_toggle(bv)).pack(side=tk.LEFT, padx=(0, 8))
+                tk.Label(rf, text=row['verse'], font=("Arial", 12), width=64, anchor='w', bg='light gray', justify='left', wraplength=900).pack(side=tk.LEFT)
+                tk.Label(rf, text=str(row['page_number']), font=("Arial", 12), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+
+            page_label_var.set(f"Page {p} / {_page_count()}")
+            list_frame.update_idletasks()
+            canvas.configure(scrollregion=canvas.bbox('all'))
+            _update_add_button()
+
+        def _on_page_size_change(event=None):
+            cur_page_var.set(1)
+            _render_rows()
+
+        try:
+            page_size_var.trace_add('write', lambda *args: _on_page_size_change())
+        except Exception:
+            pass
+
+        def _do_add_selected():
+            now = datetime.now()
+            norm = self._norm_tok(word)
+            rows = []
+            for bv, idx in hit_vars:
+                if not bv.get():
+                    continue
+                rec = hits[idx]
+                rows.append({
+                    'word': word,
+                    'word_key_norm': norm,
+                    'verse': rec.get('verse', ''),
+                    'page_number': rec.get('page_number', ''),
+                    'selected_for_analysis': True,
+                    'selected_at': now,
+                    'status': 'not started',
+                })
+            if not rows:
+                return
+            try:
+                tracker_path = self._get_word_tracker_path()
+                append_to_word_tracker(tracker_path, words_rows=None, progress_rows=rows)
+                try:
+                    messagebox.showinfo("Added", f"Appended {len(rows)} row(s) to Progress:\n{tracker_path}")
+                except Exception:
+                    pass
+            except Exception as e:
+                try:
+                    messagebox.showerror("Tracker Error", str(e))
+                except Exception:
+                    pass
+
+        add_btn.configure(command=_do_add_selected)
+        _render_rows()
 
     def _banner_wraplength(self, win=None) -> int:
         """Return a wraplength tuned to the window width (clamped 600–900)."""
