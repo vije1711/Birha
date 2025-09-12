@@ -7784,6 +7784,59 @@ class GrammarApp:
             df_existing.to_excel(file_path, index=False)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save reanalysis data: {e}")
+            return
+
+        # Also reflect reanalysis metadata in the Assess-by-Word tracker (increment count, set timestamp)
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            if not prog_df.empty:
+                # Build a mask to identify the specific verse entry for this word
+                try:
+                    word_raw = new_entry.get("Word", "")
+                    verse_raw = new_entry.get("Verse", "")
+                    idx_raw = new_entry.get("Word Index", None)
+
+                    def _norm(s):
+                        try:
+                            return _normalize_simple(str(s))
+                        except Exception:
+                            return str(s)
+
+                    mask_word = False
+                    if 'word_key_norm' in prog_df.columns:
+                        mask_word = prog_df.get('word_key_norm', pd.Series(dtype=str)).astype(str).map(_norm) == _norm(word_raw)
+                    else:
+                        mask_word = prog_df.get('word', pd.Series(dtype=str)).astype(str).map(_norm) == _norm(word_raw)
+
+                    mask_verse = prog_df.get('verse', pd.Series(dtype=str)).astype(str).map(_norm) == _norm(verse_raw)
+                    mask = mask_word & mask_verse
+                    # If we have an index, further narrow by word_index where present
+                    if idx_raw is not None and 'word_index' in prog_df.columns:
+                        try:
+                            idx_num = pd.to_numeric(prog_df['word_index'], errors='coerce')
+                            mask = mask & (idx_num == pd.to_numeric(idx_raw, errors='coerce'))
+                        except Exception:
+                            pass
+
+                    if mask.any():
+                        # Increment reanalyzed_count and set last_reanalyzed_at
+                        if 'reanalyzed_count' in prog_df.columns:
+                            try:
+                                cur = pd.to_numeric(prog_df.loc[mask, 'reanalyzed_count'], errors='coerce').fillna(0).astype(int)
+                                prog_df.loc[mask, 'reanalyzed_count'] = (cur + 1).astype(int)
+                            except Exception:
+                                # Fallback: simple add with coercion
+                                prog_df.loc[mask, 'reanalyzed_count'] = prog_df.loc[mask, 'reanalyzed_count']
+                        if 'last_reanalyzed_at' in prog_df.columns:
+                            from datetime import datetime as _dt
+                            prog_df.loc[mask, 'last_reanalyzed_at'] = _dt.now()
+                        _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                except Exception:
+                    pass
+        except Exception:
+            # Non-fatal to the reanalysis save flow
+            pass
 
     def ensure_meanings_slot_initialized(self, index, word):
         """Ensure self.accumulated_meanings[index] is initialized with a valid structure."""
