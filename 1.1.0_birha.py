@@ -1583,7 +1583,31 @@ class GrammarApp:
                 return
             try:
                 tracker_path = self._get_word_tracker_path()
-                append_to_word_tracker(tracker_path, words_rows=None, progress_rows=rows)
+                # Ensure a Words row exists and mark selected_for_analysis
+                words_df, prog_df, _others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                have_row = False
+                try:
+                    if not words_df.empty and 'word_key_norm' in words_df.columns:
+                        have_row = any((_normalize_simple(str(x)) == _normalize_simple(norm)) for x in words_df['word_key_norm'])
+                except Exception:
+                    have_row = False
+                words_rows = None
+                if not have_row:
+                    words_rows = [{
+                        'word': word,
+                        'word_key_norm': norm,
+                        'listed_by_user': True,
+                        'listed_at': now,
+                        'selected_for_analysis': True,
+                        'selected_at': now,
+                        'analysis_started': False,
+                        'analysis_started_at': None,
+                        'analysis_completed': False,
+                        'analysis_completed_at': None,
+                        'sequence_index': 0,
+                        'notes': '',
+                    }]
+                append_to_word_tracker(tracker_path, words_rows=words_rows, progress_rows=rows)
                 try:
                     messagebox.showinfo("Added", f"Appended {len(rows)} row(s) to Progress:\n{tracker_path}")
                 except Exception:
@@ -1593,9 +1617,324 @@ class GrammarApp:
                     messagebox.showerror("Tracker Error", str(e))
                 except Exception:
                     pass
+            # Offer to start driver immediately
+            try:
+                start_now = messagebox.askyesno("Start Analysis", "Start analyzing selected verses for this word now?")
+            except Exception:
+                start_now = True
+            if start_now:
+                try:
+                    win.destroy()
+                except Exception:
+                    pass
+                self.start_word_driver_for(word)
 
         add_btn.configure(command=_do_add_selected)
         _render_rows()
+
+    # ---------------------------
+    # Assess-by-Word: Driver (sequential verse opener)
+    # ---------------------------
+    def start_word_driver_for(self, word: str):
+        """Start the Assess-by-Word driver for the given word.
+
+        - Builds the verse queue from the tracker Progress sheet where status != 'completed'.
+        - Marks Words.analysis_started on first run.
+        - Opens a small controller with Next Verse and Pause/Resume.
+        - Opens the first verse in the Assess-by-Verse analyzer.
+        """
+        try:
+            norm = self._norm_tok(word or "")
+            tracker_path = self._get_word_tracker_path()
+            ensure_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+
+            # Build queue
+            self._word_driver_queue = []
+            if not prog_df.empty:
+                try:
+                    df = prog_df.copy()
+                    # normalize key
+                    if 'word_key_norm' in df.columns:
+                        mask = df['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
+                        df = df.loc[mask]
+                    # status filter
+                    if 'status' in df.columns:
+                        df = df.loc[df['status'].astype(str).str.lower() != 'completed']
+                    # stabilize order by selected_at then index
+                    if 'selected_at' in df.columns:
+                        try:
+                            df['_sel'] = pd.to_datetime(df['selected_at'], errors='coerce')
+                        except Exception:
+                            df['_sel'] = pd.Series([None]*len(df))
+                        df = df.sort_values(by=['_sel']).drop(columns=['_sel'])
+                    self._word_driver_queue = df.to_dict('records')
+                except Exception:
+                    self._word_driver_queue = []
+
+            if not self._word_driver_queue:
+                try:
+                    messagebox.showinfo("No Verses", "No pending verses found in Progress for this word.")
+                except Exception:
+                    pass
+                return
+
+            # Mark analysis_started in Words if not already
+            if not words_df.empty:
+                try:
+                    mask = (words_df.get('word_key_norm', pd.Series(dtype=str)).astype(str)
+                            .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm))
+                    if mask.any():
+                        # set flags
+                        if 'analysis_started' in words_df.columns:
+                            words_df.loc[mask, 'analysis_started'] = True
+                        if 'analysis_started_at' in words_df.columns:
+                            # only set if empty
+                            def _maybe_set(dt):
+                                return dt if pd.notna(dt) and str(dt).strip() != '' else datetime.now()
+                            words_df.loc[mask, 'analysis_started_at'] = words_df.loc[mask, 'analysis_started_at'].apply(_maybe_set)
+                        _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                except Exception:
+                    pass
+
+            # Init state
+            self._word_driver_active = True
+            self._word_driver_paused = False
+            self._word_driver_in_progress = False
+            self._word_driver_word = word
+            self._word_driver_norm = norm
+            self._word_driver_index = 0
+            self._word_driver_current_verse = None
+
+            self._word_driver_open_controller()
+            # Open first verse immediately
+            self._word_driver_open_current_verse()
+        except Exception as e:
+            try:
+                messagebox.showerror("Driver Error", f"Failed to start driver: {e}")
+            except Exception:
+                pass
+
+    def _word_driver_open_controller(self):
+        try:
+            if hasattr(self, '_word_driver_win') and self._word_driver_win and self._word_driver_win.winfo_exists():
+                # reuse
+                self._word_driver_update_ui()
+                return
+        except Exception:
+            pass
+        win = tk.Toplevel(self.root)
+        self._word_driver_win = win
+        win.title("Assess by Word - Driver")
+        try:
+            win.attributes('-topmost', True)
+        except Exception:
+            pass
+        win.configure(bg='light gray')
+        frm = tk.Frame(win, bg='light gray')
+        frm.pack(padx=12, pady=10)
+        self._driver_lbl = tk.Label(frm, text="", font=('Arial', 12), bg='light gray')
+        self._driver_lbl.pack(anchor='w')
+        btns = tk.Frame(frm, bg='light gray')
+        btns.pack(fill=tk.X, pady=(8, 0))
+        self._driver_next_btn = tk.Button(btns, text="Next Verse ▶", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=self._word_driver_open_current_verse)
+        self._driver_next_btn.pack(side=tk.LEFT)
+        self._driver_pause_btn = tk.Button(btns, text="Pause", bg='gray', fg='white', font=('Arial', 11), command=self._word_driver_toggle_pause)
+        self._driver_pause_btn.pack(side=tk.LEFT, padx=(6, 0))
+        tk.Button(btns, text="Close", bg='#2f4f4f', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT)
+        try:
+            win.bind('<Escape>', lambda e: win.destroy())
+        except Exception:
+            pass
+        self._word_driver_update_ui()
+
+    def _word_driver_update_ui(self):
+        try:
+            total = len(getattr(self, '_word_driver_queue', []) or [])
+            idx = getattr(self, '_word_driver_index', 0)
+            paused = bool(getattr(self, '_word_driver_paused', False))
+            word = getattr(self, '_word_driver_word', '')
+            cur = min(idx + 1, total) if total else 0
+            status = 'Paused' if paused else 'Running'
+            txt = f"Word: {word}   |   {status}   |   Verse {cur}/{total}"
+            if hasattr(self, '_driver_lbl') and self._driver_lbl.winfo_exists():
+                self._driver_lbl.config(text=txt)
+            if hasattr(self, '_driver_next_btn') and self._driver_next_btn.winfo_exists():
+                # Disable Next while in-progress
+                busy = bool(getattr(self, '_word_driver_in_progress', False))
+                try:
+                    self._driver_next_btn.config(state=tk.DISABLED if busy or paused else tk.NORMAL)
+                except Exception:
+                    pass
+            if hasattr(self, '_driver_pause_btn') and self._driver_pause_btn.winfo_exists():
+                self._driver_pause_btn.config(text=("Resume" if paused else "Pause"))
+        except Exception:
+            pass
+
+    def _word_driver_toggle_pause(self):
+        try:
+            self._word_driver_paused = not bool(getattr(self, '_word_driver_paused', False))
+            self._word_driver_update_ui()
+            # If resuming and not busy, open next verse
+            if not self._word_driver_paused and not getattr(self, '_word_driver_in_progress', False):
+                self._word_driver_open_current_verse()
+        except Exception:
+            pass
+
+    def _word_driver_open_current_verse(self):
+        """Open the current verse in the Assess-by-Verse analyzer."""
+        try:
+            if getattr(self, '_word_driver_paused', False):
+                return
+            queue = getattr(self, '_word_driver_queue', []) or []
+            idx = getattr(self, '_word_driver_index', 0)
+            if idx >= len(queue):
+                # done
+                self._word_driver_complete_word_if_done()
+                return
+            rec = queue[idx]
+            verse = str(rec.get('verse', ''))
+            if not verse.strip():
+                # Skip invalid
+                self._word_driver_index += 1
+                self._word_driver_update_ui()
+                self._word_driver_open_current_verse()
+                return
+            # flag busy and remember current
+            self._word_driver_in_progress = True
+            self._word_driver_current_verse = verse
+            # feed into Assess-by-Verse analyzer
+            self.selected_verse_text = verse
+            self.show_translation_input()
+            self._word_driver_update_ui()
+        except Exception as e:
+            try:
+                messagebox.showerror("Driver Error", f"Failed to open verse: {e}")
+            except Exception:
+                pass
+
+    def _word_driver_after_verse_finished(self):
+        """Called when a verse finishes its assessment flow to update tracker and advance."""
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            norm = getattr(self, '_word_driver_norm', '')
+            verse = getattr(self, '_word_driver_current_verse', '')
+            if not prog_df.empty and verse:
+                try:
+                    mask_word = (prog_df.get('word_key_norm', pd.Series(dtype=str)).astype(str)
+                                 .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm))
+                    mask_verse = (prog_df.get('verse', pd.Series(dtype=str)).astype(str)
+                                  .map(lambda s: _normalize_simple(s)) == _normalize_simple(verse))
+                    mask = mask_word & mask_verse
+                    if mask.any():
+                        if 'status' in prog_df.columns:
+                            prog_df.loc[mask, 'status'] = 'completed'
+                        if 'completed_at' in prog_df.columns:
+                            prog_df.loc[mask, 'completed_at'] = datetime.now()
+                        _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                except Exception:
+                    pass
+            # advance index
+            self._word_driver_in_progress = False
+            self._word_driver_index += 1
+            self._word_driver_update_ui()
+            # if more verses and not paused, open next
+            if self._word_driver_index < len(getattr(self, '_word_driver_queue', []) or []) and not getattr(self, '_word_driver_paused', False):
+                self._word_driver_open_current_verse()
+            else:
+                # possibly complete word
+                self._word_driver_complete_word_if_done()
+        except Exception:
+            # avoid breaking the core flow
+            self._word_driver_in_progress = False
+            self._word_driver_update_ui()
+
+    def _word_driver_complete_word_if_done(self):
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            norm = getattr(self, '_word_driver_norm', '')
+            # if no pending verses remain for this word, mark completed
+            pending = 0
+            if not prog_df.empty:
+                try:
+                    df = prog_df.copy()
+                    mask = (df.get('word_key_norm', pd.Series(dtype=str)).astype(str)
+                            .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm))
+                    df = df.loc[mask]
+                    if not df.empty and 'status' in df.columns:
+                        pending = int((df['status'].astype(str).str.lower() != 'completed').sum())
+                except Exception:
+                    pending = 0
+            if pending == 0 and not words_df.empty:
+                try:
+                    maskw = (words_df.get('word_key_norm', pd.Series(dtype=str)).astype(str)
+                             .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm))
+                    if maskw.any():
+                        if 'analysis_completed' in words_df.columns:
+                            words_df.loc[maskw, 'analysis_completed'] = True
+                        if 'analysis_completed_at' in words_df.columns:
+                            words_df.loc[maskw, 'analysis_completed_at'] = datetime.now()
+                        _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                        try:
+                            messagebox.showinfo("Done", f"Completed analysis for word: {getattr(self, '_word_driver_word', '')}")
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def show_continue_incomplete(self):
+        """List incomplete words (Words.analysis_completed == False) and allow resume."""
+        try:
+            tracker_path = self._get_word_tracker_path()
+            ensure_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            words_df, prog_df, _ = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            if words_df.empty:
+                messagebox.showinfo("None", "No words found in tracker.")
+                return
+            df = words_df.copy()
+            if 'analysis_completed' in df.columns:
+                incom = df.loc[df['analysis_completed'] != True]
+            else:
+                incom = df
+            if incom.empty:
+                messagebox.showinfo("All Done", "No incomplete words remain.")
+                return
+            # Build simple chooser
+            win = tk.Toplevel(self.root)
+            win.title("Continue Incomplete - Choose Word")
+            win.configure(bg='light gray')
+            tk.Label(win, text="Select a word to resume:", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
+            lb = tk.Listbox(win, height=10)
+            items = []
+            for _, r in incom.iterrows():
+                w = str(r.get('word', ''))
+                n = str(r.get('word_key_norm', ''))
+                items.append((w, n))
+                lb.insert(tk.END, w)
+            lb.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0,8))
+            def _resume():
+                try:
+                    sel = lb.curselection()
+                    if not sel:
+                        return
+                    w = items[sel[0]][0]
+                    win.destroy()
+                    self.start_word_driver_for(w)
+                except Exception:
+                    pass
+            btns = tk.Frame(win, bg='light gray')
+            btns.pack(fill=tk.X, padx=12, pady=(0, 10))
+            tk.Button(btns, text="Resume", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_resume).pack(side=tk.RIGHT)
+            tk.Button(btns, text="Cancel", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0,6))
+        except Exception as e:
+            try:
+                messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
+            except Exception:
+                pass
 
     def _banner_wraplength(self, win=None) -> int:
         """Return a wraplength tuned to the window width (clamped 600–900)."""
@@ -2034,7 +2373,8 @@ class GrammarApp:
             text="Continue Incomplete",
             font=('Arial', 14, 'bold'),
             bg='teal', fg='white',
-            padx=20, pady=10
+            padx=20, pady=10,
+            command=self.show_continue_incomplete
         ).pack(pady=8)
 
         tk.Button(
@@ -2764,6 +3104,13 @@ class GrammarApp:
                 messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
             except Exception:
                 pass
+
+        # Word-driver hook: after a verse completes, advance and update tracker
+        try:
+            if getattr(self, "_word_driver_active", False) and getattr(self, "_word_driver_in_progress", False):
+                self._word_driver_after_verse_finished()
+        except Exception:
+            pass
 
     def _on_translation_submitted(self, win):
         # 1) grab and validate the translation itself
