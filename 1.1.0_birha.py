@@ -362,7 +362,8 @@ def ensure_word_tracker(
             with tempfile.NamedTemporaryFile(prefix=".tmp_tracker_", suffix=ext, dir=base_dir, delete=False) as tf:
                 tmp_path = tf.name
             try:
-                engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
+                # Do NOT pass keep_vba when creating a new workbook; openpyxl does not support this.
+                engine_kwargs = None
                 with pd.ExcelWriter(tmp_path, engine="openpyxl", mode="w", engine_kwargs=engine_kwargs) as writer:
                     words_df.to_excel(writer, index=False, sheet_name=words_sheet)
                     prog_df.to_excel(writer, index=False, sheet_name=progress_sheet)
@@ -533,8 +534,8 @@ def _save_tracker(
         else:
             mode = "w"
 
-        engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
         if mode == "a":
+            engine_kwargs = {"keep_vba": True} if _is_xlsm(tracker_path) else None
             # Clear existing content without recreating sheets to preserve formatting/VBA
             try:
                 wb = load_workbook(tmp_path, keep_vba=_is_xlsm(tracker_path))
@@ -567,11 +568,11 @@ def _save_tracker(
                 words_df.to_excel(writer, index=False, sheet_name=words_sheet)
                 progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
         else:
+            # New workbook: do NOT pass keep_vba; openpyxl cannot create macros from scratch.
             with pd.ExcelWriter(
                 tmp_path,
                 engine="openpyxl",
                 mode="w",
-                engine_kwargs=engine_kwargs,
             ) as writer:
                 words_df.to_excel(writer, index=False, sheet_name=words_sheet)
                 progress_df.to_excel(writer, index=False, sheet_name=progress_sheet)
