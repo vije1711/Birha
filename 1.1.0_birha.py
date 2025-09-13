@@ -199,6 +199,7 @@ class WindowManager:
                 return
             except Exception:
                 pass
+
         except Exception:
             pass
 
@@ -221,6 +222,66 @@ class WindowManager:
             self.restore()
         else:
             self.maximize()
+
+    def maximize_client(self, bottom_margin_px: int = 48):
+        """Like maximize(), but prefers explicit client-geometry sizing to avoid
+        edge overlaps (e.g., auto-hide taskbar). Shrinks the available height by
+        a small bottom margin so bottom buttons remain visible.
+
+        - Captures prev_geometry before changing size.
+        - On Windows, uses per-monitor rcWork and AdjustWindowRectEx to account for
+          non-client borders/caption.
+        - Elsewhere, falls back to setting geometry directly with the margin.
+        """
+        try:
+            if not self.maximized:
+                try:
+                    self.win.update_idletasks()
+                    self.prev_geometry = self.win.winfo_geometry()
+                except Exception:
+                    self.prev_geometry = None
+
+            x, y, w, h = self._usable_area()
+            if not (w and h):
+                # Fall back to native maximize if geometry not available
+                return self.maximize()
+
+            # Apply safety margin at the bottom to avoid taskbar overlap
+            safe_h = max(100, int(h) - int(bottom_margin_px or 0))
+
+            if os.name == 'nt' and ctypes is not None:
+                try:
+                    user32 = ctypes.windll.user32
+                    GWL_STYLE = -16
+                    GWL_EXSTYLE = -20
+                    style = user32.GetWindowLongW(int(self.win.winfo_id()), GWL_STYLE)
+                    exstyle = user32.GetWindowLongW(int(self.win.winfo_id()), GWL_EXSTYLE)
+
+                    class RECT(ctypes.Structure):
+                        _fields_ = [
+                            ("left", wintypes.LONG),
+                            ("top", wintypes.LONG),
+                            ("right", wintypes.LONG),
+                            ("bottom", wintypes.LONG),
+                        ]
+                    r = RECT()
+                    ok = user32.AdjustWindowRectEx(ctypes.byref(r), style, False, exstyle)
+                    if ok:
+                        dw = int(r.right - r.left)
+                        dh = int(r.bottom - r.top)
+                        cw = max(1, int(w) - dw)
+                        ch = max(1, int(safe_h) - dh)
+                        self.win.geometry(f"{cw}x{ch}+{x}+{y}")
+                        self.maximized = True
+                        return
+                except Exception:
+                    pass
+
+            # Non-Windows or failed AdjustWindowRectEx: best-effort geometry
+            self.win.geometry(f"{w}x{safe_h}+{x}+{y}")
+            self.maximized = True
+        except Exception:
+            pass
 
 # ------------------------------------------------------------------
 # CSV helper: load Predefined-only keyset for Top Matches filtering
@@ -1544,7 +1605,8 @@ class GrammarApp:
             def _deferred_max():
                 try:
                     if mgr is not None:
-                        mgr.maximize()
+                        # Use client-geometry maximize with a small bottom margin to avoid taskbar overlap
+                        mgr.maximize_client(bottom_margin_px=64)
                 except Exception:
                     pass
             try:
@@ -1741,7 +1803,8 @@ class GrammarApp:
             def _deferred_max():
                 try:
                     if mgr is not None:
-                        mgr.maximize()
+                        # Safety margin to keep the bottom controls visible
+                        mgr.maximize_client(bottom_margin_px=64)
                 except Exception:
                     pass
             try:
