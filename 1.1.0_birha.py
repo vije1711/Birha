@@ -1538,6 +1538,11 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
+        # Bind F11 toggle via WindowManager (no auto-maximize for this modal)
+        try:
+            self._wm_for(win)
+        except Exception:
+            pass
 
         header = tk.Label(
             win,
@@ -1718,6 +1723,11 @@ class GrammarApp:
         try:
             win.transient(self.root)
             win.grab_set()
+        except Exception:
+            pass
+        # Bind F11 toggle for consistency
+        try:
+            self._wm_for(win)
         except Exception:
             pass
 
@@ -2247,6 +2257,10 @@ class GrammarApp:
             win = tk.Toplevel(self.root)
             win.title("Continue Incomplete - Choose Word")
             win.configure(bg='light gray')
+            try:
+                self._wm_for(win)
+            except Exception:
+                pass
             tk.Label(win, text="Select a word to resume:", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
             lb = tk.Listbox(win, height=10)
             items = []
@@ -2343,6 +2357,10 @@ class GrammarApp:
             win = tk.Toplevel(self.root)
             win.title("Completed Words - Review / Re-Analyze")
             win.configure(bg='light gray')
+            try:
+                self._wm_for(win)
+            except Exception:
+                pass
             tk.Label(win, text="Select a word to re-analyze:", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
             lb = tk.Listbox(win, height=10)
             items = []
@@ -2430,8 +2448,12 @@ class GrammarApp:
                 return
 
             win = tk.Toplevel(self.root)
-            win.title(f"Re-Analyze Verses – {word}")
+            win.title(f"Re-Analyze Verses - {word}")
             win.configure(bg='light gray')
+            try:
+                self._wm_for(win)
+            except Exception:
+                pass
             tk.Label(win, text=f"Select completed verses to re-analyze for '{word}':", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
             outer = tk.Frame(win, bg='light gray')
             outer.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
@@ -2687,10 +2709,14 @@ class GrammarApp:
         self._repeat_note_shown.add(key)
 
         top = tk.Toplevel(self.root)
-        top.title("Important Note — Literal Analysis")
+        top.title("Important Note - Literal Analysis")
         top.configure(bg='AntiqueWhite')
         top.transient(self.root)
         top.grab_set()
+        try:
+            self._wm_for(top)
+        except Exception:
+            pass
 
         body_lbl = tk.Label(
             top,
@@ -2847,6 +2873,10 @@ class GrammarApp:
         win.transient(self.root)
         try:
             win.grab_set()
+        except Exception:
+            pass
+        try:
+            self._wm_for(win)
         except Exception:
             pass
 
@@ -8106,6 +8136,10 @@ class GrammarApp:
         assessment_win = tk.Toplevel(self.root)
         assessment_win.title(f"Re-Assessment: '{self.accumulated_pankti}'")
         assessment_win.configure(bg='light gray')
+        try:
+            self._wm_for(assessment_win)
+        except Exception:
+            pass
 
         instruction_label = tk.Label(
             assessment_win,
@@ -8169,6 +8203,10 @@ class GrammarApp:
         final_win = tk.Toplevel(self.root)
         final_win.title(f"Reanalysis: Finalize Grammar for '{word_entries[0]['Word']}'")
         final_win.configure(bg='light gray')
+        try:
+            self._wm_for(final_win)
+        except Exception:
+            pass
 
         # --- Build prompt for clipboard ---
         prompt_lines = [
@@ -10447,6 +10485,10 @@ class GrammarApp:
         assessment_win = tk.Toplevel(self.root)
         assessment_win.title("Enter Translation Assessment")
         assessment_win.configure(bg='light gray')
+        try:
+            self._wm_for(assessment_win)
+        except Exception:
+            pass
 
         instruction_label = tk.Label(assessment_win, 
                                     text="Paste the analysis result below:",
@@ -10908,6 +10950,10 @@ class GrammarApp:
         final_win = tk.Toplevel(self.root)
         final_win.title(f"Finalize Grammar for '{word_entries[0]['Word']}'")
         final_win.configure(bg='light gray')
+        try:
+            self._wm_for(final_win)
+        except Exception:
+            pass
 
         # --- Build the ChatGPT prompt text ---
         prompt_lines = []
@@ -11241,6 +11287,10 @@ class GrammarApp:
         assessment_win = tk.Toplevel(self.root)
         assessment_win.title(f"Enter Translation Assessment for: '{self.accumulated_pankti}'")
         assessment_win.configure(bg='light gray')
+        try:
+            self._wm_for(assessment_win)
+        except Exception:
+            pass
 
         instruction_label = tk.Label(
             assessment_win, 
@@ -11330,6 +11380,10 @@ class GrammarApp:
         self.progress_window.attributes("-topmost", True)
         self.progress_window.configure(bg="#f0f0f0")
         self.progress_window.attributes('-alpha', 0.0)  # Start fully transparent
+        try:
+            self._wm_for(self.progress_window)
+        except Exception:
+            pass
 
         # Center the progress window
         self.progress_window.update_idletasks()
