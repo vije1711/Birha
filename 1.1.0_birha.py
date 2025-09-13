@@ -1651,17 +1651,7 @@ class GrammarApp:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Select-all
-        sel_all_var = tk.BooleanVar(value=False)
-        def _toggle_all():
-            for var, _ in getattr(self, "_lex_chk_vars", []):
-                var.set(bool(sel_all_var.get()))
-        tk.Checkbutton(body, text="Select/Deselect All", variable=sel_all_var,
-                       bg='light gray', command=_toggle_all).pack(anchor='w', pady=(8, 6))
-
-        # Footer actions
-        btns = tk.Frame(body, bg='light gray')
-        btns.pack(fill=tk.X, pady=(6, 0))
+        # Footer/toolbar actions on the same row as Select/Deselect All (keeps controls visible)
         def _copy_selected():
             chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
             if not chosen:
@@ -1672,8 +1662,6 @@ class GrammarApp:
                 messagebox.showinfo("Copied", f"Copied {len(chosen)} word(s) to clipboard.")
             except Exception as e:
                 messagebox.showerror("Copy Failed", str(e))
-        tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
-                  command=_copy_selected).pack(side=tk.LEFT)
 
         def _proceed_to_hits():
             chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
@@ -1685,12 +1673,22 @@ class GrammarApp:
                 return
             self.show_word_verse_hits_modal(chosen[0], parent=win)
 
-        tk.Button(btns, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
-                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8, 0))
-
-        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+        # Toolbar row: Select/Deselect + action buttons placed together
+        toolbar = tk.Frame(body, bg='light gray')
+        toolbar.pack(fill=tk.X, pady=(8, 6))
+        sel_all_var = tk.BooleanVar(value=False)
+        def _toggle_all():
+            for var, _ in getattr(self, "_lex_chk_vars", []):
+                var.set(bool(sel_all_var.get()))
+        tk.Checkbutton(toolbar, text="Select/Deselect All", variable=sel_all_var,
+                       bg='light gray', command=_toggle_all).pack(side=tk.LEFT)
+        tk.Button(toolbar, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
+                  command=_copy_selected).pack(side=tk.LEFT, padx=(8,0))
+        tk.Button(toolbar, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
+                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8,0))
+        tk.Button(toolbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
                   command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11),
+        tk.Button(toolbar, text="Close", bg='gray', fg='white', font=("Arial", 11),
                   command=win.destroy).pack(side=tk.RIGHT)
 
         self._lex_chk_vars = []
@@ -1872,7 +1870,10 @@ class GrammarApp:
         for i in range(len(hits)):
             hit_vars.append((tk.BooleanVar(value=False), i))
 
-        # Select/Clear All (page)
+        # Prepare dynamic add button label
+        add_btn_text = tk.StringVar(value="Add Selected (0)")
+
+        # Select/Clear All (page) + actions row (place all controls together)
         selbar = tk.Frame(body, bg='light gray')
         selbar.pack(fill=tk.X, pady=(6, 0))
         def _select_all_page(val: bool):
@@ -1885,17 +1886,13 @@ class GrammarApp:
             _update_add_button()
         tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
         tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
-
-        # Footer
-        btns = tk.Frame(body, bg='light gray')
-        btns.pack(fill=tk.X, pady=(8,0))
-        add_btn_text = tk.StringVar(value="Add Selected (0)")
-        add_btn = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
-        add_btn.pack(side=tk.LEFT)
-
-        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+        # Add Selected button on the same row (left side)
+        add_btn = tk.Button(selbar, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
+        add_btn.pack(side=tk.LEFT, padx=(10,0))
+        # Right-side control buttons on the same row
+        tk.Button(selbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
                   command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
+        tk.Button(selbar, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
 
         # Row rendering
         def _update_add_button():
@@ -2012,7 +2009,11 @@ class GrammarApp:
                     pass
                 self.start_word_driver_for(word)
 
-        add_btn.configure(command=_do_add_selected)
+        # Wire the add button command now that it's defined
+        try:
+            add_btn.configure(command=_do_add_selected)
+        except Exception:
+            pass
         _render_rows()
 
     # ---------------------------
