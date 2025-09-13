@@ -147,6 +147,48 @@ class WindowManager:
             # First try per-monitor usable area geometry
             x, y, w, h = self._usable_area()
             if w and h:
+                # On Windows, prefer native zoom after moving to the target monitor to avoid
+                # off-by-frame overlaps with taskbar and to respect system window metrics.
+                if os.name == 'nt' and ctypes is not None:
+                    try:
+                        # Move to monitor's work-area origin, then let OS maximize precisely.
+                        self.win.geometry(f"+{x}+{y}")
+                        self.win.state('zoomed')
+                        self.maximized = True
+                        return
+                    except Exception:
+                        # Fallback: compute adjusted client area using AdjustWindowRectEx
+                        try:
+                            user32 = ctypes.windll.user32
+                            GWL_STYLE = -16
+                            GWL_EXSTYLE = -20
+                            style = user32.GetWindowLongW(int(self.win.winfo_id()), GWL_STYLE)
+                            exstyle = user32.GetWindowLongW(int(self.win.winfo_id()), GWL_EXSTYLE)
+
+                            class RECT(ctypes.Structure):
+                                _fields_ = [
+                                    ("left", wintypes.LONG),
+                                    ("top", wintypes.LONG),
+                                    ("right", wintypes.LONG),
+                                    ("bottom", wintypes.LONG),
+                                ]
+                            r = RECT()
+                            r.left = 0
+                            r.top = 0
+                            r.right = 0
+                            r.bottom = 0
+                            ok = user32.AdjustWindowRectEx(ctypes.byref(r), style, False, exstyle)
+                            if ok:
+                                dw = int(r.right - r.left)
+                                dh = int(r.bottom - r.top)
+                                cw = max(1, int(w - dw))
+                                ch = max(1, int(h - dh))
+                                self.win.geometry(f"{cw}x{ch}+{x}+{y}")
+                                self.maximized = True
+                                return
+                        except Exception:
+                            pass
+                # Non-Windows or if above fails: set geometry to work area
                 self.win.geometry(f"{w}x{h}+{x}+{y}")
                 self.maximized = True
                 return
