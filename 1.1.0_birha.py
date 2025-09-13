@@ -1541,8 +1541,14 @@ class GrammarApp:
         # Bind F11 via WindowManager, then defer maximize until idle so geometry is realized
         try:
             mgr = self._wm_for(win)
+            def _deferred_max():
+                try:
+                    if mgr is not None:
+                        mgr.maximize()
+                except Exception:
+                    pass
             try:
-                win.after_idle(lambda m=mgr: m.maximize())
+                win.after_idle(_deferred_max)
             except Exception:
                 pass
         except Exception:
@@ -1732,8 +1738,14 @@ class GrammarApp:
         # Bind F11 via WindowManager, then defer maximize until idle so prev_geometry isn't 1x1
         try:
             mgr = self._wm_for(win)
+            def _deferred_max():
+                try:
+                    if mgr is not None:
+                        mgr.maximize()
+                except Exception:
+                    pass
             try:
-                win.after_idle(lambda m=mgr: m.maximize())
+                win.after_idle(_deferred_max)
             except Exception:
                 pass
         except Exception:
