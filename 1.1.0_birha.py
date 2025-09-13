@@ -7428,12 +7428,15 @@ class GrammarApp:
         # Submit / Skip
         button_frame = tk.Frame(self.input_window, bg='light gray')
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        # Center the action buttons: use expanding spacers on both sides
+        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
         tk.Button(button_frame, text="Submit", command=self.submit_input_reanalysis,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).pack(side=tk.LEFT, padx=15)
         tk.Button(button_frame, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).pack(side=tk.LEFT, padx=15)
+        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
 
         # Progress + Dictionary Lookup
         self.start_progress()
@@ -8892,12 +8895,15 @@ class GrammarApp:
         # ---------------------------
         button_frame = tk.Frame(self.input_window, bg='light gray')
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        # Center the action buttons: use expanding spacers on both sides
+        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
         tk.Button(button_frame, text="Submit", command=self.submit_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).pack(side=tk.LEFT, padx=15)
         tk.Button(button_frame, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).pack(side=tk.LEFT, padx=15)
+        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
 
         # ---------------------------
         # Launch the dictionary lookup in a separate thread
