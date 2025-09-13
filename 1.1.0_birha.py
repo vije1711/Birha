@@ -1538,14 +1538,15 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 and maximize using taskbar-safe per-monitor work area
+        # Bind F11 via WindowManager, then defer maximize until idle so geometry is realized
         try:
-            self._wm_for(win).maximize()
-        except Exception:
+            mgr = self._wm_for(win)
             try:
-                self._wm_for(win)
+                win.after_idle(lambda m=mgr: m.maximize())
             except Exception:
                 pass
+        except Exception:
+            pass
 
         header = tk.Label(
             win,
@@ -1728,14 +1729,15 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 and maximize to ensure consistent sizing and per-monitor behavior
+        # Bind F11 via WindowManager, then defer maximize until idle so prev_geometry isn't 1x1
         try:
-            self._wm_for(win).maximize()
-        except Exception:
+            mgr = self._wm_for(win)
             try:
-                self._wm_for(win)
+                win.after_idle(lambda m=mgr: m.maximize())
             except Exception:
                 pass
+        except Exception:
+            pass
 
         header = tk.Label(
             win,
