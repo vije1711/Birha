@@ -1612,8 +1612,9 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Attach WindowManager and auto-apply client-margin maximize after idle
-        self._wm_apply(win, margin_px=64, defer=True)
+        # Attach WindowManager and defer exact maximize (no margin) after layout
+        # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
+        self._wm_apply(win, margin_px=0, defer=True)
 
         header = tk.Label(
             win,
@@ -1794,8 +1795,9 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Attach WindowManager and auto-apply client-margin maximize after idle
-        self._wm_apply(win, margin_px=64, defer=True)
+        # Attach WindowManager and defer exact maximize (no margin) after layout
+        # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
+        self._wm_apply(win, margin_px=0, defer=True)
 
         header = tk.Label(
             win,
