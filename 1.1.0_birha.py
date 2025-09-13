@@ -1538,11 +1538,14 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 toggle via WindowManager (no auto-maximize for this modal)
+        # Bind F11 and maximize using taskbar-safe per-monitor work area
         try:
-            self._wm_for(win)
+            self._wm_for(win).maximize()
         except Exception:
-            pass
+            try:
+                self._wm_for(win)
+            except Exception:
+                pass
 
         header = tk.Label(
             win,
@@ -1725,11 +1728,14 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 toggle for consistency
+        # Bind F11 and maximize to ensure consistent sizing and per-monitor behavior
         try:
-            self._wm_for(win)
+            self._wm_for(win).maximize()
         except Exception:
-            pass
+            try:
+                self._wm_for(win)
+            except Exception:
+                pass
 
         header = tk.Label(
             win,
