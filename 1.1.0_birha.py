@@ -54,6 +54,8 @@ class WindowManager:
         self.win = win
         self.prev_geometry = None
         self.maximized = False
+        # If a client-margin maximize is used, remember the preferred bottom margin
+        self._client_margin_px = None
         try:
             self.win.bind("<F11>", lambda e: self.toggle())
         except Exception:
@@ -144,6 +146,8 @@ class WindowManager:
                     self.prev_geometry = self.win.winfo_geometry()
                 except Exception:
                     self.prev_geometry = None
+            # A normal maximize clears client-margin preference
+            self._client_margin_px = None
             # First try per-monitor usable area geometry
             x, y, w, h = self._usable_area()
             if w and h:
@@ -199,6 +203,7 @@ class WindowManager:
                 return
             except Exception:
                 pass
+
         except Exception:
             pass
 
@@ -220,7 +225,76 @@ class WindowManager:
         if self.maximized:
             self.restore()
         else:
-            self.maximize()
+            # Preserve taskbar-safe geometry if a client-margin maximize was used before
+            try:
+                if isinstance(self._client_margin_px, int) and self._client_margin_px > 0:
+                    self.maximize_client(bottom_margin_px=self._client_margin_px)
+                else:
+                    self.maximize()
+            except Exception:
+                self.maximize()
+
+    def maximize_client(self, bottom_margin_px: int = 48):
+        """Like maximize(), but prefers explicit client-geometry sizing to avoid
+        edge overlaps (e.g., auto-hide taskbar). Shrinks the available height by
+        a small bottom margin so bottom buttons remain visible.
+
+        - Captures prev_geometry before changing size.
+        - On Windows, uses per-monitor rcWork and AdjustWindowRectEx to account for
+          non-client borders/caption.
+        - Elsewhere, falls back to setting geometry directly with the margin.
+        """
+        try:
+            if not self.maximized:
+                try:
+                    self.win.update_idletasks()
+                    self.prev_geometry = self.win.winfo_geometry()
+                except Exception:
+                    self.prev_geometry = None
+
+            x, y, w, h = self._usable_area()
+            if not (w and h):
+                # Fall back to native maximize if geometry not available
+                return self.maximize()
+
+            # Apply safety margin at the bottom to avoid taskbar overlap
+            safe_h = max(100, int(h) - int(bottom_margin_px or 0))
+
+            if os.name == 'nt' and ctypes is not None:
+                try:
+                    user32 = ctypes.windll.user32
+                    GWL_STYLE = -16
+                    GWL_EXSTYLE = -20
+                    style = user32.GetWindowLongW(int(self.win.winfo_id()), GWL_STYLE)
+                    exstyle = user32.GetWindowLongW(int(self.win.winfo_id()), GWL_EXSTYLE)
+
+                    class RECT(ctypes.Structure):
+                        _fields_ = [
+                            ("left", wintypes.LONG),
+                            ("top", wintypes.LONG),
+                            ("right", wintypes.LONG),
+                            ("bottom", wintypes.LONG),
+                        ]
+                    r = RECT()
+                    ok = user32.AdjustWindowRectEx(ctypes.byref(r), style, False, exstyle)
+                    if ok:
+                        dw = int(r.right - r.left)
+                        dh = int(r.bottom - r.top)
+                        cw = max(1, int(w) - dw)
+                        ch = max(1, int(safe_h) - dh)
+                        self.win.geometry(f"{cw}x{ch}+{x}+{y}")
+                        self.maximized = True
+                        self._client_margin_px = int(bottom_margin_px or 0)
+                        return
+                except Exception:
+                    pass
+
+            # Non-Windows or failed AdjustWindowRectEx: best-effort geometry
+            self.win.geometry(f"{w}x{safe_h}+{x}+{y}")
+            self.maximized = True
+            self._client_margin_px = int(bottom_margin_px or 0)
+        except Exception:
+            pass
 
 # ------------------------------------------------------------------
 # CSV helper: load Predefined-only keyset for Top Matches filtering
@@ -1538,11 +1612,9 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 toggle via WindowManager (no auto-maximize for this modal)
-        try:
-            self._wm_for(win)
-        except Exception:
-            pass
+        # Attach WindowManager and defer exact maximize (no margin) after layout
+        # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
+        self._wm_apply(win, margin_px=0, defer=True)
 
         header = tk.Label(
             win,
@@ -1567,29 +1639,7 @@ class GrammarApp:
         tk.Label(sr, textvariable=status_var, font=("Arial", 10, "italic"),
                  bg='light gray', fg='#333').pack(side=tk.LEFT)
 
-        # Results area
-        res_frame = tk.Frame(body, bg='light gray')
-        res_frame.pack(fill=tk.BOTH, expand=True)
-        canvas = tk.Canvas(res_frame, bg='light gray', highlightthickness=0)
-        vsb = tk.Scrollbar(res_frame, orient="vertical", command=canvas.yview)
-        inner = tk.Frame(canvas, bg='light gray')
-        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=inner, anchor='nw')
-        canvas.configure(yscrollcommand=vsb.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Select-all
-        sel_all_var = tk.BooleanVar(value=False)
-        def _toggle_all():
-            for var, _ in getattr(self, "_lex_chk_vars", []):
-                var.set(bool(sel_all_var.get()))
-        tk.Checkbutton(body, text="Select/Deselect All", variable=sel_all_var,
-                       bg='light gray', command=_toggle_all).pack(anchor='w', pady=(8, 6))
-
-        # Footer actions
-        btns = tk.Frame(body, bg='light gray')
-        btns.pack(fill=tk.X, pady=(6, 0))
+        # Toolbar actions on a row ABOVE the results list (keeps controls always visible)
         def _copy_selected():
             chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
             if not chosen:
@@ -1600,8 +1650,6 @@ class GrammarApp:
                 messagebox.showinfo("Copied", f"Copied {len(chosen)} word(s) to clipboard.")
             except Exception as e:
                 messagebox.showerror("Copy Failed", str(e))
-        tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
-                  command=_copy_selected).pack(side=tk.LEFT)
 
         def _proceed_to_hits():
             chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
@@ -1613,13 +1661,35 @@ class GrammarApp:
                 return
             self.show_word_verse_hits_modal(chosen[0], parent=win)
 
-        tk.Button(btns, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
-                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8, 0))
-
-        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+        # Toolbar row: Select/Deselect + action buttons placed together (above results)
+        toolbar = tk.Frame(body, bg='light gray')
+        toolbar.pack(fill=tk.X, pady=(8, 6))
+        sel_all_var = tk.BooleanVar(value=False)
+        def _toggle_all():
+            for var, _ in getattr(self, "_lex_chk_vars", []):
+                var.set(bool(sel_all_var.get()))
+        tk.Checkbutton(toolbar, text="Select/Deselect All", variable=sel_all_var,
+                       bg='light gray', command=_toggle_all).pack(side=tk.LEFT)
+        tk.Button(toolbar, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
+                  command=_copy_selected).pack(side=tk.LEFT, padx=(8,0))
+        tk.Button(toolbar, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
+                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8,0))
+        tk.Button(toolbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
                   command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11),
+        tk.Button(toolbar, text="Close", bg='gray', fg='white', font=("Arial", 11),
                   command=win.destroy).pack(side=tk.RIGHT)
+
+        # Results area (placed BELOW the toolbar so taskbar cannot cover controls)
+        res_frame = tk.Frame(body, bg='light gray')
+        res_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(res_frame, bg='light gray', highlightthickness=0)
+        vsb = tk.Scrollbar(res_frame, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas, bg='light gray')
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor='nw')
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
         self._lex_chk_vars = []
 
@@ -1725,11 +1795,9 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 toggle for consistency
-        try:
-            self._wm_for(win)
-        except Exception:
-            pass
+        # Attach WindowManager and defer exact maximize (no margin) after layout
+        # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
+        self._wm_apply(win, margin_px=0, defer=True)
 
         header = tk.Label(
             win,
@@ -1772,6 +1840,30 @@ class GrammarApp:
         tk.Button(nav, text="Prev", command=lambda: _change_page(-1), bg='gray', fg='white').pack(side=tk.RIGHT, padx=(4,2))
         tk.Button(nav, text="Next", command=lambda: _change_page(1),  bg='gray', fg='white').pack(side=tk.RIGHT, padx=(2,4))
 
+        # Prepare dynamic add button label (used by selection bar)
+        add_btn_text = tk.StringVar(value="Add Selected (0)")
+
+        # Selection bar ABOVE the results list to keep controls visible (no taskbar overlap)
+        selbar = tk.Frame(body, bg='light gray')
+        selbar.pack(fill=tk.X, pady=(6, 0))
+        def _select_all_page(val: bool):
+            ps = max(1, int(page_size_var.get() or 50))
+            p  = max(1, int(cur_page_var.get() or 1))
+            start = (p-1)*ps
+            end   = min(len(hits), start+ps)
+            for bv, idx in hit_vars[start:end]:
+                bv.set(val)
+            _update_add_button()
+        tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
+        tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
+        # Add Selected button on the same row (left side)
+        add_btn = tk.Button(selbar, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
+        add_btn.pack(side=tk.LEFT, padx=(10,0))
+        # Right-side control buttons on the same row
+        tk.Button(selbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
+        tk.Button(selbar, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
+
         # Scrollable area
         list_frame = tk.Frame(body, bg='light gray')
         list_frame.pack(fill=tk.BOTH, expand=True)
@@ -1788,31 +1880,6 @@ class GrammarApp:
         hit_vars = []  # list[(BooleanVar, index)] parallel to hits
         for i in range(len(hits)):
             hit_vars.append((tk.BooleanVar(value=False), i))
-
-        # Select/Clear All (page)
-        selbar = tk.Frame(body, bg='light gray')
-        selbar.pack(fill=tk.X, pady=(6, 0))
-        def _select_all_page(val: bool):
-            ps = max(1, int(page_size_var.get() or 50))
-            p  = max(1, int(cur_page_var.get() or 1))
-            start = (p-1)*ps
-            end   = min(len(hits), start+ps)
-            for bv, idx in hit_vars[start:end]:
-                bv.set(val)
-            _update_add_button()
-        tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
-        tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
-
-        # Footer
-        btns = tk.Frame(body, bg='light gray')
-        btns.pack(fill=tk.X, pady=(8,0))
-        add_btn_text = tk.StringVar(value="Add Selected (0)")
-        add_btn = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
-        add_btn.pack(side=tk.LEFT)
-
-        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
-                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
 
         # Row rendering
         def _update_add_button():
@@ -1929,7 +1996,11 @@ class GrammarApp:
                     pass
                 self.start_word_driver_for(word)
 
-        add_btn.configure(command=_do_add_selected)
+        # Wire the add button command now that it's defined
+        try:
+            add_btn.configure(command=_do_add_selected)
+        except Exception:
+            pass
         _render_rows()
 
     # ---------------------------
@@ -3137,6 +3208,41 @@ class GrammarApp:
             return mgr
         except Exception:
             return None
+
+    def _wm_apply(self, win, margin_px: int | None = None, defer: bool = True):
+        """Attach WindowManager to 'win' and optionally maximize.
+
+        - margin_px=None: only bind F11 (no sizing).
+        - margin_px>0: maximize_client(margin_px) for taskbar-safe sizing.
+        - margin_px==0: normal maximize().
+        If defer is True, schedule sizing after idle to let geometry realize first.
+        Returns the WindowManager or None.
+        """
+        mgr = self._wm_for(win)
+        if not mgr:
+            return None
+        def _do_size():
+            try:
+                if margin_px is None:
+                    return
+                if isinstance(margin_px, int) and margin_px > 0:
+                    mgr.maximize_client(bottom_margin_px=margin_px)
+                else:
+                    mgr.maximize()
+            except Exception:
+                pass
+        try:
+            if margin_px is not None:
+                if defer:
+                    try:
+                        win.after_idle(_do_size)
+                    except Exception:
+                        _do_size()
+                else:
+                    _do_size()
+        except Exception:
+            pass
+        return mgr
 
     def _do_prompt_whats_new(self, state: dict):
         try:
@@ -6419,6 +6525,11 @@ class GrammarApp:
             win.configure(bg="light gray")
             win.transient(parent)
             win.grab_set()
+            try:
+                # Bind F11 toggle and enable user maximize/restore
+                self._wm_for(win)
+            except Exception:
+                pass
             title = tk.Label(win, text="A matching entry exists. Review changes:",
                              bg="dark slate gray", fg="white", font=("Arial", 12, "bold"), padx=10, pady=6)
             title.pack(fill=tk.X)
@@ -11376,11 +11487,16 @@ class GrammarApp:
         self.progress_window = tk.Toplevel(self.root)
         self.progress_window.title("Please Wait...")
         self.progress_window.geometry("350x120")
-        self.progress_window.resizable(False, False)
+        # Allow at least one resizable dimension so users can expand if needed
+        try:
+            self.progress_window.resizable(True, False)
+        except Exception:
+            pass
         self.progress_window.attributes("-topmost", True)
         self.progress_window.configure(bg="#f0f0f0")
         self.progress_window.attributes('-alpha', 0.0)  # Start fully transparent
         try:
+            # Bind F11 toggle; do not auto-maximize progress window
             self._wm_for(self.progress_window)
         except Exception:
             pass
