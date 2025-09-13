@@ -204,6 +204,12 @@ class WindowManager:
 
     def restore(self):
         try:
+            # Ensure window is back to normal state so geometry takes effect (Windows ignores
+            # geometry changes while in 'zoomed' state)
+            try:
+                self.win.state('normal')
+            except Exception:
+                pass
             if self.prev_geometry:
                 self.win.geometry(self.prev_geometry)
             self.maximized = False
