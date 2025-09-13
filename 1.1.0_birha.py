@@ -1612,22 +1612,8 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 via WindowManager, then defer maximize until idle so geometry is realized
-        try:
-            mgr = self._wm_for(win)
-            def _deferred_max():
-                try:
-                    if mgr is not None:
-                        # Use client-geometry maximize with a small bottom margin to avoid taskbar overlap
-                        mgr.maximize_client(bottom_margin_px=64)
-                except Exception:
-                    pass
-            try:
-                win.after_idle(_deferred_max)
-            except Exception:
-                pass
-        except Exception:
-            pass
+        # Attach WindowManager and auto-apply client-margin maximize after idle
+        self._wm_apply(win, margin_px=64, defer=True)
 
         header = tk.Label(
             win,
@@ -1808,22 +1794,8 @@ class GrammarApp:
             win.grab_set()
         except Exception:
             pass
-        # Bind F11 via WindowManager, then defer maximize until idle so prev_geometry isn't 1x1
-        try:
-            mgr = self._wm_for(win)
-            def _deferred_max():
-                try:
-                    if mgr is not None:
-                        # Safety margin to keep the bottom controls visible
-                        mgr.maximize_client(bottom_margin_px=64)
-                except Exception:
-                    pass
-            try:
-                win.after_idle(_deferred_max)
-            except Exception:
-                pass
-        except Exception:
-            pass
+        # Attach WindowManager and auto-apply client-margin maximize after idle
+        self._wm_apply(win, margin_px=64, defer=True)
 
         header = tk.Label(
             win,
@@ -3234,6 +3206,41 @@ class GrammarApp:
             return mgr
         except Exception:
             return None
+
+    def _wm_apply(self, win, margin_px: int | None = None, defer: bool = True):
+        """Attach WindowManager to 'win' and optionally maximize.
+
+        - margin_px=None: only bind F11 (no sizing).
+        - margin_px>0: maximize_client(margin_px) for taskbar-safe sizing.
+        - margin_px==0: normal maximize().
+        If defer is True, schedule sizing after idle to let geometry realize first.
+        Returns the WindowManager or None.
+        """
+        mgr = self._wm_for(win)
+        if not mgr:
+            return None
+        def _do_size():
+            try:
+                if margin_px is None:
+                    return
+                if isinstance(margin_px, int) and margin_px > 0:
+                    mgr.maximize_client(bottom_margin_px=margin_px)
+                else:
+                    mgr.maximize()
+            except Exception:
+                pass
+        try:
+            if margin_px is not None:
+                if defer:
+                    try:
+                        win.after_idle(_do_size)
+                    except Exception:
+                        _do_size()
+                else:
+                    _do_size()
+        except Exception:
+            pass
+        return mgr
 
     def _do_prompt_whats_new(self, state: dict):
         try:
