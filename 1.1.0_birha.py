@@ -54,6 +54,8 @@ class WindowManager:
         self.win = win
         self.prev_geometry = None
         self.maximized = False
+        # If a client-margin maximize is used, remember the preferred bottom margin
+        self._client_margin_px = None
         try:
             self.win.bind("<F11>", lambda e: self.toggle())
         except Exception:
@@ -144,6 +146,8 @@ class WindowManager:
                     self.prev_geometry = self.win.winfo_geometry()
                 except Exception:
                     self.prev_geometry = None
+            # A normal maximize clears client-margin preference
+            self._client_margin_px = None
             # First try per-monitor usable area geometry
             x, y, w, h = self._usable_area()
             if w and h:
@@ -221,7 +225,14 @@ class WindowManager:
         if self.maximized:
             self.restore()
         else:
-            self.maximize()
+            # Preserve taskbar-safe geometry if a client-margin maximize was used before
+            try:
+                if isinstance(self._client_margin_px, int) and self._client_margin_px > 0:
+                    self.maximize_client(bottom_margin_px=self._client_margin_px)
+                else:
+                    self.maximize()
+            except Exception:
+                self.maximize()
 
     def maximize_client(self, bottom_margin_px: int = 48):
         """Like maximize(), but prefers explicit client-geometry sizing to avoid
@@ -273,6 +284,7 @@ class WindowManager:
                         ch = max(1, int(safe_h) - dh)
                         self.win.geometry(f"{cw}x{ch}+{x}+{y}")
                         self.maximized = True
+                        self._client_margin_px = int(bottom_margin_px or 0)
                         return
                 except Exception:
                     pass
@@ -280,6 +292,7 @@ class WindowManager:
             # Non-Windows or failed AdjustWindowRectEx: best-effort geometry
             self.win.geometry(f"{w}x{safe_h}+{x}+{y}")
             self.maximized = True
+            self._client_margin_px = int(bottom_margin_px or 0)
         except Exception:
             pass
 
