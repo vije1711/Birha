@@ -3849,7 +3849,7 @@ class GrammarApp:
         # — Bottom buttons —
         btn_frame = tk.Frame(win, bg="light gray")
         # Anchor buttons to the bottom edge and keep a comfortable bottom margin
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=40)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
 
         tk.Button(
             btn_frame,
@@ -6207,7 +6207,7 @@ class GrammarApp:
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(5, 0))
 
         btns = tk.Frame(win, bg="light gray")
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=40)
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
 
         tk.Button(
             btns, text="‹ Back",
@@ -7427,7 +7427,7 @@ class GrammarApp:
 
         # Submit / Skip
         button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(pady=20)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(button_frame, text="Submit", command=self.submit_input_reanalysis,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).pack(side=tk.LEFT, padx=15)
@@ -8891,7 +8891,7 @@ class GrammarApp:
         # Bottom Button Frame
         # ---------------------------
         button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(pady=20)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(button_frame, text="Submit", command=self.submit_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).pack(side=tk.LEFT, padx=15)
