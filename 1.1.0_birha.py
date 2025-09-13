@@ -2018,10 +2018,33 @@ class GrammarApp:
                 messagebox.showinfo("None", "No words found in tracker.")
                 return
             df = words_df.copy()
+            # Compute set of words with any pending (status != 'completed') rows in Progress
+            pending_norms = set()
+            try:
+                if prog_df is not None and not prog_df.empty:
+                    p = prog_df.copy()
+                    if 'status' in p.columns:
+                        p = p.loc[p['status'].astype(str).str.lower() != 'completed']
+                    if 'word_key_norm' in p.columns:
+                        norms = p['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)).tolist()
+                        pending_norms = set(norms)
+            except Exception:
+                pending_norms = set()
+
+            # Base filter: Words where analysis_completed is not True
             if 'analysis_completed' in df.columns:
                 incom = df.loc[df['analysis_completed'] != True]
             else:
                 incom = df
+
+            # Strengthen filter: include also any words with pending rows even if analysis_completed flag wasn't set
+            try:
+                if not df.empty and 'word_key_norm' in df.columns and pending_norms:
+                    df['_norm'] = df['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s))
+                    extra = df.loc[df['_norm'].isin(pending_norms)]
+                    incom = pd.concat([incom, extra], ignore_index=True).drop_duplicates(subset=['word_key_norm'])
+            except Exception:
+                pass
             if incom.empty:
                 messagebox.showinfo("All Done", "No incomplete words remain.")
                 return
@@ -2032,11 +2055,33 @@ class GrammarApp:
             tk.Label(win, text="Select a word to resume:", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
             lb = tk.Listbox(win, height=10)
             items = []
-            for _, r in incom.iterrows():
-                w = str(r.get('word', ''))
-                n = str(r.get('word_key_norm', ''))
-                items.append((w, n))
-                lb.insert(tk.END, w)
+            try:
+                # If Progress pending counts are available, show them in the list for context
+                pending_counts = {}
+                if not prog_df.empty:
+                    pp = prog_df.copy()
+                    if 'status' in pp.columns:
+                        pp['_is_pending'] = pp['status'].astype(str).str.lower() != 'completed'
+                    else:
+                        pp['_is_pending'] = True
+                    if 'word_key_norm' in pp.columns:
+                        pp['_norm'] = pp['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s))
+                        grp = pp.groupby('_norm')['_is_pending'].sum()
+                        pending_counts = {k: int(v) for k, v in grp.to_dict().items()}
+                for _, r in incom.iterrows():
+                    w = str(r.get('word', ''))
+                    n = str(r.get('word_key_norm', ''))
+                    norm = _normalize_simple(n)
+                    cnt = pending_counts.get(norm)
+                    label = f"{w}" if not cnt else f"{w}  (pending: {cnt})"
+                    items.append((w, n))
+                    lb.insert(tk.END, label)
+            except Exception:
+                for _, r in incom.iterrows():
+                    w = str(r.get('word', ''))
+                    n = str(r.get('word_key_norm', ''))
+                    items.append((w, n))
+                    lb.insert(tk.END, w)
             lb.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0,8))
             def _resume():
                 try:
@@ -2057,6 +2102,293 @@ class GrammarApp:
                 messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
             except Exception:
                 pass
+
+    def show_view_completed(self):
+        """List completed words and allow re-analyze actions (all or selected verses)."""
+        try:
+            tracker_path = self._get_word_tracker_path()
+            ensure_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            words_df, prog_df, _ = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            if words_df.empty and (prog_df is None or prog_df.empty):
+                messagebox.showinfo("None", "No tracker data found.")
+                return
+
+            df = (words_df.copy() if words_df is not None else pd.DataFrame(columns=_WORDS_COLUMNS))
+            completed = pd.DataFrame(columns=df.columns)
+            # 1) Prefer Words.analysis_completed flag
+            try:
+                if not df.empty and 'analysis_completed' in df.columns:
+                    completed = df.loc[df['analysis_completed'] == True]
+            except Exception:
+                completed = pd.DataFrame(columns=df.columns)
+
+            # 2) Also include words for which all Progress rows are completed
+            try:
+                if prog_df is not None and not prog_df.empty and 'word_key_norm' in prog_df.columns:
+                    p = prog_df.copy()
+                    p['_norm'] = p['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s))
+                    if 'status' in p.columns:
+                        grp = p.groupby('_norm')['status'].apply(lambda s: (s.astype(str).str.lower() == 'completed').all())
+                    else:
+                        grp = p.groupby('_norm').size() * 0  # no statuses implies nothing to add
+                    norms_all_done = {k for k, v in grp.to_dict().items() if v is True}
+                    if not df.empty and 'word_key_norm' in df.columns:
+                        df['_norm'] = df['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s))
+                        extra = df.loc[df['_norm'].isin(norms_all_done)]
+                        if not extra.empty:
+                            completed = pd.concat([completed, extra], ignore_index=True).drop_duplicates(subset=['word_key_norm'])
+            except Exception:
+                pass
+
+            if completed is None or completed.empty:
+                messagebox.showinfo("None", "No completed words found.")
+                return
+
+            # Build chooser
+            win = tk.Toplevel(self.root)
+            win.title("Completed Words - Review / Re-Analyze")
+            win.configure(bg='light gray')
+            tk.Label(win, text="Select a word to re-analyze:", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
+            lb = tk.Listbox(win, height=10)
+            items = []
+            try:
+                # Optionally show count of completed verses per word
+                comp_counts = {}
+                if prog_df is not None and not prog_df.empty and 'status' in prog_df.columns and 'word_key_norm' in prog_df.columns:
+                    pp = prog_df.copy()
+                    pp['_is_completed'] = pp['status'].astype(str).str.lower() == 'completed'
+                    pp['_norm'] = pp['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s))
+                    grp = pp[pp['_is_completed']].groupby('_norm').size()
+                    comp_counts = {k: int(v) for k, v in grp.to_dict().items()}
+                for _, r in completed.iterrows():
+                    w = str(r.get('word', ''))
+                    n = str(r.get('word_key_norm', ''))
+                    norm = _normalize_simple(n)
+                    cnt = comp_counts.get(norm)
+                    label = f"{w}" if not cnt else f"{w}  (completed verses: {cnt})"
+                    items.append((w, n))
+                    lb.insert(tk.END, label)
+            except Exception:
+                for _, r in completed.iterrows():
+                    w = str(r.get('word', ''))
+                    n = str(r.get('word_key_norm', ''))
+                    items.append((w, n))
+                    lb.insert(tk.END, w)
+            lb.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0,8))
+
+            def _get_selected_word():
+                sel = lb.curselection()
+                if not sel:
+                    return None
+                return items[sel[0]][0]
+
+            def _re_analyze_all():
+                try:
+                    word = _get_selected_word()
+                    if not word:
+                        return
+                    self._reset_progress_for_word_and_restart(word, only_selected=None)
+                    try:
+                        win.destroy()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def _open_selector():
+                try:
+                    word = _get_selected_word()
+                    if not word:
+                        return
+                    self._open_reanalyze_selector(word)
+                except Exception:
+                    pass
+
+            btns = tk.Frame(win, bg='light gray')
+            btns.pack(fill=tk.X, padx=12, pady=(0, 10))
+            tk.Button(btns, text="Re-analyze...", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_open_selector).pack(side=tk.RIGHT)
+            tk.Button(btns, text="Re-analyze All", bg='teal', fg='white', font=('Arial', 11, 'bold'), command=_re_analyze_all).pack(side=tk.RIGHT, padx=(0,6))
+            tk.Button(btns, text="Cancel", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0,6))
+        except Exception as e:
+            try:
+                messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
+            except Exception:
+                pass
+
+    def _open_reanalyze_selector(self, word: str):
+        """Open a modal to pick completed verses for a word to re-analyze (reset status and start driver)."""
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            norm = self._norm_tok(word)
+            df = prog_df.copy() if prog_df is not None else pd.DataFrame(columns=_PROGRESS_COLUMNS)
+            if not df.empty:
+                if 'word_key_norm' in df.columns:
+                    df = df.loc[df['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)]
+                if 'status' in df.columns:
+                    df = df.loc[df['status'].astype(str).str.lower() == 'completed']
+            if df is None or df.empty:
+                try:
+                    messagebox.showinfo("None", f"No completed verses found for '{word}'.")
+                except Exception:
+                    pass
+                return
+
+            win = tk.Toplevel(self.root)
+            win.title(f"Re-Analyze Verses – {word}")
+            win.configure(bg='light gray')
+            tk.Label(win, text=f"Select completed verses to re-analyze for '{word}':", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
+            outer = tk.Frame(win, bg='light gray')
+            outer.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
+            canvas = tk.Canvas(outer, bg='light gray', highlightthickness=0)
+            vsb = tk.Scrollbar(outer, orient='vertical', command=canvas.yview)
+            canvas.configure(yscrollcommand=vsb.set)
+            vsb.pack(side='right', fill='y')
+            canvas.pack(side='left', fill='both', expand=True)
+            list_frame = tk.Frame(canvas, bg='light gray')
+            canvas.create_window((0, 0), window=list_frame, anchor='nw')
+
+            sel_vars = []
+            rows = df.reset_index(drop=True).to_dict('records')
+
+            def _on_configure(event=None):
+                try:
+                    canvas.configure(scrollregion=canvas.bbox('all'))
+                except Exception:
+                    pass
+            list_frame.bind('<Configure>', _on_configure)
+
+            # Top toolbar: Select All / Clear All
+            toolbar = tk.Frame(win, bg='light gray')
+            toolbar.pack(fill=tk.X, padx=12, pady=(0, 8))
+            def _select_all():
+                for v, _ in sel_vars:
+                    try:
+                        v.set(True)
+                    except Exception:
+                        pass
+            def _clear_all():
+                for v, _ in sel_vars:
+                    try:
+                        v.set(False)
+                    except Exception:
+                        pass
+            tk.Button(toolbar, text="Select All", bg='teal', fg='white', command=_select_all).pack(side=tk.LEFT)
+            tk.Button(toolbar, text="Clear All", bg='gray', fg='white', command=_clear_all).pack(side=tk.LEFT, padx=(6,0))
+
+            for i, rec in enumerate(rows):
+                rf = tk.Frame(list_frame, bg='light gray')
+                rf.pack(fill=tk.X, pady=2)
+                v = tk.BooleanVar(value=False)
+                sel_vars.append((v, i))
+                tk.Checkbutton(rf, variable=v, bg='light gray').pack(side=tk.LEFT)
+                verse = str(rec.get('verse', ''))
+                page = str(rec.get('page_number', ''))
+                tk.Label(rf, text=verse, font=('Arial', 12), width=64, anchor='w', bg='light gray', justify='left', wraplength=900).pack(side=tk.LEFT)
+                tk.Label(rf, text=page, font=('Arial', 12), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
+
+            btns = tk.Frame(win, bg='light gray')
+            btns.pack(fill=tk.X, padx=12, pady=(8, 10))
+
+            def _apply_and_start(selected_only=True):
+                try:
+                    indices = [i for v, i in sel_vars if v.get()] if selected_only else list(range(len(rows)))
+                    if not indices:
+                        return
+                    # Reset chosen Progress rows to 'not started' and mark Words as incomplete
+                    p2 = prog_df.copy()
+                    if 'word_key_norm' in p2.columns:
+                        maskw = p2['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
+                    else:
+                        maskw = pd.Series([False] * len(p2))
+                    # Narrow to only completed rows selected
+                    if 'status' in p2.columns:
+                        maskw = maskw & (p2['status'].astype(str).str.lower() == 'completed')
+                    subset = p2.loc[maskw].reset_index()
+                    keep_idx = set(subset.loc[indices, 'index'].tolist())
+                    sel_mask = p2.index.isin(list(keep_idx))
+                    if 'status' in p2.columns:
+                        p2.loc[sel_mask, 'status'] = 'not started'
+                    if 'completed_at' in p2.columns:
+                        try:
+                            p2.loc[sel_mask, 'completed_at'] = None
+                        except Exception:
+                            pass
+
+                    w2 = words_df.copy()
+                    if 'word_key_norm' in w2.columns:
+                        m2 = w2['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
+                        if 'analysis_completed' in w2.columns:
+                            w2.loc[m2, 'analysis_completed'] = False
+                        if 'analysis_completed_at' in w2.columns:
+                            try:
+                                w2.loc[m2, 'analysis_completed_at'] = None
+                            except Exception:
+                                pass
+
+                    _save_tracker(tracker_path, w2, p2, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                    try:
+                        win.destroy()
+                    except Exception:
+                        pass
+                    self.start_word_driver_for(word)
+                except Exception:
+                    pass
+
+            tk.Button(btns, text="Re-analyze Selected", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=lambda: _apply_and_start(True)).pack(side=tk.RIGHT)
+            tk.Button(btns, text="Re-analyze All", bg='teal', fg='white', font=('Arial', 11, 'bold'), command=lambda: _apply_and_start(False)).pack(side=tk.RIGHT, padx=(0,6))
+            tk.Button(btns, text="Cancel", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0,6))
+        except Exception as e:
+            try:
+                messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
+            except Exception:
+                pass
+
+    def _reset_progress_for_word_and_restart(self, word: str, only_selected: list[int] | None = None):
+        """Reset Progress rows to 'not started' for the given word (optionally by row indices),
+        mark Words incomplete, save, then start the driver."""
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            norm = self._norm_tok(word)
+            p2 = prog_df.copy()
+            # Build mask for this word
+            if 'word_key_norm' in p2.columns:
+                maskw = p2['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
+            else:
+                maskw = pd.Series([False] * len(p2))
+            if 'status' in p2.columns:
+                maskw = maskw & (p2['status'].astype(str).str.lower() == 'completed')
+            # If only_selected provided, map them to source indices
+            if only_selected is not None:
+                subset = p2.loc[maskw].reset_index()
+                keep_idx = set(subset.loc[subset.index.isin(only_selected), 'index'].tolist())
+                sel_mask = p2.index.isin(list(keep_idx))
+            else:
+                sel_mask = maskw
+            if 'status' in p2.columns:
+                p2.loc[sel_mask, 'status'] = 'not started'
+            if 'completed_at' in p2.columns:
+                try:
+                    p2.loc[sel_mask, 'completed_at'] = None
+                except Exception:
+                    pass
+
+            w2 = words_df.copy()
+            if 'word_key_norm' in w2.columns:
+                m2 = w2['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
+                if 'analysis_completed' in w2.columns:
+                    w2.loc[m2, 'analysis_completed'] = False
+                if 'analysis_completed_at' in w2.columns:
+                    try:
+                        w2.loc[m2, 'analysis_completed_at'] = None
+                    except Exception:
+                        pass
+
+            _save_tracker(tracker_path, w2, p2, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            self.start_word_driver_for(word)
+        except Exception:
+            pass
 
     def _banner_wraplength(self, win=None) -> int:
         """Return a wraplength tuned to the window width (clamped 600–900)."""
@@ -2504,7 +2836,8 @@ class GrammarApp:
             text="View Completed",
             font=('Arial', 14, 'bold'),
             bg='#2f4f4f', fg='white',
-            padx=20, pady=10
+            padx=20, pady=10,
+            command=self.show_view_completed
         ).pack(pady=8)
 
         # Bottom bar with Back
