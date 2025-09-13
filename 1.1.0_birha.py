@@ -15,6 +15,12 @@ from rapidfuzz import fuzz, process
 import numpy as np
 import textwrap
 import webbrowser
+import platform
+try:
+    import ctypes
+    from ctypes import wintypes
+except Exception:
+    ctypes = None
 from datetime import datetime, timezone
 import subprocess
 import json
@@ -29,6 +35,92 @@ import zipfile
 # GLOBAL HELPER  –  build live noun-morphology lookup
 # ────────────────────────────────────────────────────────────────
 from functools import lru_cache
+
+# ---------------------------
+# Window Manager (maximize/restore/toggle)
+# ---------------------------
+class WindowManager:
+    """Cross-platform window manager for Tk windows.
+
+    - maximize(): resizes to usable screen area.
+      On Windows, uses SystemParametersInfoW(SPI_GETWORKAREA) to exclude taskbar.
+      Else, falls back to winfo_screenwidth/height.
+    - restore(): returns to the previous geometry.
+    - toggle(): F11-style toggle between maximize and restore.
+
+    Automatically binds F11 to toggle on the given window.
+    """
+    def __init__(self, win):
+        self.win = win
+        self.prev_geometry = None
+        self.maximized = False
+        try:
+            self.win.bind("<F11>", lambda e: self.toggle())
+        except Exception:
+            pass
+
+    def _usable_area(self):
+        # Windows: use SystemParametersInfoW to fetch the work area (excludes taskbar)
+        try:
+            if os.name == 'nt' and ctypes is not None:
+                SPI_GETWORKAREA = 0x0030
+                class RECT(ctypes.Structure):
+                    _fields_ = [
+                        ("left", wintypes.INT),
+                        ("top", wintypes.INT),
+                        ("right", wintypes.INT),
+                        ("bottom", wintypes.INT),
+                    ]
+                rect = RECT()
+                ok = ctypes.windll.user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0)
+                if ok:
+                    x = int(rect.left)
+                    y = int(rect.top)
+                    w = int(rect.right - rect.left)
+                    h = int(rect.bottom - rect.top)
+                    return x, y, w, h
+        except Exception:
+            pass
+
+        # Fallback: full screen size
+        try:
+            self.win.update_idletasks()
+        except Exception:
+            pass
+        try:
+            w = int(self.win.winfo_screenwidth())
+            h = int(self.win.winfo_screenheight())
+            return 0, 0, w, h
+        except Exception:
+            return 0, 0, 1024, 768
+
+    def maximize(self):
+        try:
+            if not self.maximized:
+                try:
+                    self.win.update_idletasks()
+                    self.prev_geometry = self.win.winfo_geometry()
+                except Exception:
+                    self.prev_geometry = None
+            x, y, w, h = self._usable_area()
+            self.win.geometry(f"{w}x{h}+{x}+{y}")
+            self.maximized = True
+        except Exception:
+            pass
+
+    def restore(self):
+        try:
+            if self.prev_geometry:
+                self.win.geometry(self.prev_geometry)
+            self.maximized = False
+        except Exception:
+            pass
+
+    def toggle(self):
+        if self.maximized:
+            self.restore()
+        else:
+            self.maximize()
 
 # ------------------------------------------------------------------
 # CSV helper: load Predefined-only keyset for Top Matches filtering
@@ -1120,7 +1212,10 @@ class GrammarApp:
         self.root = root
         self.root.title("Dashboard")
         self.root.configure(bg="light gray")
-        self.root.state("zoomed")        # maximise on Windows
+        try:
+            self._wm_for(self.root).maximize()
+        except Exception:
+            pass
       
         # ------------------------------------------------------------------
         # ─── 2.  APP‑WIDE STATE VARIABLES ─────────────────────────────────
@@ -2567,7 +2662,10 @@ class GrammarApp:
         # Set up the dashboard appearance in the root window
         self.root.title("Dashboard")
         self.root.configure(bg='light gray')
-        self.root.state("zoomed")  # Maximize the window
+        try:
+            self._wm_for(self.root).maximize()
+        except Exception:
+            pass
 
         # Dashboard header label
         header = tk.Label(
@@ -2743,7 +2841,10 @@ class GrammarApp:
         self.root.title("Assess by Word")
         try:
             self.root.configure(bg='light gray')
-            self.root.state("zoomed")
+            try:
+                self._wm_for(self.root).maximize()
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -2768,9 +2869,11 @@ class GrammarApp:
             win.title("New Assessment – Assess by Word")
             win.configure(bg='light gray')
             try:
-                win.state('zoomed')
-            except tk.TclError:
-                # Some platforms/window managers may not support zoomed state
+                mgr = self._wm_for(win)
+                if mgr:
+                    mgr.maximize()
+            except Exception:
+                # Some platforms/window managers may not support maximize; ignore silently
                 pass
 
             header = tk.Label(
@@ -2891,6 +2994,20 @@ class GrammarApp:
             # Ask the user if they'd like to view details, then record as shown
             self.root.after(100, lambda: self._do_prompt_whats_new_fixed(state))
 
+    # ---------------------------
+    # Window manager helper
+    # ---------------------------
+    def _wm_for(self, win):
+        """Return a WindowManager bound to 'win', creating and binding <F11> if needed."""
+        try:
+            mgr = getattr(win, "_wmgr", None)
+            if mgr is None:
+                mgr = WindowManager(win)
+                setattr(win, "_wmgr", mgr)
+            return mgr
+        except Exception:
+            return None
+
     def _do_prompt_whats_new(self, state: dict):
         try:
             if messagebox.askyesno(
@@ -2980,7 +3097,10 @@ class GrammarApp:
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
         try:
-            win.state("zoomed")
+            try:
+                self._wm_for(win).maximize()
+            except Exception:
+                pass
         except tk.TclError:
             pass
 
@@ -3058,7 +3178,10 @@ class GrammarApp:
         win.title("Assess by Verse")
         win.configure(bg='light gray')
         try:
-            win.state("zoomed")
+            try:
+                self._wm_for(win).maximize()
+            except Exception:
+                pass
         except tk.TclError:
             pass
         
@@ -3279,7 +3402,10 @@ class GrammarApp:
         win.title("Paste Darpan Translation")
         win.configure(bg='light gray')
         # bump default size up so buttons are always visible
-        win.state("zoomed")
+        try:
+            self._wm_for(win).maximize()
+        except Exception:
+            pass
         win.transient(self.root)
         win.grab_set()
 
@@ -3664,7 +3790,10 @@ class GrammarApp:
         win.title(f"Assess Grammar: {word}")
         win.configure(bg='light gray')
         # give a reasonable size so buttons show up
-        win.state("zoomed")
+        try:
+            self._wm_for(win).maximize()
+        except Exception:
+            pass
         win.resizable(True, True)
 
         # 1) Verse display + highlight (use Gurmukhi‑safe font + metrics padding)
@@ -4513,7 +4642,10 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title(f"Detail Grammar for ‘{word}’")
         win.configure(bg="light gray")
-        win.state("zoomed")
+        try:
+            self._wm_for(win).maximize()
+        except Exception:
+            pass
 
         frm = tk.LabelFrame(
             win, text="Finalize Detailed Grammar",
@@ -6318,7 +6450,10 @@ class GrammarApp:
         select_win.title("Select Verse")
         select_win.geometry("800x600")
         try:
-            select_win.state("zoomed")
+            try:
+                self._wm_for(select_win).maximize()
+            except Exception:
+                pass
         except tk.TclError:
             pass
         select_win.configure(bg="light gray")
@@ -6957,7 +7092,10 @@ class GrammarApp:
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"[Edit Mode] Input for {word}")
         self.input_window.configure(bg='light gray')
-        self.input_window.state('zoomed')
+        try:
+            self._wm_for(self.input_window).maximize()
+        except Exception:
+            pass
         self.input_window.resizable(True, True)
 
         # Display the Pankti with word highlight
@@ -7103,7 +7241,10 @@ class GrammarApp:
         self.match_window = tk.Toplevel(self.root)
         self.match_window.title("Re-analysis: Select Matches and Meanings")
         self.match_window.configure(bg='light gray')
-        self.match_window.state('zoomed')
+        try:
+            self._wm_for(self.match_window).maximize()
+        except Exception:
+            pass
 
         self.match_vars = []
         self.meaning_vars = []
@@ -8398,7 +8539,10 @@ class GrammarApp:
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"Input for {word}")
         self.input_window.configure(bg='light gray')
-        self.input_window.state('zoomed')
+        try:
+            self._wm_for(self.input_window).maximize()
+        except Exception:
+            pass
         self.input_window.resizable(True, True)
 
         # ---------------------------
@@ -8672,7 +8816,10 @@ class GrammarApp:
         self.match_window = tk.Toplevel(self.root)
         self.match_window.title("Select Matches and Meanings")
         self.match_window.configure(bg='light gray')
-        self.match_window.state('zoomed')
+        try:
+            self._wm_for(self.match_window).maximize()
+        except Exception:
+            pass
         # New window ⇒ allow a fresh one-time resize binding
         self._inline_resize_bound = False
         try:
@@ -9715,7 +9862,10 @@ class GrammarApp:
         self.sggs_option_window = tk.Toplevel(self.root)
         self.sggs_option_window.title("Select One Matching Verse")
         self.sggs_option_window.configure(bg='light gray')
-        self.sggs_option_window.state("zoomed")
+        try:
+            self._wm_for(self.sggs_option_window).maximize()
+        except Exception:
+            pass
 
         # 5) A Tk variable that holds the index of the selected match
         self.sggs_option_var = tk.IntVar(value=-1)  # -1 = nothing selected
@@ -9933,7 +10083,10 @@ class GrammarApp:
         self.consecutive_window = tk.Toplevel(self.root)
         self.consecutive_window.title("Select Consecutive Verses")
         self.consecutive_window.configure(bg='light gray')
-        self.consecutive_window.state('zoomed')
+        try:
+            self._wm_for(self.consecutive_window).maximize()
+        except Exception:
+            pass
 
         # Adjust header text based on the stored user's choice.
         if hasattr(self, 'verses_choice') and self.verses_choice:
