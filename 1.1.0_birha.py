@@ -6523,6 +6523,11 @@ class GrammarApp:
             win.configure(bg="light gray")
             win.transient(parent)
             win.grab_set()
+            try:
+                # Bind F11 toggle and enable user maximize/restore
+                self._wm_for(win)
+            except Exception:
+                pass
             title = tk.Label(win, text="A matching entry exists. Review changes:",
                              bg="dark slate gray", fg="white", font=("Arial", 12, "bold"), padx=10, pady=6)
             title.pack(fill=tk.X)
@@ -11480,11 +11485,16 @@ class GrammarApp:
         self.progress_window = tk.Toplevel(self.root)
         self.progress_window.title("Please Wait...")
         self.progress_window.geometry("350x120")
-        self.progress_window.resizable(False, False)
+        # Allow at least one resizable dimension so users can expand if needed
+        try:
+            self.progress_window.resizable(True, False)
+        except Exception:
+            pass
         self.progress_window.attributes("-topmost", True)
         self.progress_window.configure(bg="#f0f0f0")
         self.progress_window.attributes('-alpha', 0.0)  # Start fully transparent
         try:
+            # Bind F11 toggle; do not auto-maximize progress window
             self._wm_for(self.progress_window)
         except Exception:
             pass
