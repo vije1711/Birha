@@ -1639,19 +1639,7 @@ class GrammarApp:
         tk.Label(sr, textvariable=status_var, font=("Arial", 10, "italic"),
                  bg='light gray', fg='#333').pack(side=tk.LEFT)
 
-        # Results area
-        res_frame = tk.Frame(body, bg='light gray')
-        res_frame.pack(fill=tk.BOTH, expand=True)
-        canvas = tk.Canvas(res_frame, bg='light gray', highlightthickness=0)
-        vsb = tk.Scrollbar(res_frame, orient="vertical", command=canvas.yview)
-        inner = tk.Frame(canvas, bg='light gray')
-        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=inner, anchor='nw')
-        canvas.configure(yscrollcommand=vsb.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Footer/toolbar actions on the same row as Select/Deselect All (keeps controls visible)
+        # Toolbar actions on a row ABOVE the results list (keeps controls always visible)
         def _copy_selected():
             chosen = [w for var, w in getattr(self, "_lex_chk_vars", []) if var.get()]
             if not chosen:
@@ -1673,7 +1661,7 @@ class GrammarApp:
                 return
             self.show_word_verse_hits_modal(chosen[0], parent=win)
 
-        # Toolbar row: Select/Deselect + action buttons placed together
+        # Toolbar row: Select/Deselect + action buttons placed together (above results)
         toolbar = tk.Frame(body, bg='light gray')
         toolbar.pack(fill=tk.X, pady=(8, 6))
         sel_all_var = tk.BooleanVar(value=False)
@@ -1690,6 +1678,18 @@ class GrammarApp:
                   command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
         tk.Button(toolbar, text="Close", bg='gray', fg='white', font=("Arial", 11),
                   command=win.destroy).pack(side=tk.RIGHT)
+
+        # Results area (placed BELOW the toolbar so taskbar cannot cover controls)
+        res_frame = tk.Frame(body, bg='light gray')
+        res_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(res_frame, bg='light gray', highlightthickness=0)
+        vsb = tk.Scrollbar(res_frame, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas, bg='light gray')
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor='nw')
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
         self._lex_chk_vars = []
 
@@ -1840,27 +1840,10 @@ class GrammarApp:
         tk.Button(nav, text="Prev", command=lambda: _change_page(-1), bg='gray', fg='white').pack(side=tk.RIGHT, padx=(4,2))
         tk.Button(nav, text="Next", command=lambda: _change_page(1),  bg='gray', fg='white').pack(side=tk.RIGHT, padx=(2,4))
 
-        # Scrollable area
-        list_frame = tk.Frame(body, bg='light gray')
-        list_frame.pack(fill=tk.BOTH, expand=True)
-        canvas = tk.Canvas(list_frame, bg='light gray', highlightthickness=0)
-        vsb = tk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
-        inner = tk.Frame(canvas, bg='light gray')
-        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-        canvas.create_window((0,0), window=inner, anchor='nw')
-        canvas.configure(yscrollcommand=vsb.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Selection state across pages (local to this modal)
-        hit_vars = []  # list[(BooleanVar, index)] parallel to hits
-        for i in range(len(hits)):
-            hit_vars.append((tk.BooleanVar(value=False), i))
-
-        # Prepare dynamic add button label
+        # Prepare dynamic add button label (used by selection bar)
         add_btn_text = tk.StringVar(value="Add Selected (0)")
 
-        # Select/Clear All (page) + actions row (place all controls together)
+        # Selection bar ABOVE the results list to keep controls visible (no taskbar overlap)
         selbar = tk.Frame(body, bg='light gray')
         selbar.pack(fill=tk.X, pady=(6, 0))
         def _select_all_page(val: bool):
@@ -1880,6 +1863,23 @@ class GrammarApp:
         tk.Button(selbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
                   command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
         tk.Button(selbar, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
+
+        # Scrollable area
+        list_frame = tk.Frame(body, bg='light gray')
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(list_frame, bg='light gray', highlightthickness=0)
+        vsb = tk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
+        inner = tk.Frame(canvas, bg='light gray')
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.create_window((0,0), window=inner, anchor='nw')
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Selection state across pages (local to this modal)
+        hit_vars = []  # list[(BooleanVar, index)] parallel to hits
+        for i in range(len(hits)):
+            hit_vars.append((tk.BooleanVar(value=False), i))
 
         # Row rendering
         def _update_add_button():
