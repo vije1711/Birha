@@ -373,6 +373,13 @@ try:
 except Exception:
     DEBUG_AUTOFILL = False
 
+# ------------------------------------------------------------------
+# Shared UI spacing constants
+# ------------------------------------------------------------------
+# Bottom padding (in pixels) to keep action buttons off the window edge.
+# Matches the gap used by user_input_grammar's bottom button row.
+BOTTOM_PAD = 46
+
 def _dbg_autofill(self, msg: str):
     try:
         if DEBUG_AUTOFILL or bool(getattr(self, '_debug_autofill', False)):
@@ -1661,25 +1668,17 @@ class GrammarApp:
                 return
             self.show_word_verse_hits_modal(chosen[0], parent=win)
 
-        # Toolbar row: Select/Deselect + action buttons placed together (above results)
-        toolbar = tk.Frame(body, bg='light gray')
-        toolbar.pack(fill=tk.X, pady=(8, 6))
+        # Selection row: keep only the checkbox above results
+        sel_row = tk.Frame(body, bg='light gray')
+        sel_row.pack(fill=tk.X, pady=(8, 6))
         sel_all_var = tk.BooleanVar(value=False)
         def _toggle_all():
             for var, _ in getattr(self, "_lex_chk_vars", []):
                 var.set(bool(sel_all_var.get()))
-        tk.Checkbutton(toolbar, text="Select/Deselect All", variable=sel_all_var,
+        tk.Checkbutton(sel_row, text="Select/Deselect All", variable=sel_all_var,
                        bg='light gray', command=_toggle_all).pack(side=tk.LEFT)
-        tk.Button(toolbar, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
-                  command=_copy_selected).pack(side=tk.LEFT, padx=(8,0))
-        tk.Button(toolbar, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
-                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8,0))
-        tk.Button(toolbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
-                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(toolbar, text="Close", bg='gray', fg='white', font=("Arial", 11),
-                  command=win.destroy).pack(side=tk.RIGHT)
 
-        # Results area (placed BELOW the toolbar so taskbar cannot cover controls)
+        # Results area
         res_frame = tk.Frame(body, bg='light gray')
         res_frame.pack(fill=tk.BOTH, expand=True)
         canvas = tk.Canvas(res_frame, bg='light gray', highlightthickness=0)
@@ -1690,6 +1689,19 @@ class GrammarApp:
         canvas.configure(yscrollcommand=vsb.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Bottom action bar: keep consistent bottom spacing with user_input_grammar
+        btns = tk.Frame(body, bg='light gray')
+        # Body has external pady=16; subtract to keep net gap == BOTTOM_PAD
+        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 16)))
+        tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
+                  command=_copy_selected).pack(side=tk.LEFT)
+        tk.Button(btns, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
+                  command=_proceed_to_hits).pack(side=tk.LEFT, padx=(8, 0))
+        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
+        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11),
+                  command=win.destroy).pack(side=tk.RIGHT)
 
         self._lex_chk_vars = []
 
@@ -1843,7 +1855,7 @@ class GrammarApp:
         # Prepare dynamic add button label (used by selection bar)
         add_btn_text = tk.StringVar(value="Add Selected (0)")
 
-        # Selection bar ABOVE the results list to keep controls visible (no taskbar overlap)
+        # Selection bar above the results list (keeps toggles visible)
         selbar = tk.Frame(body, bg='light gray')
         selbar.pack(fill=tk.X, pady=(6, 0))
         def _select_all_page(val: bool):
@@ -1856,17 +1868,21 @@ class GrammarApp:
             _update_add_button()
         tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
         tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
-        # Add Selected button on the same row (left side)
-        add_btn = tk.Button(selbar, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
-        add_btn.pack(side=tk.LEFT, padx=(10,0))
-        # Right-side control buttons on the same row
-        tk.Button(selbar, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
-                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(selbar, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
+        # Note: action buttons are moved to a bottom bar for consistent spacing
 
         # Scrollable area
         list_frame = tk.Frame(body, bg='light gray')
         list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Bottom action bar — consistent with user_input_grammar spacing
+        btns = tk.Frame(body, bg='light gray')
+        # Body has external pady=12; subtract to keep net gap == BOTTOM_PAD
+        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 12)))
+        add_btn_bottom = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
+        add_btn_bottom.pack(side=tk.LEFT)
+        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
+        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
         canvas = tk.Canvas(list_frame, bg='light gray', highlightthickness=0)
         vsb = tk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
         inner = tk.Frame(canvas, bg='light gray')
@@ -1886,7 +1902,7 @@ class GrammarApp:
             total = sum(1 for bv, _ in hit_vars if bv.get())
             add_btn_text.set(f"Add Selected ({total})")
             try:
-                add_btn.configure(state=tk.NORMAL if total > 0 else tk.DISABLED)
+                add_btn_bottom.configure(state=tk.NORMAL if total > 0 else tk.DISABLED)
             except Exception:
                 pass
 
@@ -1996,9 +2012,9 @@ class GrammarApp:
                     pass
                 self.start_word_driver_for(word)
 
-        # Wire the add button command now that it's defined
+        # Wire the bottom 'Add Selected' button now that it's defined
         try:
-            add_btn.configure(command=_do_add_selected)
+            add_btn_bottom.configure(command=_do_add_selected)
         except Exception:
             pass
         _render_rows()
