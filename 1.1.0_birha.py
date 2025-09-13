@@ -60,25 +60,67 @@ class WindowManager:
             pass
 
     def _usable_area(self):
-        # Windows: use SystemParametersInfoW to fetch the work area (excludes taskbar)
+        """Return (x, y, w, h) for the usable work area of the monitor containing this window.
+
+        Windows:
+          - Prefer MonitorFromWindow + GetMonitorInfoW for per-monitor work areas (excludes taskbar).
+          - Fallback to SPI_GETWORKAREA (primary monitor) if monitor lookup fails.
+        Other OS: fall back to full screen dimensions from Tk.
+        """
+        # Windows per-monitor work area
         try:
             if os.name == 'nt' and ctypes is not None:
-                SPI_GETWORKAREA = 0x0030
-                class RECT(ctypes.Structure):
-                    _fields_ = [
-                        ("left", wintypes.INT),
-                        ("top", wintypes.INT),
-                        ("right", wintypes.INT),
-                        ("bottom", wintypes.INT),
-                    ]
-                rect = RECT()
-                ok = ctypes.windll.user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0)
-                if ok:
-                    x = int(rect.left)
-                    y = int(rect.top)
-                    w = int(rect.right - rect.left)
-                    h = int(rect.bottom - rect.top)
-                    return x, y, w, h
+                user32 = ctypes.windll.user32
+
+                # Try per-monitor APIs first
+                try:
+                    MONITOR_DEFAULTTONEAREST = 2
+
+                    class RECT(ctypes.Structure):
+                        _fields_ = [
+                            ("left", wintypes.LONG),
+                            ("top", wintypes.LONG),
+                            ("right", wintypes.LONG),
+                            ("bottom", wintypes.LONG),
+                        ]
+
+                    class MONITORINFO(ctypes.Structure):
+                        _fields_ = [
+                            ("cbSize", wintypes.DWORD),
+                            ("rcMonitor", RECT),
+                            ("rcWork", RECT),
+                            ("dwFlags", wintypes.DWORD),
+                        ]
+
+                    hwnd = int(self.win.winfo_id())
+                    hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+                    if hmon:
+                        mi = MONITORINFO()
+                        mi.cbSize = ctypes.sizeof(MONITORINFO)
+                        ok = user32.GetMonitorInfoW(hmon, ctypes.byref(mi))
+                        if ok:
+                            x = int(mi.rcWork.left)
+                            y = int(mi.rcWork.top)
+                            w = int(mi.rcWork.right - mi.rcWork.left)
+                            h = int(mi.rcWork.bottom - mi.rcWork.top)
+                            return x, y, w, h
+                except Exception:
+                    # Fall back to primary work area
+                    pass
+
+                # Primary monitor work area via SPI
+                try:
+                    SPI_GETWORKAREA = 0x0030
+                    rect = RECT()
+                    ok = user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0)
+                    if ok:
+                        x = int(rect.left)
+                        y = int(rect.top)
+                        w = int(rect.right - rect.left)
+                        h = int(rect.bottom - rect.top)
+                        return x, y, w, h
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -102,9 +144,19 @@ class WindowManager:
                     self.prev_geometry = self.win.winfo_geometry()
                 except Exception:
                     self.prev_geometry = None
+            # First try per-monitor usable area geometry
             x, y, w, h = self._usable_area()
-            self.win.geometry(f"{w}x{h}+{x}+{y}")
-            self.maximized = True
+            if w and h:
+                self.win.geometry(f"{w}x{h}+{x}+{y}")
+                self.maximized = True
+                return
+            # If no geometry computed, fall back to native zoom behavior (often per-monitor)
+            try:
+                self.win.state('zoomed')
+                self.maximized = True
+                return
+            except Exception:
+                pass
         except Exception:
             pass
 
