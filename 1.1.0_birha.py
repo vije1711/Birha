@@ -2192,7 +2192,8 @@ class GrammarApp:
             self._word_driver_current_verse = verse
             # feed into Assess-by-Verse analyzer
             self.selected_verse_text = verse
-            self.show_translation_input()
+            # Launch the dedicated Assess-by-Word analyzer window
+            self.show_assess_by_word_analyzer()
             self._word_driver_update_ui()
         except Exception as e:
             try:
@@ -3651,13 +3652,154 @@ class GrammarApp:
 
     def show_translation_input(self):
         win = tk.Toplevel(self.root)
-        win.title("Paste Darpan Translation")
+        # If Assess-by-Word mode is active, adjust the title and attach driver controls
+        is_abw = bool(getattr(self, '_assess_by_word_mode', False))
+        win.title("Assess by Word – Analyze Verse" if is_abw else "Paste Darpan Translation")
         win.configure(bg='light gray')
         # bump default size up so buttons are always visible
         try:
             self._wm_for(win).maximize()
         except Exception:
             pass
+
+    def _word_driver_mark_word_completed(self):
+        """Force-complete the current word in the tracker and stop the driver.
+
+        - Sets all Progress rows for this word to status='completed' with completed_at now.
+        - Marks Words.analysis_completed True and sets analysis_completed_at if empty.
+        - Stops the driver and closes its controller window if open.
+        """
+        try:
+            tracker_path = self._get_word_tracker_path()
+            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            norm = getattr(self, '_word_driver_norm', '')
+            now = datetime.now()
+            # Update Progress
+            if prog_df is not None and not prog_df.empty:
+                try:
+                    mask = (prog_df.get('word_key_norm', pd.Series(dtype=str)).astype(str)
+                            .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm))
+                    if mask.any():
+                        if 'status' in prog_df.columns:
+                            prog_df.loc[mask, 'status'] = 'completed'
+                        if 'completed_at' in prog_df.columns:
+                            prog_df.loc[mask, 'completed_at'] = now
+                except Exception:
+                    pass
+            # Update Words
+            if words_df is not None and not words_df.empty:
+                try:
+                    maskw = (words_df.get('word_key_norm', pd.Series(dtype=str)).astype(str)
+                             .map(lambda s: _normalize_simple(s)) == _normalize_simple(norm))
+                    if maskw.any():
+                        if 'analysis_completed' in words_df.columns:
+                            words_df.loc[maskw, 'analysis_completed'] = True
+                        if 'analysis_completed_at' in words_df.columns:
+                            def _only_if_empty(dt):
+                                return dt if pd.notna(dt) and str(dt).strip() != '' else now
+                            words_df.loc[maskw, 'analysis_completed_at'] = words_df.loc[maskw, 'analysis_completed_at'].apply(_only_if_empty)
+                except Exception:
+                    pass
+            _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+            # Stop driver and close controller
+            try:
+                self._word_driver_active = False
+                self._word_driver_in_progress = False
+                self._word_driver_paused = False
+            except Exception:
+                pass
+            try:
+                if hasattr(self, '_word_driver_win') and self._word_driver_win and self._word_driver_win.winfo_exists():
+                    self._word_driver_win.destroy()
+            except Exception:
+                pass
+            try:
+                messagebox.showinfo("Completed", f"Marked analysis completed for word: {getattr(self, '_word_driver_word', '')}")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                messagebox.showerror("Complete Word", f"Failed to mark word completed: {e}")
+            except Exception:
+                pass
+
+    def _insert_abw_driver_controls(self, win):
+        """Insert a compact driver control bar into the analyzer window.
+
+        Shows current word, progress, and integrates Next/Pause plus 'Complete Word'.
+        Mirrors the driver controller button semantics (Next disabled while in-progress).
+        """
+        bar = tk.Frame(win, bg='light gray')
+        # Keep a small gap above the verse heading but inside the window chrome
+        bar.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(10, 0))
+
+        self._abw_status_var = tk.StringVar(value="")
+        lbl = tk.Label(bar, textvariable=self._abw_status_var, font=('Arial', 11), bg='light gray')
+        lbl.pack(side=tk.LEFT)
+        btns = tk.Frame(bar, bg='light gray')
+        btns.pack(side=tk.RIGHT)
+        next_btn = tk.Button(btns, text="Next Verse ▶", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=self._word_driver_open_current_verse)
+        next_btn.pack(side=tk.LEFT)
+        pause_btn = tk.Button(btns, text="Pause", bg='gray', fg='white', font=('Arial', 11), command=self._word_driver_toggle_pause)
+        pause_btn.pack(side=tk.LEFT, padx=(6,0))
+        complete_btn = tk.Button(btns, text="Complete Word", bg='#2f4f4f', fg='white', font=('Arial', 11), command=self._word_driver_mark_word_completed)
+        complete_btn.pack(side=tk.LEFT, padx=(6,0))
+        # Optional: one-click re-analysis entry for this word
+        try:
+            re_btn = tk.Button(btns, text="Re-Analyze…", bg='dark cyan', fg='white', font=('Arial', 11), command=lambda: self._open_reanalyze_selector(getattr(self, '_word_driver_word', '')))
+            re_btn.pack(side=tk.LEFT, padx=(6,0))
+            self._abw_reanalyze_btn = re_btn
+        except Exception:
+            pass
+
+        # Store refs for dynamic updates
+        self._abw_lbl = lbl
+        self._abw_next_btn = next_btn
+        self._abw_pause_btn = pause_btn
+        self._abw_complete_btn = complete_btn
+
+        def _update():
+            try:
+                total = len(getattr(self, '_word_driver_queue', []) or [])
+                idx = int(getattr(self, '_word_driver_index', 0))
+                paused = bool(getattr(self, '_word_driver_paused', False))
+                word = getattr(self, '_word_driver_word', '')
+                cur = min(idx + 1, total) if total else 0
+                status = 'Paused' if paused else 'Running'
+                self._abw_status_var.set(f"Word: {word}   |   {status}   |   Verse {cur}/{total}")
+                busy = bool(getattr(self, '_word_driver_in_progress', False))
+                try:
+                    self._abw_next_btn.config(state=tk.DISABLED if busy or paused else tk.NORMAL)
+                except Exception:
+                    pass
+                try:
+                    self._abw_pause_btn.config(text=("Resume" if paused else "Pause"))
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            # Re-schedule while window exists
+            try:
+                if win.winfo_exists():
+                    win.after(300, _update)
+            except Exception:
+                pass
+
+        # Kick the refresher loop
+        _update()
+
+    def show_assess_by_word_analyzer(self):
+        """Dedicated entrypoint for the Assess-by-Word analyzer window.
+
+        Internally reuses the Verse analyzer layout but augments it with
+        integrated driver controls when the word driver is active.
+        """
+        try:
+            self._assess_by_word_mode = True
+        except Exception:
+            pass
+        # Delegate to the shared analyzer builder
+        self.show_translation_input()
         win.transient(self.root)
         win.grab_set()
 
@@ -3675,6 +3817,12 @@ class GrammarApp:
                 finally:
                     try:
                         _orig_destroy()
+                    except Exception:
+                        pass
+                    # Reset Assess-by-Word mode flag when this analyzer window closes
+                    try:
+                        if getattr(self, '_assess_by_word_mode', False):
+                            self._assess_by_word_mode = False
                     except Exception:
                         pass
 
@@ -3711,6 +3859,14 @@ class GrammarApp:
                     self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
                 except Exception:
                     self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Attach integrated driver controls when Assess-by-Word is active
+        if is_abw:
+            try:
+                self._insert_abw_driver_controls(win)
+            except Exception:
+                # Non-fatal; continue without integrated controls
+                pass
 
         # - Heading -
         tk.Label(
