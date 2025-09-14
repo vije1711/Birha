@@ -5426,7 +5426,8 @@ class GrammarApp:
         num_opts  = sorted(df[_num_col].dropna().unique().tolist()) if _num_col else []
         gram_opts = sorted(df[_gram_col].dropna().unique().tolist()) if _gram_col else []
         gen_opts  = sorted(df[_gen_col].dropna().unique().tolist()) if _gen_col else []
-        pos_type = entry["Type"]
+        entry = getattr(self, "current_detailed_entry", {}) or {}
+        pos_type = str((entry.get("Type") if isinstance(entry, dict) else None) or pos or "")
 
         # Choose how to build root_opts based on whether it's a Noun
         if pos_type == "Noun / ਨਾਂਵ":
@@ -5552,9 +5553,9 @@ class GrammarApp:
 
         # 3) --------------  Five dropdowns  -------------------------
         self.detailed_ve_var      = tk.StringVar(value=self._norm_get(entry, "\ufeffVowel Ending"))
-        self.detailed_number_var  = tk.StringVar(value=entry["Number / ਵਚਨ"])
-        self.detailed_grammar_var = tk.StringVar(value=entry["Grammar / ਵਯਾਕਰਣ"])
-        self.detailed_gender_var  = tk.StringVar(value=entry["Gender / ਲਿੰਗ"])
+        self.detailed_number_var  = tk.StringVar(value=(entry.get(COL_NUMBER)  if isinstance(entry, dict) else None) or "NA")
+        self.detailed_grammar_var = tk.StringVar(value=(entry.get(COL_GRAMMAR) if isinstance(entry, dict) else None) or "")
+        self.detailed_gender_var  = tk.StringVar(value=(entry.get(COL_GENDER)  if isinstance(entry, dict) else None) or "NA")
         self.detailed_root_var    = tk.StringVar(value=entry["Word Root"])
 
         _add_dropdown(0, "Word Under Analysis:", self.detailed_ve_var, [word], colspan=2)
