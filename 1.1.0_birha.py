@@ -334,9 +334,9 @@ def load_predefined_keyset(csv_path: str = "1.1.1_birha.csv") -> set[tuple[str, 
 
     eval_col   = col("Evaluation")
     # Prefer Punjabi headers; accept both with/without "options"; fall back to legacy names
-    num_col    = col("Number / ਵਚਨ", "Number / ਵਚਨ options", "Number / ???", "Number")
-    gram_col   = col("Grammar / ਵਯਾਕਰਣ", "Grammar / ਵਯਾਕਰਣ options", "Grammar / ??????", "Grammar")
-    gen_col    = col("Gender / ਲਿੰਗ", "Gender / ਲਿੰਗ options", "Gender / ????", "Gender")
+    num_col    = col(COL_NUMBER, f"{COL_NUMBER} options", "Number / ਵਚਨ options", "Number / ਵਚਨ", "Number")
+    gram_col   = col(COL_GRAMMAR, f"{COL_GRAMMAR} options", "Grammar Case / ਵਯਾਕਰਣ options", "Grammar Case / ਵਯਾਕਰਣ", "Grammar")
+    gen_col    = col(COL_GENDER, f"{COL_GENDER} options", "Gender / ਲਿੰਗ options", "Gender / ਲਿੰਗ", "Gender")
     root_col   = col("Word Root", "Root")
     type_col   = col("Type", "Word Type")
 
@@ -379,6 +379,22 @@ except Exception:
 # Bottom padding (in pixels) to keep action buttons off the window edge.
 # Matches the gap used by user_input_grammar's bottom button row.
 BOTTOM_PAD = 46
+
+# Canonical column labels used across Verse and ABW flows
+COL_NUMBER  = "Number / ਵਚਨ"
+COL_GRAMMAR = "Grammar / ਵਯਾਕਰਣ"
+COL_GENDER  = "Gender / ਲਿੰਗ"
+
+def _resolve_col(df: pd.DataFrame, *candidates: str) -> str | None:
+    """Return the actual column name in df matching any of the candidate labels (case-insensitive)."""
+    if df is None or not hasattr(df, 'columns'):
+        return None
+    colmap = {str(c).strip().lower(): c for c in df.columns}
+    for c in candidates:
+        k = str(c).strip().lower()
+        if k in colmap:
+            return colmap[k]
+    return None
 
 def _dbg_autofill(self, msg: str):
     try:
@@ -1491,7 +1507,7 @@ class GrammarApp:
         except Exception:
             s = ""
         # strip danda/double-danda before split to avoid them as separate tokens
-        s = re.sub(r"[??]", "", s)
+        s = re.sub(r"[\u0964\u0965]", "", s)
         toks = []
         for raw in s.split():
             t = self._norm_tok(raw)
@@ -2007,6 +2023,8 @@ class GrammarApp:
                 start_now = True
             if start_now:
                 try:
+                    # Just close this modal; do NOT set suppression here.
+                    # Suppression is only used around ABW translation submit.
                     win.destroy()
                 except Exception:
                     pass
@@ -2093,7 +2111,7 @@ class GrammarApp:
             self._word_driver_index = 0
             self._word_driver_current_verse = None
 
-            self._word_driver_open_controller()
+            # Integrated driver controls are part of the ABW windows; no floating controller.
             # Open first verse immediately
             self._word_driver_open_current_verse()
         except Exception as e:
@@ -2155,6 +2173,28 @@ class GrammarApp:
                     pass
             if hasattr(self, '_driver_pause_btn') and self._driver_pause_btn.winfo_exists():
                 self._driver_pause_btn.config(text=("Resume" if paused else "Pause"))
+            # Update integrated ABW header controls if present
+            if hasattr(self, '_abw_driver_status_var') and isinstance(self._abw_driver_status_var, tk.StringVar):
+                try:
+                    self._abw_driver_status_var.set(txt)
+                except Exception:
+                    pass
+            busy = bool(getattr(self, '_word_driver_in_progress', False))
+            if hasattr(self, '_abw_driver_next_btn') and self._abw_driver_next_btn and self._abw_driver_next_btn.winfo_exists():
+                try:
+                    self._abw_driver_next_btn.config(state=tk.DISABLED if busy or paused or (total and (idx >= total)) else tk.NORMAL)
+                except Exception:
+                    pass
+            if hasattr(self, '_abw_driver_prev_btn') and self._abw_driver_prev_btn and self._abw_driver_prev_btn.winfo_exists():
+                try:
+                    self._abw_driver_prev_btn.config(state=tk.DISABLED if busy or paused or idx <= 0 else tk.NORMAL)
+                except Exception:
+                    pass
+            if hasattr(self, '_abw_driver_pause_btn') and self._abw_driver_pause_btn and self._abw_driver_pause_btn.winfo_exists():
+                try:
+                    self._abw_driver_pause_btn.config(text=("Resume" if paused else "Pause"))
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -2169,7 +2209,7 @@ class GrammarApp:
             pass
 
     def _word_driver_open_current_verse(self):
-        """Open the current verse in the Assess-by-Verse analyzer."""
+        """Open the current verse in the ABW analyzer (dedicated window)."""
         try:
             if getattr(self, '_word_driver_paused', False):
                 return
@@ -2190,9 +2230,9 @@ class GrammarApp:
             # flag busy and remember current
             self._word_driver_in_progress = True
             self._word_driver_current_verse = verse
-            # feed into Assess-by-Verse analyzer
+            # feed into Assess-by-Word analyzer
             self.selected_verse_text = verse
-            self.show_translation_input()
+            self.show_word_translation_input()
             self._word_driver_update_ui()
         except Exception as e:
             try:
@@ -3667,17 +3707,15 @@ class GrammarApp:
 
             def _driver_safe_destroy():
                 try:
-                    if getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
-                        try:
-                            self._word_driver_cancel_current()
-                        except Exception:
-                            pass
+                    if getattr(self, \u0027_abw_suppress_driver_cancel_once\u0027, False):
+                        try: self._abw_suppress_driver_cancel_once = False
+                        except Exception: pass
+                    elif getattr(self, \u0027_word_driver_active\u0027, False) and getattr(self, \u0027_word_driver_in_progress\u0027, False):
+                        try: self._word_driver_cancel_current()
+                        except Exception: pass
                 finally:
-                    try:
-                        _orig_destroy()
-                    except Exception:
-                        pass
-
+                    try: _orig_destroy()
+                    except Exception: pass
             win.destroy = _driver_safe_destroy
             try:
                 win.protocol("WM_DELETE_WINDOW", win.destroy)
@@ -3919,6 +3957,203 @@ class GrammarApp:
         if hasattr(self, '_translation_status_var'):
             self._translation_status_var.set(status if filled else "No structured data match found")
 
+    # ---------------------------
+    # Assess-by-Word: Dedicated translation/selection UI (no Verse deps)
+    # ---------------------------
+    def show_word_translation_input(self):
+        win = tk.Toplevel(self.root)
+        win.title("Assess by Word – Translation & Selection")
+        win.configure(bg='light gray')
+        # Taskbar-safe maximize with bottom margin and F11 toggle
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+
+        # Safe destroy cancels driver state if in-progress
+        try:
+            _orig_destroy = win.destroy
+            def _driver_safe_destroy():
+                try:
+                    if getattr(self, '_abw_suppress_driver_cancel_once', False):
+                        try:
+                            self._abw_suppress_driver_cancel_once = False
+                        except Exception:
+                            pass
+                    elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
+                finally:
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
+            win.destroy = _driver_safe_destroy
+            win.protocol("WM_DELETE_WINDOW", win.destroy)
+        except Exception:
+            pass
+
+        # Header with integrated driver controls
+        hdr = tk.Frame(win, bg='dark slate gray')
+        hdr.pack(fill=tk.X)
+        self._abw_driver_status_var = tk.StringVar(value="")
+        tk.Label(hdr, textvariable=self._abw_driver_status_var, font=("Arial", 12, 'bold'),
+                 bg='dark slate gray', fg='white').pack(side=tk.LEFT, padx=12, pady=8)
+        ctrls = tk.Frame(hdr, bg='dark slate gray')
+        ctrls.pack(side=tk.RIGHT, padx=8, pady=6)
+        # Prev/Next/Pause/Close
+        def _prev():
+            if getattr(self, '_word_driver_in_progress', False):
+                return
+            try:
+                if getattr(self, '_word_driver_index', 0) > 0:
+                    self._word_driver_index -= 1
+                    self._word_driver_update_ui()
+                    self._word_driver_open_current_verse()
+            except Exception:
+                pass
+        def _next():
+            if getattr(self, '_word_driver_in_progress', False):
+                return
+            try:
+                self._word_driver_open_current_verse()
+            except Exception:
+                pass
+        def _pause_toggle():
+            try:
+                self._word_driver_toggle_pause()
+            except Exception:
+                pass
+        self._abw_driver_prev_btn = tk.Button(ctrls, text="◀ Prev", bg='gray', fg='white', command=_prev)
+        self._abw_driver_prev_btn.pack(side=tk.LEFT, padx=(0,6))
+        self._abw_driver_next_btn = tk.Button(ctrls, text="Next ▶", bg='navy', fg='white', command=_next)
+        self._abw_driver_next_btn.pack(side=tk.LEFT, padx=(0,6))
+        self._abw_driver_pause_btn = tk.Button(ctrls, text="Pause", bg='#444', fg='white', command=_pause_toggle)
+        self._abw_driver_pause_btn.pack(side=tk.LEFT, padx=(0,6))
+        tk.Button(ctrls, text="Close", bg='#2f4f4f', fg='white', command=win.destroy).pack(side=tk.LEFT)
+        # Initialize status/enablement
+        try:
+            self._word_driver_update_ui()
+        except Exception:
+            pass
+
+        # Prefer a Gurmukhi-safe font for heading
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                for name in ['Nirmala UI','Raavi','Noto Sans Gurmukhi','Noto Serif Gurmukhi','GurbaniAkhar','AnmolLipi','Lohit Gurmukhi','Mukta Mahee','Saab','Gurmukhi MN']:
+                    if name in families:
+                        self._gurmukhi_font_family = name
+                        break
+                if not hasattr(self, '_gurmukhi_font_family'):
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Verse heading
+        tk.Label(
+            win,
+            text=self.selected_verse_text,
+            font=(self._gurmukhi_font_family, 20, 'bold'),
+            bg='light gray', wraplength=900, justify='center', pady=12
+        ).pack(fill=tk.X, padx=20, pady=(12,10))
+
+        content = tk.Frame(win, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Translation area
+        tf = tk.LabelFrame(content, text="Established Darpan Translation",
+                           font=("Arial", 14, 'bold'), bg='light gray', fg='black', padx=10, pady=5)
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+
+        text_container = tk.Frame(tf, bg='light gray')
+        text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_y = tk.Scrollbar(text_container, orient='vertical')
+        self._translation_text = tk.Text(text_container, wrap=tk.WORD,
+                                         font=(self._gurmukhi_font_family, 13),
+                                         height=10, padx=8, pady=12)
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+        status_row = tk.Frame(tf, bg='light gray')
+        status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6,0))
+        self._translation_status_var = tk.StringVar(value="Manual input")
+        tk.Label(status_row, textvariable=self._translation_status_var, bg='light gray', fg='#333', font=("Arial", 10, 'italic')).pack(side=tk.LEFT)
+        tk.Button(status_row, text="Refresh from Data", command=self._refresh_translation_from_data,
+                  bg='teal', fg='white', font=("Arial", 10)).pack(side=tk.RIGHT)
+
+        # Word selection area
+        wf = tk.LabelFrame(content, text="Select Words to Assess Grammar",
+                           font=("Arial", 14, 'bold'), bg='light gray', fg='black', padx=10, pady=10)
+        wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
+        self._select_all_words_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(wf, text="Select/Deselect All Words", variable=self._select_all_words_var,
+                       bg='light gray', font=("Arial", 12, 'italic'), command=self._toggle_all_word_selection).pack(anchor='w', pady=(0,10))
+        canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
+        canvas.configure(height=48)
+        scrollbar = tk.Scrollbar(wf, orient='horizontal', command=canvas.xview)
+        word_frame = tk.Frame(canvas, bg='light gray')
+        canvas.configure(xscrollcommand=scrollbar.set)
+        canvas.pack(side='top', fill='x', expand=False)
+        scrollbar.pack(side='top', fill='x')
+        canvas.create_window((0,0), window=word_frame, anchor='nw')
+        word_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+
+        self._word_selection_vars = []
+        verse_text = (self.selected_verse_text or '').split('\u0965', 1)[0].strip()
+        words = verse_text.split()
+        for i, w in enumerate(words):
+            var = tk.BooleanVar(value=False)
+            chk = tk.Checkbutton(word_frame, text=w, variable=var, bg='light gray', font=('Arial', 12), anchor='w', justify='left')
+            chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
+            self._word_selection_vars.append((var, w))
+
+        # Bottom buttons (consistent bottom spacing)
+        btn_frame = tk.Frame(win, bg='light gray')
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        tk.Button(btn_frame, text="Close", font=('Arial', 12), bg='gray', fg='white', command=win.destroy, padx=15, pady=8).pack(side=tk.LEFT)
+        tk.Button(btn_frame, text="Submit Translation →", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
+                  command=lambda: self._abw_on_translation_submitted(win), padx=15, pady=8).pack(side=tk.RIGHT)
+
+        # Prefill translation if possible
+        try:
+            filled, status = self._populate_translation_from_structured()
+            self._translation_status_var.set(status if filled else "Manual input")
+        except Exception:
+            pass
+
+        # Update driver controls state once laid out
+        try:
+            self._word_driver_update_ui()
+        except Exception:
+            pass
+
+    def _abw_on_translation_submitted(self, win):
+        # Equivalent to verse handler but ABW-only
+        text = self._translation_text.get("1.0", tk.END).strip()
+        if not text:
+            messagebox.showwarning("No Translation", "Please paste a translation before submitting.")
+            return
+        self.current_translation = text
+        selected_idxs = [idx for idx, (var, _) in enumerate(self._word_selection_vars) if var.get()]
+        if not selected_idxs:
+            messagebox.showwarning("Nothing Selected", "Please select at least one word to assess.")
+            return
+        self._selected_word_indices = selected_idxs
+        try:
+            self._abw_suppress_driver_cancel_once = True
+            win.destroy()
+        except Exception:
+            pass
+        self.abw_initialize_grammar_queue()
+
     def proceed_to_word_assessment(self, idx):
         """Proceed only if there are results and a valid selected index; otherwise prompt the user."""
         results = getattr(self, "_last_filtered", [])
@@ -4023,13 +4258,34 @@ class GrammarApp:
         # **IMMEDIATELY** start your per-word flow
         self.process_next_word_assessment()
 
+    # ABW-only: queue initializer and driver
+    def abw_initialize_grammar_queue(self):
+        """ABW: Build grammar queue from selected word indices and start first word (ABW UI only)."""
+        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        words = verse_text.split()
+        selected_indices = getattr(self, '_selected_word_indices', [])
+        self.grammar_queue = [(i, words[i]) for i in selected_indices if 0 <= i < len(words)]
+        self.grammar_meanings = []
+        self.current_queue_pos = 0
+        if not self.grammar_queue:
+            messagebox.showinfo("Nothing Selected", "You didn't select any words for grammar assessment.")
+            return
+        self.abw_process_next_word_assessment()
+
+    def abw_process_next_word_assessment(self):
+        if self.current_queue_pos >= len(self.grammar_queue):
+            return self.finish_and_prompt_save()
+        idx, word = self.grammar_queue[self.current_queue_pos]
+        self.current_word_index = idx
+        self.user_input_grammar_for_word(word, self.current_translation, idx)
+
     def _toggle_all_word_selection(self):
         """Called by the top ‘Select/Deselect All Words’ checkbox."""
         val = self._select_all_words_var.get()
         for var, _ in getattr(self, "_word_selection_vars", []):
             var.set(val)
 
-    def user_input_grammar(self, word, translation, index):
+    def _user_input_grammar_impl(self, word, translation, index):
         """
         Pop up a window to collect grammar info for one word:
         - shows full verse with the `index`th word highlighted
@@ -4652,6 +4908,353 @@ class GrammarApp:
         win.grab_set()
         self.root.wait_window(win)
 
+    def _build_user_input_grammar(self, win, *, word, translation, index, mode):
+        """Shared builder for the per-word Grammar UI. Does not start a mainloop.
+
+        Returns (win, ctx) where ctx exposes key widgets for callers to tweak.
+        mode in {"verse", "word"} controls small call-site differences (e.g., back button).
+        """
+        # Stash current mode so skip/advance chooses correct queue handler
+        try:
+            self._current_grammar_mode = mode
+        except Exception:
+            pass
+        win.configure(bg='light gray')
+        win.resizable(True, True)
+
+        # 1) Verse display + highlight (use Gurmukhi-safe font + metrics padding)
+        vf = tk.Frame(win, bg='light gray')
+        vf.pack(fill=tk.X, padx=20, pady=(20,10))
+
+        # Reuse or compute a Gurmukhi-safe font family (shared with translation input)
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Construct fonts for the verse and highlight (persist to avoid GC fallback)
+        if not hasattr(self, '_verse_font'):
+            self._verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
+        if not hasattr(self, '_verse_font_bold'):
+            self._verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
+
+        # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
+        try:
+            ascent = int(self._verse_font.metrics('ascent') or 0)
+            descent = int(self._verse_font.metrics('descent') or 0)
+        except Exception:
+            ascent = descent = 0
+        pad_top = int(math.ceil(ascent * 0.25))
+        pad_bottom = int(math.ceil(descent * 0.35))
+
+        # Text widget for the verse (centered, word-wrap), with internal padding and external pady
+        td = tk.Text(
+            vf,
+            wrap=tk.WORD,
+            bg='light gray',
+            font=self._verse_font,
+            height=1,
+            bd=0,
+            padx=4,
+            pady=max(2, int(math.ceil(max(ascent, descent) * 0.15)))
+        )
+        td.pack(fill=tk.X, pady=(pad_top, pad_bottom))
+        td.insert('1.0', self.selected_verse_text)
+        td.tag_add('center', '1.0', 'end')
+        td.tag_configure('center', justify='center')
+
+        # highlight the word
+        try:
+            words = self.selected_verse_text.split()
+            start = sum(len(w)+1 for w in words[:index])
+            end   = start + len(words[index])
+            td.tag_add('highlight', f'1.{start}', f'1.{end}')
+            td.tag_configure('highlight', font=self._verse_font_bold, foreground='blue')
+        except Exception:
+            pass
+        td.config(state=tk.DISABLED)
+
+        # Keep text wrapping responsive to window width
+        def _sync_text_width(evt):
+            try:
+                avg_px = max(1, int(self._verse_font.measure('0') or 8))
+                width_chars = max(20, int((evt.width - 40) / avg_px))
+                td.configure(width=width_chars)
+            except Exception:
+                pass
+        try:
+            win.bind('<Configure>', _sync_text_width, add='+')
+        except Exception:
+            pass
+
+        # 2) Translation LabelFrame (taller; expands with window)
+        tf = tk.LabelFrame(win, text="Darpan Translation",
+                           font=('Arial',16,'bold'),
+                           bg='light gray', fg='black',
+                           padx=10, pady=10)
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+        trans = tk.Text(tf, wrap=tk.WORD, font=('Arial',14), height=6, bd=0)
+        trans.insert('1.0', translation)
+        trans.config(state=tk.DISABLED)
+        trans.pack(fill=tk.BOTH, expand=True)
+
+        # Prepare vars for grammar options
+        self.number_var = tk.StringVar(value="NA")
+        self.gender_var = tk.StringVar(value="NA")
+        self.pos_var    = tk.StringVar(value="NA")
+
+        # 3+4) Stack: meanings (wide) above options (wide)
+        stack = tk.Frame(win, bg='light gray')
+        stack.pack(fill=tk.X, padx=20, pady=(0,15))
+
+        # Meanings
+        left = tk.LabelFrame(
+            stack,
+            text=f"Meanings for \u201c{word}\u201d",
+            font=('Arial',16,'bold'),
+            bg='light gray', fg='black',
+            padx=10, pady=10
+        )
+        left.pack(fill=tk.X, expand=False)
+        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0, height=200)
+        scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
+        self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        self.meanings_canvas.pack(side='left', fill='both', expand=True)
+        self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
+        self.meanings_canvas.create_window((0,0), window=self.meanings_inner_frame, anchor='nw')
+        self.meanings_inner_frame.bind("<Configure>", lambda e: self.meanings_canvas.configure(scrollregion=self.meanings_canvas.bbox("all")))
+        self.current_word = word
+        threading.Thread(target=lambda: self.lookup_grammar_meanings_thread(word), daemon=True).start()
+
+        # Options
+        right = tk.LabelFrame(
+            stack,
+            text="Select Grammar Options",
+            font=("Arial", 16, "bold"),
+            bg="light gray", fg="black",
+            padx=10, pady=10
+        )
+        right.pack(fill=tk.X, expand=False, pady=(8, 0))
+        grp_row = tk.Frame(right, bg="light gray")
+        grp_row.pack(fill=tk.X)
+        for c in range(3):
+            grp_row.grid_columnconfigure(c, weight=1)
+
+        # Number
+        num_frame = tk.LabelFrame(grp_row, text="Number",
+                                  font=("Arial", 14, "bold"),
+                                  bg="light gray", padx=8, pady=8)
+        num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
+        for txt, val in [("Singular","Singular / ??"),("Plural","Plural / ???"),("Unknown","NA")]:
+            tk.Radiobutton(
+                num_frame, text=txt, variable=self.number_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).pack(anchor="w", pady=2)
+
+        # Gender (two columns)
+        gend_frame = tk.LabelFrame(grp_row, text="Gender",
+                                   font=("Arial", 14, "bold"),
+                                   bg="light gray", padx=8, pady=8)
+        gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
+        gends = [("Masculine","Masculine / ??????"),("Feminine","Feminine / ?????"),("Neuter","Trans / ??????"),("Unknown","NA")]
+        gf_col1 = tk.Frame(gend_frame, bg="light gray")
+        gf_col2 = tk.Frame(gend_frame, bg="light gray")
+        gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
+        gf_col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
+        half = (len(gends)+1)//2
+        for i, (txt, val) in enumerate(gends):
+            parent = gf_col1 if i < half else gf_col2
+            tk.Radiobutton(
+                parent, text=txt, variable=self.gender_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).pack(anchor="w", pady=2)
+
+        # POS
+        pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
+                                  font=("Arial", 14, "bold"),
+                                  bg="light gray", padx=8, pady=8)
+        pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
+        pos_choices = [("Noun","Noun / ????"),("Adjective","Adjectives / ??????"),("Adverb","Adverb / ????? ??????"),
+                       ("Verb","Verb / ?????"),("Pronoun","Pronoun / ??????"),("Postposition","Postposition / ??????"),
+                       ("Conjunction","Conjunction / ????"),("Interjection","Interjection / ??????"),("Unknown","NA")]
+        pos_rows = 2
+        pos_cols = -(-len(pos_choices) // pos_rows)
+        for i, (txt, val) in enumerate(pos_choices):
+            r = i % pos_rows
+            c = i // pos_rows
+            tk.Radiobutton(
+                pos_frame, text=txt, variable=self.pos_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+        for c in range(pos_cols):
+            pos_frame.grid_columnconfigure(c, weight=1)
+
+        # Expert-prompt builder
+        def ask_suggestion():
+            verse = self.selected_verse_text
+            trans = self.current_translation
+            w     = self.current_word
+            num   = self.number_var.get() or "-"
+            gen   = self.gender_var.get() or "-"
+            pos   = self.pos_var.get()    or "-"
+            prior = ""
+            try:
+                search_num = self.number_var.get(); search_gen = self.gender_var.get(); search_pos = self.pos_var.get()
+                if search_num == "NA" and search_gen == "NA" and search_pos == "NA":
+                    matches = self.search_by_inflections(w)
+                else:
+                    matches = self.search_by_criteria(w, search_num, search_gen, search_pos) or self.search_by_inflections(w)
+                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
+                rows = []
+                for result, _count, _perc in matches:
+                    parts = [p.strip() for p in result.split("|")]
+                    if len(parts) < 7: parts += [""] * (7 - len(parts))
+                    try:
+                        key = tuple((parts[i] or "").strip() for i in (2,3,4,5,6))
+                    except Exception:
+                        key = ("") * 5
+                    if key not in pre_keys: continue
+                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
+                    if highlight:
+                        parts = [f"**{p}**" for p in parts]
+                        parts[0] = "? " + parts[0]
+                    rows.append(
+                        "| " + " | ".join(parts + [str(_count), f"{_perc:.1f}%"]) + " |"
+                    )
+                    if len(rows) >= 5: break
+                if rows:
+                    prior = (
+                        "\n\n**Top Predefined Grammar Matches (from Birha CSV):**\n\n"
+                        "| Word | Matched Token | Number | Gender | Grammar | Root | Type | Count | Frequency |\n"
+                        "|------|----------------|--------|--------|---------|------|------|-------:|----------:|\n"
+                        + "\n".join(rows) + "\n\n"
+                    )
+            except Exception:
+                prior = ""
+            prompt = f"""
+            You are a Gurbani grammar expert. Given the verse and Darpan translation, help decide the grammar for the highlighted word.
+
+            ### Verse
+            {verse}
+
+            ### Darpan Translation (condensed)
+            {extract_darpan_translation(trans)}
+
+            ### Target Word
+            - Word: {w}
+            - Number: {num}
+            - Gender: {gen}
+            - Part of Speech: {pos}
+
+            {prior}
+
+            ### Guidance
+            1. Consider whether the word is a Noun, Pronoun, Adjective, Adverb, Verb, Postposition, Conjunction, or Interjection.
+            2. If Noun/Pronoun: infer the correct case (e.g., genitive, instrumental, dative, locative, ablative) from gloss clues like "of", "by/with", "to/for", "in/on/at", "from".
+            3. If Adjective: ensure it matches the qualified noun/pronoun in Number and Gender; avoid misclassification of indeclinable nouns.
+            4. Keep output concise and evidence-based from the gloss.
+            """.strip()
+            self.root.clipboard_clear(); self.root.clipboard_append(prompt)
+            messagebox.showinfo(
+                "Prompt Ready",
+                "Expert-level prompt (with secondary dictionary meanings) has been copied to your clipboard.\n"
+                "Paste it into ChatGPT for its recommendation."
+            )
+
+        # Bottom separator + buttons
+        sep = tk.Frame(win, bg='#cccccc', height=2)
+        sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        back_btn_text = "< Back to Translation" if mode == "verse" else "< Back to ABW Translation"
+        back_cmd = (lambda: [win.destroy(), self.show_translation_input()]) if mode == "verse" else (lambda: [win.destroy(), self.show_word_translation_input()])
+        back_btn = tk.Button(btns, text=back_btn_text, font=('Arial',12), bg='gray', fg='white', padx=20, pady=8, command=back_cmd)
+        back_btn.pack(side=tk.LEFT)
+        skip_btn = tk.Button(btns, text="Skip Word", font=('Arial',12), bg='orange', fg='white', padx=20, pady=8, command=lambda: self.skip_word_grammar(win))
+        skip_btn.pack(side=tk.LEFT, padx=10)
+        prompt_btn = tk.Button(btns, text="?? Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
+        prompt_btn.pack(side=tk.LEFT, padx=10)
+        # Route submit to the appropriate handler per mode to avoid Verse dependencies in ABW
+        submit_handler = (lambda: self.submit_input_grammar(word, index)) if mode == "verse" else (lambda: self.submit_input_grammar_for_word(word, index))
+        submit_btn = tk.Button(btns, text="Submit", font=('Arial',12,'bold'), bg='dark cyan', fg='white', padx=20, pady=8, command=submit_handler)
+        submit_btn.pack(side=tk.RIGHT)
+
+        ctx = {"verse_text": td, "translation_text": trans, "back_button": back_btn, "skip_button": skip_btn,
+               "prompt_button": prompt_btn, "submit_button": submit_btn, "mode": mode}
+        return win, ctx
+
+    def user_input_grammar(self, word, translation, index):
+        """Verse entry: build shared UI and run modally (unchanged behavior)."""
+        win = tk.Toplevel(self.root)
+        win.title(f"Assess Grammar: {word}")
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        try:
+            self.current_translation = translation
+        except Exception:
+            pass
+        self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="verse")
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        self.root.wait_window(win)
+
+    def user_input_grammar_for_word(self, word, translation, index):
+        """ABW entry point: build and show per-word grammar UI as a modal.
+
+        - Sets ABW-specific title
+        - Taskbar-safe maximize + F11 toggle
+        - Modal via transient + grab_set
+        - Self-contained; does not call Verse UI handlers
+        """
+        win = tk.Toplevel(self.root)
+        win.title(f"Assess by Word – Grammar: {word}")
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        try:
+            self.current_translation = translation
+        except Exception:
+            pass
+        self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="word")
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        def _on_close():
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+        try:
+            win.protocol('WM_DELETE_WINDOW', _on_close)
+        except Exception:
+            pass
+        self.root.wait_window(win)
+
     def skip_word_grammar(self, win):
         """Skip grammar assessment for the current word and advance to the next."""
         try:
@@ -4670,7 +5273,11 @@ class GrammarApp:
 
         try:
             self.current_queue_pos += 1
-            self.process_next_word_assessment()
+            is_abw = (getattr(self, '_current_grammar_mode', 'verse') == 'word') or (getattr(self, '_current_detailed_mode', 'verse') == 'word')
+            if is_abw:
+                self.abw_process_next_word_assessment()
+            else:
+                self.process_next_word_assessment()
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while skipping: {e}")
 
@@ -4769,32 +5376,64 @@ class GrammarApp:
         # 5) Store it so the next window can read & update it:
         self.current_detailed_entry = entry
 
-        # 6) Hand off to your dropdown‐UI:
+        # 6) Hand off to your dropdown-UI (Verse wrapper):
         self.open_final_grammar_dropdown(word, entry["Type"], index)
+
+    def submit_input_grammar_for_word(self, word, index):
+        """ABW: Collect grammar input and transition to ABW dropdown (no Verse dependency)."""
+        number = self.number_var.get()
+        gender = self.gender_var.get()
+        pos    = self.pos_var.get()
+        verse            = self.selected_verse_text
+        raw_translation  = self.current_translation
+        translation      = extract_darpan_translation(raw_translation)
+        meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
+        entry = {
+            "Vowel Ending":       word,
+            COL_NUMBER:            number,
+            COL_GRAMMAR:           "",
+            COL_GENDER:            gender,
+            "Word Root":           "",
+            "Type":                pos,
+            "Evaluation":          "Derived",
+            "Reference Verse":     verse,
+            "Darpan Translation":  translation,
+            "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
+            "ChatGPT Commentary":  "",
+            "Word Index":          int(index) if index is not None else ""
+        }
+        self.current_detailed_entry = entry
+        self.open_final_grammar_dropdown_for_word(word, entry["Type"], index)
 
     # ────────────────────────────────────────────────────────────────
     # MAIN METHOD  –  drop-in replacement
     # ────────────────────────────────────────────────────────────────
-    def open_final_grammar_dropdown(self, word, pos, index):
+    def _open_final_grammar_dropdown_common(self, word, pos, index, mode: str = "verse"):
         """
         After the user has chosen a Part-of-Speech, pop up a Toplevel
         with dropdowns for the detailed grammar fields _and_ a place
-        to paste ChatGPT’s commentary.
+        to paste ChatGPT's commentary.
         """
+        # Stash mode for save-phase routing (ABW vs Verse)
+        try:
+            self._current_detailed_mode = mode
+        except Exception:
+            pass
 
         # 1) --------------  Load & filter your CSV  -----------------
         self.grammar_db = pd.read_csv("1.1.1_birha.csv")
         df = self.grammar_db[self.grammar_db["Type"] == pos]
 
         # option lists
-        num_opts  = sorted(df["Number / ਵਚਨ"].dropna().unique().tolist())
-        gram_opts = sorted(df["Grammar / ਵਯਾਕਰਣ"].dropna().unique().tolist())
-        gen_opts  = sorted(df["Gender / ਲਿੰਗ"].dropna().unique().tolist())
-        
-        # pull the saved entry first
-        entry = self.current_detailed_entry
-        # Extract the POS type
-        pos_type = entry["Type"]
+        # option lists (resolve actual headers robustly)
+        _num_col  = _resolve_col(df, COL_NUMBER, 'Number / ਵਚਨ', 'Number')
+        _gram_col = _resolve_col(df, COL_GRAMMAR, 'Grammar / ਵਯਾਕਰਣ', 'Grammar Case / ਵਯਾਕਰਣ', 'Grammar')
+        _gen_col  = _resolve_col(df, COL_GENDER, 'Gender / ਲਿੰਗ', 'Gender')
+        num_opts  = sorted(df[_num_col].dropna().unique().tolist()) if _num_col else []
+        gram_opts = sorted(df[_gram_col].dropna().unique().tolist()) if _gram_col else []
+        gen_opts  = sorted(df[_gen_col].dropna().unique().tolist()) if _gen_col else []
+        entry = getattr(self, "current_detailed_entry", {}) or {}
+        pos_type = str((entry.get("Type") if isinstance(entry, dict) else None) or pos or "")
 
         # Choose how to build root_opts based on whether it's a Noun
         if pos_type == "Noun / ਨਾਂਵ":
@@ -4920,9 +5559,9 @@ class GrammarApp:
 
         # 3) --------------  Five dropdowns  -------------------------
         self.detailed_ve_var      = tk.StringVar(value=self._norm_get(entry, "\ufeffVowel Ending"))
-        self.detailed_number_var  = tk.StringVar(value=entry["Number / ਵਚਨ"])
-        self.detailed_grammar_var = tk.StringVar(value=entry["Grammar / ਵਯਾਕਰਣ"])
-        self.detailed_gender_var  = tk.StringVar(value=entry["Gender / ਲਿੰਗ"])
+        self.detailed_number_var  = tk.StringVar(value=(entry.get(COL_NUMBER)  if isinstance(entry, dict) else None) or "NA")
+        self.detailed_grammar_var = tk.StringVar(value=(entry.get(COL_GRAMMAR) if isinstance(entry, dict) else None) or "")
+        self.detailed_gender_var  = tk.StringVar(value=(entry.get(COL_GENDER)  if isinstance(entry, dict) else None) or "NA")
         self.detailed_root_var    = tk.StringVar(value=entry["Word Root"])
 
         _add_dropdown(0, "Word Under Analysis:", self.detailed_ve_var, [word], colspan=2)
@@ -6239,6 +6878,13 @@ class GrammarApp:
 
 
 
+
+    # Wrappers for Verse and ABW to avoid cross-calling
+    def open_final_grammar_dropdown(self, word, pos, index):
+        return self._open_final_grammar_dropdown_common(word, pos, index, mode='verse')
+
+    def open_final_grammar_dropdown_for_word(self, word, pos, index):
+        return self._open_final_grammar_dropdown_common(word, pos, index, mode='word')
     def on_accept_detailed_grammar(self, win):
         """Finalize the detailed grammar selection and append a row to 1.1.1_birha.csv.
         This is called by the 'Save & Finish' button in the detailed grammar dialog.
@@ -6299,7 +6945,11 @@ class GrammarApp:
                     # advance in the selected-words queue if that flow is active
                     if hasattr(self, 'grammar_queue'):
                         self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
-                        self.process_next_word_assessment()
+                        is_abw = (getattr(self, '_current_detailed_mode', 'verse') == 'word') or (getattr(self, '_current_grammar_mode', 'verse') == 'word')
+                        if is_abw:
+                            self.abw_process_next_word_assessment()
+                        else:
+                            self.process_next_word_assessment()
                 except Exception:
                     pass
 
