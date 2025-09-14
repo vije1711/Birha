@@ -4029,7 +4029,7 @@ class GrammarApp:
         for var, _ in getattr(self, "_word_selection_vars", []):
             var.set(val)
 
-    def user_input_grammar(self, word, translation, index):
+    def _user_input_grammar_impl(self, word, translation, index):
         """
         Pop up a window to collect grammar info for one word:
         - shows full verse with the `index`th word highlighted
@@ -4650,6 +4650,346 @@ class GrammarApp:
         # Modal
         win.transient(self.root)
         win.grab_set()
+        self.root.wait_window(win)
+
+    def _build_user_input_grammar(self, win, *, word, translation, index, mode):
+        """Shared builder for the per-word Grammar UI. Does not start a mainloop.
+
+        Returns (win, ctx) where ctx exposes key widgets for callers to tweak.
+        mode in {"verse", "word"} controls small call-site differences (e.g., back button).
+        """
+        win.configure(bg='light gray')
+        win.resizable(True, True)
+
+        # 1) Verse display + highlight (use Gurmukhi-safe font + metrics padding)
+        vf = tk.Frame(win, bg='light gray')
+        vf.pack(fill=tk.X, padx=20, pady=(20,10))
+
+        # Reuse or compute a Gurmukhi-safe font family (shared with translation input)
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Construct fonts for the verse and highlight (persist to avoid GC fallback)
+        if not hasattr(self, '_verse_font'):
+            self._verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
+        if not hasattr(self, '_verse_font_bold'):
+            self._verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
+
+        # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
+        try:
+            ascent = int(self._verse_font.metrics('ascent') or 0)
+            descent = int(self._verse_font.metrics('descent') or 0)
+        except Exception:
+            ascent = descent = 0
+        pad_top = int(math.ceil(ascent * 0.25))
+        pad_bottom = int(math.ceil(descent * 0.35))
+
+        # Text widget for the verse (centered, word-wrap), with internal padding and external pady
+        td = tk.Text(
+            vf,
+            wrap=tk.WORD,
+            bg='light gray',
+            font=self._verse_font,
+            height=1,
+            bd=0,
+            padx=4,
+            pady=max(2, int(math.ceil(max(ascent, descent) * 0.15)))
+        )
+        td.pack(fill=tk.X, pady=(pad_top, pad_bottom))
+        td.insert('1.0', self.selected_verse_text)
+        td.tag_add('center', '1.0', 'end')
+        td.tag_configure('center', justify='center')
+
+        # highlight the word
+        try:
+            words = self.selected_verse_text.split()
+            start = sum(len(w)+1 for w in words[:index])
+            end   = start + len(words[index])
+            td.tag_add('highlight', f'1.{start}', f'1.{end}')
+            td.tag_configure('highlight', font=self._verse_font_bold, foreground='blue')
+        except Exception:
+            pass
+        td.config(state=tk.DISABLED)
+
+        # Keep text wrapping responsive to window width
+        def _sync_text_width(evt):
+            try:
+                avg_px = max(1, int(self._verse_font.measure('0') or 8))
+                width_chars = max(20, int((evt.width - 40) / avg_px))
+                td.configure(width=width_chars)
+            except Exception:
+                pass
+        try:
+            win.bind('<Configure>', _sync_text_width, add='+')
+        except Exception:
+            pass
+
+        # 2) Translation LabelFrame (taller; expands with window)
+        tf = tk.LabelFrame(win, text="Darpan Translation",
+                           font=('Arial',16,'bold'),
+                           bg='light gray', fg='black',
+                           padx=10, pady=10)
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+        trans = tk.Text(tf, wrap=tk.WORD, font=('Arial',14), height=6, bd=0)
+        trans.insert('1.0', translation)
+        trans.config(state=tk.DISABLED)
+        trans.pack(fill=tk.BOTH, expand=True)
+
+        # Prepare vars for grammar options
+        self.number_var = tk.StringVar(value="NA")
+        self.gender_var = tk.StringVar(value="NA")
+        self.pos_var    = tk.StringVar(value="NA")
+
+        # 3+4) Stack: meanings (wide) above options (wide)
+        stack = tk.Frame(win, bg='light gray')
+        stack.pack(fill=tk.X, padx=20, pady=(0,15))
+
+        # Meanings
+        left = tk.LabelFrame(
+            stack,
+            text=f"Meanings for \u201c{word}\u201d",
+            font=('Arial',16,'bold'),
+            bg='light gray', fg='black',
+            padx=10, pady=10
+        )
+        left.pack(fill=tk.X, expand=False)
+        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0, height=200)
+        scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
+        self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        self.meanings_canvas.pack(side='left', fill='both', expand=True)
+        self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
+        self.meanings_canvas.create_window((0,0), window=self.meanings_inner_frame, anchor='nw')
+        self.meanings_inner_frame.bind("<Configure>", lambda e: self.meanings_canvas.configure(scrollregion=self.meanings_canvas.bbox("all")))
+        self.current_word = word
+        threading.Thread(target=lambda: self.lookup_grammar_meanings_thread(word), daemon=True).start()
+
+        # Options
+        right = tk.LabelFrame(
+            stack,
+            text="Select Grammar Options",
+            font=("Arial", 16, "bold"),
+            bg="light gray", fg="black",
+            padx=10, pady=10
+        )
+        right.pack(fill=tk.X, expand=False, pady=(8, 0))
+        grp_row = tk.Frame(right, bg="light gray")
+        grp_row.pack(fill=tk.X)
+        for c in range(3):
+            grp_row.grid_columnconfigure(c, weight=1)
+
+        # Number
+        num_frame = tk.LabelFrame(grp_row, text="Number",
+                                  font=("Arial", 14, "bold"),
+                                  bg="light gray", padx=8, pady=8)
+        num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
+        for txt, val in [("Singular","Singular / ??"),("Plural","Plural / ???"),("Unknown","NA")]:
+            tk.Radiobutton(
+                num_frame, text=txt, variable=self.number_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).pack(anchor="w", pady=2)
+
+        # Gender (two columns)
+        gend_frame = tk.LabelFrame(grp_row, text="Gender",
+                                   font=("Arial", 14, "bold"),
+                                   bg="light gray", padx=8, pady=8)
+        gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
+        gends = [("Masculine","Masculine / ??????"),("Feminine","Feminine / ?????"),("Neuter","Trans / ??????"),("Unknown","NA")]
+        gf_col1 = tk.Frame(gend_frame, bg="light gray")
+        gf_col2 = tk.Frame(gend_frame, bg="light gray")
+        gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
+        gf_col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
+        half = (len(gends)+1)//2
+        for i, (txt, val) in enumerate(gends):
+            parent = gf_col1 if i < half else gf_col2
+            tk.Radiobutton(
+                parent, text=txt, variable=self.gender_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).pack(anchor="w", pady=2)
+
+        # POS
+        pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
+                                  font=("Arial", 14, "bold"),
+                                  bg="light gray", padx=8, pady=8)
+        pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
+        pos_choices = [("Noun","Noun / ????"),("Adjective","Adjectives / ??????"),("Adverb","Adverb / ????? ??????"),
+                       ("Verb","Verb / ?????"),("Pronoun","Pronoun / ??????"),("Postposition","Postposition / ??????"),
+                       ("Conjunction","Conjunction / ????"),("Interjection","Interjection / ??????"),("Unknown","NA")]
+        pos_rows = 2
+        pos_cols = -(-len(pos_choices) // pos_rows)
+        for i, (txt, val) in enumerate(pos_choices):
+            r = i % pos_rows
+            c = i // pos_rows
+            tk.Radiobutton(
+                pos_frame, text=txt, variable=self.pos_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+        for c in range(pos_cols):
+            pos_frame.grid_columnconfigure(c, weight=1)
+
+        # Expert-prompt builder
+        def ask_suggestion():
+            verse = self.selected_verse_text
+            trans = self.current_translation
+            w     = self.current_word
+            num   = self.number_var.get() or "-"
+            gen   = self.gender_var.get() or "-"
+            pos   = self.pos_var.get()    or "-"
+            prior = ""
+            try:
+                search_num = self.number_var.get(); search_gen = self.gender_var.get(); search_pos = self.pos_var.get()
+                if search_num == "NA" and search_gen == "NA" and search_pos == "NA":
+                    matches = self.search_by_inflections(w)
+                else:
+                    matches = self.search_by_criteria(w, search_num, search_gen, search_pos) or self.search_by_inflections(w)
+                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
+                rows = []
+                for result, _count, _perc in matches:
+                    parts = [p.strip() for p in result.split("|")]
+                    if len(parts) < 7: parts += [""] * (7 - len(parts))
+                    try:
+                        key = tuple((parts[i] or "").strip() for i in (2,3,4,5,6))
+                    except Exception:
+                        key = ("") * 5
+                    if key not in pre_keys: continue
+                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
+                    if highlight:
+                        parts = [f"**{p}**" for p in parts]
+                        parts[0] = "? " + parts[0]
+                    rows.append(
+                        "| " + " | ".join(parts + [str(_count), f"{_perc:.1f}%"]) + " |"
+                    )
+                    if len(rows) >= 5: break
+                if rows:
+                    prior = (
+                        "\n\n**Top Predefined Grammar Matches (from Birha CSV):**\n\n"
+                        "| Word | Matched Token | Number | Gender | Grammar | Root | Type | Count | Frequency |\n"
+                        "|------|----------------|--------|--------|---------|------|------|-------:|----------:|\n"
+                        + "\n".join(rows) + "\n\n"
+                    )
+            except Exception:
+                prior = ""
+            prompt = f"""
+            You are a Gurbani grammar expert. Given the verse and Darpan translation, help decide the grammar for the highlighted word.
+
+            ### Verse
+            {verse}
+
+            ### Darpan Translation (condensed)
+            {extract_darpan_translation(trans)}
+
+            ### Target Word
+            - Word: {w}
+            - Number: {num}
+            - Gender: {gen}
+            - Part of Speech: {pos}
+
+            {prior}
+
+            ### Guidance
+            1. Consider whether the word is a Noun, Pronoun, Adjective, Adverb, Verb, Postposition, Conjunction, or Interjection.
+            2. If Noun/Pronoun: infer the correct case (e.g., genitive, instrumental, dative, locative, ablative) from gloss clues like "of", "by/with", "to/for", "in/on/at", "from".
+            3. If Adjective: ensure it matches the qualified noun/pronoun in Number and Gender; avoid misclassification of indeclinable nouns.
+            4. Keep output concise and evidence-based from the gloss.
+            """.strip()
+            self.root.clipboard_clear(); self.root.clipboard_append(prompt)
+            messagebox.showinfo(
+                "Prompt Ready",
+                "Expert-level prompt (with secondary dictionary meanings) has been copied to your clipboard.\n"
+                "Paste it into ChatGPT for its recommendation."
+            )
+
+        # Bottom separator + buttons
+        sep = tk.Frame(win, bg='#cccccc', height=2)
+        sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        back_btn_text = "< Back to Translation" if mode == "verse" else "Cancel"
+        back_cmd = (lambda: [win.destroy(), self.show_translation_input()]) if mode == "verse" else (lambda: win.destroy())
+        back_btn = tk.Button(btns, text=back_btn_text, font=('Arial',12), bg='gray', fg='white', padx=20, pady=8, command=back_cmd)
+        back_btn.pack(side=tk.LEFT)
+        skip_btn = tk.Button(btns, text="Skip Word", font=('Arial',12), bg='orange', fg='white', padx=20, pady=8, command=lambda: self.skip_word_grammar(win))
+        skip_btn.pack(side=tk.LEFT, padx=10)
+        prompt_btn = tk.Button(btns, text="?? Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
+        prompt_btn.pack(side=tk.LEFT, padx=10)
+        submit_btn = tk.Button(btns, text="Submit", font=('Arial',12,'bold'), bg='dark cyan', fg='white', padx=20, pady=8, command=lambda: self.submit_input_grammar(word, index))
+        submit_btn.pack(side=tk.RIGHT)
+
+        ctx = {"verse_text": td, "translation_text": trans, "back_button": back_btn, "skip_button": skip_btn,
+               "prompt_button": prompt_btn, "submit_button": submit_btn, "mode": mode}
+        return win, ctx
+
+    def user_input_grammar(self, word, translation, index):
+        """Verse entry: build shared UI and run modally (unchanged behavior)."""
+        win = tk.Toplevel(self.root)
+        win.title(f"Assess Grammar: {word}")
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        try:
+            self.current_translation = translation
+        except Exception:
+            pass
+        self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="verse")
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        self.root.wait_window(win)
+
+    def user_input_grammar_for_word(self, word, translation, index):
+        """ABW entry point: build and show per-word grammar UI as a modal.
+
+        - Sets ABW-specific title
+        - Taskbar-safe maximize + F11 toggle
+        - Modal via transient + grab_set
+        - Self-contained; does not call Verse UI handlers
+        """
+        win = tk.Toplevel(self.root)
+        win.title(f"Assess by Word – Grammar: {word}")
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        try:
+            self.current_translation = translation
+        except Exception:
+            pass
+        self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="word")
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        def _on_close():
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+        try:
+            win.protocol('WM_DELETE_WINDOW', _on_close)
+        except Exception:
+            pass
         self.root.wait_window(win)
 
     def skip_word_grammar(self, win):
