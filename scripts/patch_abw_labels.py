@@ -1,0 +1,16 @@
+﻿import sys
+from pathlib import Path
+p=Path('1.1.0_birha.py')
+text=p.read_text(encoding='utf-8')
+text=text.replace("_resolve_col(df, COL_NUMBER, 'Number / ???', 'Number')","_resolve_col(df, COL_NUMBER, 'Number / ਵਚਨ', 'Number')")
+text=text.replace("_resolve_col(df, COL_GRAMMAR, 'Grammar / ??????', 'Grammar Case / ??????', 'Grammar')","_resolve_col(df, COL_GRAMMAR, 'Grammar / ਵਯਾਕਰਣ', 'Grammar Case / ਵਯਾਕਰਣ', 'Grammar')")
+text=text.replace("_resolve_col(df, COL_GENDER, 'Gender / ????', 'Gender')","_resolve_col(df, COL_GENDER, 'Gender / ਲਿੰਗ', 'Gender')")
+text=text.replace("entry = getattr(self, \"current_detailed_entry\", {}) or {}`n        pos_type =","entry = getattr(self, \"current_detailed_entry\", {}) or {}\n        pos_type =")
+text=text.replace("self.detailed_number_var  = tk.StringVar(value=entry[\"Number / ???\"])","self.detailed_number_var  = tk.StringVar(value=(entry.get(COL_NUMBER)  if isinstance(entry, dict) else None) or \"NA\")")
+text=text.replace("self.detailed_grammar_var = tk.StringVar(value=entry[\"Grammar / ??????\"])","self.detailed_grammar_var = tk.StringVar(value=(entry.get(COL_GRAMMAR) if isinstance(entry, dict) else None) or \"\")")
+text=text.replace("self.detailed_gender_var  = tk.StringVar(value=entry[\"Gender / ????\"])","self.detailed_gender_var  = tk.StringVar(value=(entry.get(COL_GENDER)  if isinstance(entry, dict) else None) or \"NA\")")
+text=text.replace("_add_dropdown(1, \"Number / ???:","_add_dropdown(1, \"Number / ਵਚਨ:")
+text=text.replace("_add_dropdown(2, \"Grammar Case / ??????:","_add_dropdown(2, \"Grammar Case / ਵਯਾਕਰਣ:")
+text=text.replace("_add_dropdown(3, \"Gender / ????:","_add_dropdown(3, \"Gender / ਲਿੰਗ:")
+p.write_text(text, encoding='utf-8')
+print('Patched with Python file.')

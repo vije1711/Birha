@@ -1706,9 +1706,8 @@ class GrammarApp:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Bottom action bar: keep consistent bottom spacing with user_input_grammar
+        # Bottom action bar: compute bottom gap from body's external bottom padding (16)
         btns = tk.Frame(body, bg='light gray')
-        # Body has external pady=16; subtract to keep net gap == BOTTOM_PAD
         btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 16)))
         tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
                   command=_copy_selected).pack(side=tk.LEFT)
@@ -1890,9 +1889,8 @@ class GrammarApp:
         list_frame = tk.Frame(body, bg='light gray')
         list_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Bottom action bar — consistent with user_input_grammar spacing
+        # Bottom action bar - compute bottom gap from body's external bottom padding (12)
         btns = tk.Frame(body, bg='light gray')
-        # Body has external pady=12; subtract to keep net gap == BOTTOM_PAD
         btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 12)))
         add_btn_bottom = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
         add_btn_bottom.pack(side=tk.LEFT)
@@ -3388,13 +3386,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
-        try:
-            try:
-                self._wm_for(win).maximize()
-            except Exception:
-                pass
-        except tk.TclError:
-            pass
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=0, defer=True)
 
         # — Header Bar —
         header = tk.Frame(win, bg='#2f4f4f', height=60)
@@ -3469,13 +3462,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Assess by Verse")
         win.configure(bg='light gray')
-        try:
-            try:
-                self._wm_for(win).maximize()
-            except Exception:
-                pass
-        except tk.TclError:
-            pass
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=0, defer=True)
         
         # — Optional page‐wide heading —
         tk.Label(
@@ -3693,11 +3681,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Paste Darpan Translation")
         win.configure(bg='light gray')
-        # bump default size up so buttons are always visible
-        try:
-            self._wm_for(win).maximize()
-        except Exception:
-            pass
+        # Taskbar-safe sizing: exact work-area maximize (no extra bottom gap)
+        self._wm_apply(win, margin_px=0, defer=True)
         win.transient(self.root)
         win.grab_set()
 
@@ -3707,15 +3692,21 @@ class GrammarApp:
 
             def _driver_safe_destroy():
                 try:
-                    if getattr(self, \u0027_abw_suppress_driver_cancel_once\u0027, False):
-                        try: self._abw_suppress_driver_cancel_once = False
-                        except Exception: pass
-                    elif getattr(self, \u0027_word_driver_active\u0027, False) and getattr(self, \u0027_word_driver_in_progress\u0027, False):
-                        try: self._word_driver_cancel_current()
-                        except Exception: pass
+                    if getattr(self, '_abw_suppress_driver_cancel_once', False):
+                        try:
+                            self._abw_suppress_driver_cancel_once = False
+                        except Exception:
+                            pass
+                    elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
                 finally:
-                    try: _orig_destroy()
-                    except Exception: pass
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
             win.destroy = _driver_safe_destroy
             try:
                 win.protocol("WM_DELETE_WINDOW", win.destroy)
@@ -3884,9 +3875,9 @@ class GrammarApp:
             chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
             self._word_selection_vars.append((var, w))
 
-        # — Bottom buttons —
+        # - Bottom buttons -
         btn_frame = tk.Frame(win, bg="light gray")
-        # Anchor buttons to the bottom edge and keep a comfortable bottom margin
+        # Anchor to bottom; keep visual gap equal to BOTTOM_PAD
         btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
 
         tk.Button(
@@ -3962,10 +3953,10 @@ class GrammarApp:
     # ---------------------------
     def show_word_translation_input(self):
         win = tk.Toplevel(self.root)
-        win.title("Assess by Word – Translation & Selection")
+        win.title("Assess by Word - Translation & Selection")
         win.configure(bg='light gray')
-        # Taskbar-safe maximize with bottom margin and F11 toggle
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        # Taskbar-safe exact work-area maximize (deferred) and F11 toggle
+        self._wm_apply(win, margin_px=0, defer=True)
         win.transient(self.root)
         try:
             win.grab_set()
@@ -4117,6 +4108,7 @@ class GrammarApp:
 
         # Bottom buttons (consistent bottom spacing)
         btn_frame = tk.Frame(win, bg='light gray')
+        # Visual bottom gap equals BOTTOM_PAD
         btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(btn_frame, text="Close", font=('Arial', 12), bg='gray', fg='white', command=win.destroy, padx=15, pady=8).pack(side=tk.LEFT)
         tk.Button(btn_frame, text="Submit Translation →", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
@@ -4297,11 +4289,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title(f"Assess Grammar: {word}")
         win.configure(bg='light gray')
-        # give a reasonable size so buttons show up
-        try:
-            self._wm_for(win).maximize()
-        except Exception:
-            pass
+        # Taskbar-safe exact maximize to the work area (deferred)
+        self._wm_apply(win, margin_px=0, defer=True)
         win.resizable(True, True)
 
         # 1) Verse display + highlight (use Gurmukhi‑safe font + metrics padding)
@@ -4877,7 +4866,7 @@ class GrammarApp:
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
 
         btns = tk.Frame(win, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,46))
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(btns, text="‹ Back to Translation",
                   font=('Arial',12), bg='gray', fg='white',
                   padx=20, pady=8,
@@ -5206,7 +5195,7 @@ class GrammarApp:
         """Verse entry: build shared UI and run modally (unchanged behavior)."""
         win = tk.Toplevel(self.root)
         win.title(f"Assess Grammar: {word}")
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        self._wm_apply(win, margin_px=0, defer=True)
         try:
             self.current_translation = translation
         except Exception:
@@ -5229,7 +5218,7 @@ class GrammarApp:
         """
         win = tk.Toplevel(self.root)
         win.title(f"Assess by Word – Grammar: {word}")
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        self._wm_apply(win, margin_px=0, defer=True)
         try:
             self.current_translation = translation
         except Exception:
@@ -5533,8 +5522,9 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title(f"Detail Grammar for ‘{word}’")
         win.configure(bg="light gray")
+        # Exact per-monitor work-area maximize, deferred to avoid 1x1 restores
         try:
-            self._wm_for(win).maximize()
+            self._wm_apply(win, margin_px=0, defer=True)
         except Exception:
             pass
 
@@ -8077,7 +8067,7 @@ class GrammarApp:
 
         # Submit / Skip
         button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
         # Center the action buttons: use expanding spacers on both sides
         tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
         tk.Button(button_frame, text="Submit", command=self.submit_input_reanalysis,
@@ -9544,7 +9534,7 @@ class GrammarApp:
         # Bottom Button Frame
         # ---------------------------
         button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
         # Center the action buttons: use expanding spacers on both sides
         tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
         tk.Button(button_frame, text="Submit", command=self.submit_input,
