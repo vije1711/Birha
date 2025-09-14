@@ -3661,6 +3661,232 @@ class GrammarApp:
             self._wm_for(win).maximize()
         except Exception:
             pass
+        win.transient(self.root)
+        win.grab_set()
+
+        # Ensure any close action (X or Back button wired to win.destroy) cancels driver state safely
+        try:
+            _orig_destroy = win.destroy
+
+            def _driver_safe_destroy():
+                try:
+                    if getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
+                finally:
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
+                    # Reset Assess-by-Word mode flag when this analyzer window closes
+                    try:
+                        if getattr(self, '_assess_by_word_mode', False):
+                            self._assess_by_word_mode = False
+                    except Exception:
+                        pass
+
+            win.destroy = _driver_safe_destroy
+            try:
+                win.protocol("WM_DELETE_WINDOW", win.destroy)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    # fall back to Tk's default family rather than Arial to keep system fallback working
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                # last resort: don't force a specific family; rely on Tk's default
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Attach integrated driver controls when Assess-by-Word is active
+        if is_abw:
+            try:
+                self._insert_abw_driver_controls(win)
+            except Exception:
+                # Non-fatal; continue without integrated controls
+                pass
+
+        # - Heading -
+        tk.Label(
+            win,
+            text=self.selected_verse_text,
+            # Use a font with proper ascent for Gurmukhi + extra top padding
+            font=(self._gurmukhi_font_family, 20, "bold"),
+            bg="light gray",
+            wraplength=900,
+            justify="center",
+            pady=12
+        ).pack(fill=tk.X, padx=20, pady=(15,10))
+
+        # Make a content container so bottom buttons are anchored reliably
+        content = tk.Frame(win, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # - Translation area -
+        tf = tk.LabelFrame(
+            content,
+            text="Established Darpan Translation",
+            font=("Arial", 14, "bold"),
+            bg='light gray',
+            fg='black',
+            padx=10, pady=5
+        )
+        # allow translation area to take the extra space
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+
+        # Text area with vertical scrollbar so content scrolls instead of pushing layout
+        text_container = tk.Frame(tf, bg='light gray')
+        text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_y = tk.Scrollbar(text_container, orient="vertical")
+        self._translation_text = tk.Text(
+            text_container, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
+            height=10, padx=8, pady=12
+        )
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Status + Refresh row under the translation box
+        status_row = tk.Frame(tf, bg='light gray')
+        # keep status row pinned to the bottom of the translation frame
+        status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        # grid inside the row: label left (expands), button right
+        status_row.columnconfigure(0, weight=1)
+        status_row.columnconfigure(1, weight=0)
+        self._translation_status_var = tk.StringVar(value="")
+        tk.Label(
+            status_row,
+            textvariable=self._translation_status_var,
+            font=("Arial", 10, "italic"),
+            bg='light gray', fg='#333333',
+            anchor='w'
+        ).grid(row=0, column=0, sticky='w', padx=(0,8))
+        tk.Button(
+            status_row,
+            text="Refresh from data files",
+            font=("Arial", 10),
+            bg='gray', fg='white',
+            command=self._refresh_translation_from_data
+        ).grid(row=0, column=1, sticky='e')
+
+        # Try to auto-populate translation from structured sources
+        filled, status = self._populate_translation_from_structured()
+        self._translation_status_var.set(status)
+
+        # (Removed one-off height cap; scrollable text keeps buttons visible)
+
+        # - Word-selection area -
+        wf = tk.LabelFrame(
+            content,
+            text="Select Words to Assess Grammar",
+            font=("Arial", 14, "bold"),
+            bg='light gray',
+            fg='black',
+            padx=10, pady=10
+        )
+        # reduce the vertical footprint of the word-selection area
+        wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
+
+        # select/deselect all
+        self._select_all_words_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            wf,
+            text="Select/Deselect All Words",
+            variable=self._select_all_words_var,
+            bg="light gray",
+            font=("Arial", 12, "italic"),
+            command=self._toggle_all_word_selection
+        ).pack(anchor="w", pady=(0,10))
+
+        # scrollable word row (single line, horizontal scroll)
+        canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
+        # limit the canvas height to roughly a single checkbox row (~75% reduction)
+        canvas.configure(height=48)
+        scrollbar = tk.Scrollbar(wf, orient="horizontal", command=canvas.xview)
+        word_frame = tk.Frame(canvas, bg='light gray')
+        canvas.configure(xscrollcommand=scrollbar.set)
+
+        canvas.pack(side="top", fill="x", expand=False)
+        scrollbar.pack(side="top", fill="x")
+        canvas.create_window((0,0), window=word_frame, anchor="nw")
+
+        def _on_wf_resize(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        word_frame.bind("<Configure>", _on_wf_resize)
+
+        # lay out each word
+        self._word_selection_vars = []
+
+        # 1) grab the verse text, remove any trailing danda symbols:
+        verse_text = self.selected_verse_text.split('?', 1)[0].strip()
+
+        # 2) split into words (now "?" won't appear as its own token)
+        words = verse_text.split()
+
+        # 3) build your checkboxes off `words` instead of the raw text:
+        for i, w in enumerate(words):
+            var = tk.BooleanVar(value=False)
+            chk = tk.Checkbutton(
+                word_frame,
+                text=w,
+                variable=var,
+                bg='light gray',
+                font=('Arial', 12),
+                anchor='w',
+                justify='left'
+            )
+            # arrange all checkboxes in a single row; scroll horizontally if needed
+            chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
+            self._word_selection_vars.append((var, w))
+
+        # - Bottom buttons -
+        btn_frame = tk.Frame(win, bg="light gray")
+        # Anchor buttons to the bottom edge and keep a comfortable bottom margin
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+
+        tk.Button(
+            btn_frame,
+            text="⟵ Back to Verse Search",
+            font=("Arial", 12),
+            bg="gray",
+            fg="white",
+            command=win.destroy,
+            padx=15, pady=8
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            btn_frame,
+            text="Submit Translation ↗",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            command=lambda: self._on_translation_submitted(win),
+            padx=15, pady=8
+        ).pack(side=tk.RIGHT)
 
     def _word_driver_mark_word_completed(self):
         """Force-complete the current word in the tracker and stop the driver.
@@ -3794,12 +4020,17 @@ class GrammarApp:
         Internally reuses the Verse analyzer layout but augments it with
         integrated driver controls when the word driver is active.
         """
+        # Define locals for static analyzers; real window is created in show_translation_input()
+        win = None  # type: ignore[assignment]
+        is_abw = False
         try:
             self._assess_by_word_mode = True
         except Exception:
             pass
         # Delegate to the shared analyzer builder
         self.show_translation_input()
+        # All subsequent legacy code below is unreachable and kept temporarily for reference
+        return
         win.transient(self.root)
         win.grab_set()
 
