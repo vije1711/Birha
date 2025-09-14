@@ -2023,8 +2023,8 @@ class GrammarApp:
                 start_now = True
             if start_now:
                 try:
-                    self._abw_suppress_driver_cancel_once = True
-                    win.destroy()
+                    # Just close this modal; do NOT set suppression here.
+                    # Suppression is only used around ABW translation submit.
                     win.destroy()
                 except Exception:
                     pass
