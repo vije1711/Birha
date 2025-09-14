@@ -474,6 +474,30 @@ def extract_darpan_translation(text: str) -> str:
     return "\n\n".join(parts)
 
 # ------------------------------------------------------------------
+# Token helpers (ABW)
+# ------------------------------------------------------------------
+def _strip_terminators(text: str) -> str:
+    """Strip trailing verse terminators and punctuation without touching inner punctuation.
+
+    Removes only trailing occurrences of: danda '।', double danda '॥', and common
+    punctuation: ? ! , ; : and their fullwidth variants. Preserves interior marks.
+    """
+    try:
+        s = str(text or "")
+    except Exception:
+        return ""
+    s = s.rstrip()
+    # Danda U+0964 '।', double danda U+0965 '॥'; fullwidth: ？ ！ ， ； ：
+    terminators = "?!,;:" + "\u0964\u0965\uFF1F\uFF01\uFF0C\uFF1B\uFF1A"
+    # Strip trailing whitespace and any of the terminators repeatedly
+    while s:
+        s2 = re.sub(rf"[{re.escape(terminators)}\s]+$", "", s)
+        if s2 == s:
+            break
+        s = s2
+    return s
+
+# ------------------------------------------------------------------
 # Tracker helpers: 'Assess by Word' Excel (1.1.6 XXXX.xlsx)
 # - create, load, append
 # - enforce: no nested writers; ExcelFile closed before writing
@@ -2027,8 +2051,8 @@ class GrammarApp:
 
         - Builds the verse queue from the tracker Progress sheet where status != 'completed'.
         - Marks Words.analysis_started on first run.
-        - Opens a small controller with Next Verse and Pause/Resume.
-        - Opens the first verse in the Assess-by-Verse analyzer.
+        - Uses the unified ABW analyzer window with integrated Next/Pause/Complete controls.
+        - Does not open the legacy floating driver controller while ABW unified UI is enabled.
         """
         try:
             norm = self._norm_tok(word or "")
@@ -2092,8 +2116,13 @@ class GrammarApp:
             self._word_driver_norm = norm
             self._word_driver_index = 0
             self._word_driver_current_verse = None
-
-            self._word_driver_open_controller()
+            # Enable unified ABW UI; skip opening the floating controller
+            try:
+                self._abw_unified_ui = True
+            except Exception:
+                pass
+            if not bool(getattr(self, '_abw_unified_ui', True)):
+                self._word_driver_open_controller()
             # Open first verse immediately
             self._word_driver_open_current_verse()
         except Exception as e:
@@ -3652,9 +3681,7 @@ class GrammarApp:
 
     def show_translation_input(self):
         win = tk.Toplevel(self.root)
-        # If Assess-by-Word mode is active, adjust the title and attach driver controls
-        is_abw = bool(getattr(self, '_assess_by_word_mode', False))
-        win.title("Assess by Word – Analyze Verse" if is_abw else "Paste Darpan Translation")
+        win.title("Paste Darpan Translation")
         win.configure(bg='light gray')
         # bump default size up so buttons are always visible
         try:
@@ -3720,14 +3747,6 @@ class GrammarApp:
                     self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
                 except Exception:
                     self._gurmukhi_font_family = 'TkDefaultFont'
-
-        # Attach integrated driver controls when Assess-by-Word is active
-        if is_abw:
-            try:
-                self._insert_abw_driver_controls(win)
-            except Exception:
-                # Non-fatal; continue without integrated controls
-                pass
 
         # - Heading -
         tk.Label(
@@ -3841,8 +3860,7 @@ class GrammarApp:
         # lay out each word
         self._word_selection_vars = []
 
-        # 1) grab the verse text, remove any trailing danda symbols:
-        verse_text = self.selected_verse_text.split('?', 1)[0].strip()
+        verse_text = self.selected_verse_text.strip()
 
         # 2) split into words (now "?" won't appear as its own token)
         words = verse_text.split()
@@ -4020,17 +4038,207 @@ class GrammarApp:
         Internally reuses the Verse analyzer layout but augments it with
         integrated driver controls when the word driver is active.
         """
-        # Define locals for static analyzers; real window is created in show_translation_input()
-        win = None  # type: ignore[assignment]
-        is_abw = False
         try:
             self._assess_by_word_mode = True
         except Exception:
             pass
-        # Delegate to the shared analyzer builder
-        self.show_translation_input()
-        # All subsequent legacy code below is unreachable and kept temporarily for reference
+        # Delegate to the dedicated ABW analyzer builder
+        self.show_word_translation_input()
         return
+
+    def show_word_translation_input(self):
+        """Dedicated ABW analyzer window for pasting/confirming translation and selecting words.
+
+        This does not rely on the Verse flow. It embeds driver controls and uses
+        ABW tokenization that strips trailing terminators before splitting.
+        """
+        win = tk.Toplevel(self.root)
+        win.title("Assess by Word – Analyze Verse")
+        win.configure(bg='light gray')
+        try:
+            self._wm_for(win).maximize()
+        except Exception:
+            pass
+        win.transient(self.root)
+        win.grab_set()
+
+        # Ensure any close action cancels driver state safely and clears ABW mode
+        try:
+            _orig_destroy = win.destroy
+            def _driver_safe_destroy():
+                try:
+                    if getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
+                finally:
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
+                    try:
+                        self._assess_by_word_mode = False
+                    except Exception:
+                        pass
+            win.destroy = _driver_safe_destroy
+            try:
+                win.protocol("WM_DELETE_WINDOW", win.destroy)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Gurmukhi-safe font selection
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Integrated driver controls
+        try:
+            self._insert_abw_driver_controls(win)
+        except Exception:
+            pass
+
+        # Heading
+        tk.Label(
+            win,
+            text=self.selected_verse_text,
+            font=(self._gurmukhi_font_family, 20, "bold"),
+            bg="light gray",
+            wraplength=900,
+            justify="center",
+            pady=12
+        ).pack(fill=tk.X, padx=20, pady=(15,10))
+
+        content = tk.Frame(win, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Translation area
+        tf = tk.LabelFrame(content, text="Established Darpan Translation", font=("Arial", 14, "bold"),
+                           bg='light gray', fg='black', padx=10, pady=5)
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+
+        text_container = tk.Frame(tf, bg='light gray')
+        text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_y = tk.Scrollbar(text_container, orient="vertical")
+        self._translation_text = tk.Text(
+            text_container, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13), height=10, padx=8, pady=12
+        )
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+        status_row = tk.Frame(tf, bg='light gray')
+        status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        status_row.columnconfigure(0, weight=1)
+        status_row.columnconfigure(1, weight=0)
+        self._translation_status_var = tk.StringVar(value="")
+        tk.Label(status_row, textvariable=self._translation_status_var,
+                 font=("Arial", 10, "italic"), bg='light gray', fg='#333333', anchor='w'
+        ).grid(row=0, column=0, sticky='w', padx=(0,8))
+        tk.Button(status_row, text="Refresh from data files", font=("Arial", 10), bg='gray', fg='white',
+                  command=self._refresh_translation_from_data
+        ).grid(row=0, column=1, sticky='e')
+
+        filled, status = self._populate_translation_from_structured()
+        self._translation_status_var.set(status)
+
+        # Word selection area
+        wf = tk.LabelFrame(content, text="Select Words to Assess Grammar", font=("Arial", 14, "bold"),
+                           bg='light gray', fg='black', padx=10, pady=10)
+        wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
+
+        self._select_all_words_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(wf, text="Select/Deselect All Words", variable=self._select_all_words_var,
+                       bg="light gray", font=("Arial", 12, "italic"), command=self._toggle_all_word_selection
+        ).pack(anchor="w", pady=(0,10))
+
+        canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
+        canvas.configure(height=48)
+        scrollbar = tk.Scrollbar(wf, orient="horizontal", command=canvas.xview)
+        word_frame = tk.Frame(canvas, bg='light gray')
+        canvas.configure(xscrollcommand=scrollbar.set)
+        canvas.pack(side="top", fill="x", expand=False)
+        scrollbar.pack(side="top", fill="x")
+        canvas.create_window((0,0), window=word_frame, anchor="nw")
+        word_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        self._word_selection_vars = []
+        verse_text = _strip_terminators(self.selected_verse_text)
+        words = (verse_text or "").split()
+        for i, w in enumerate(words):
+            var = tk.BooleanVar(value=False)
+            chk = tk.Checkbutton(word_frame, text=w, variable=var, bg='light gray', font=('Arial', 12),
+                                 anchor='w', justify='left')
+            chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
+            self._word_selection_vars.append((var, w))
+
+        # Bottom buttons
+        btn_frame = tk.Frame(win, bg="light gray")
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        tk.Button(btn_frame, text="⟵ Back to Dashboard", font=("Arial", 12), bg="gray", fg="white",
+                  command=win.destroy, padx=15, pady=8
+        ).pack(side=tk.LEFT)
+        tk.Button(btn_frame, text="Submit Translation ↗", font=("Arial", 12, "bold"), bg="dark cyan", fg="white",
+                  command=lambda: self._on_abw_translation_submitted(win), padx=15, pady=8
+        ).pack(side=tk.RIGHT)
+
+    def _on_abw_translation_submitted(self, win):
+        text = self._translation_text.get("1.0", tk.END).strip()
+        if not text:
+            messagebox.showwarning("No Translation", "Please paste a translation before submitting.")
+            return
+        self.current_translation = text
+        selected_idxs = [idx for idx, (var, _) in enumerate(self._word_selection_vars) if var.get()]
+        if not selected_idxs:
+            messagebox.showwarning("Nothing Selected", "Please select at least one word to assess.")
+            return
+        self._selected_word_indices = selected_idxs
+        win.destroy()
+        self.abw_initialize_grammar_queue()
+
+    def abw_initialize_grammar_queue(self):
+        words = _strip_terminators(self.selected_verse_text).split()
+        selected_indices = self._selected_word_indices
+        self.grammar_queue = [(i, words[i]) for i in selected_indices]
+        self.grammar_meanings = []
+        self.current_queue_pos = 0
+        if not self.grammar_queue:
+            messagebox.showinfo("Nothing Selected", "You didn't select any words for grammar assessment.")
+            return
+        self.abw_process_next_word_assessment()
+
+    def abw_process_next_word_assessment(self):
+        if self.current_queue_pos >= len(self.grammar_queue):
+            return self.finish_and_prompt_save()
+        idx, word = self.grammar_queue[self.current_queue_pos]
+        self.current_word_index = idx
+        self.user_input_grammar_for_word(word, self.current_translation, idx)
+
+    def user_input_grammar_for_word(self, word, translation, index):
+        """ABW wrapper for the per-word grammar UI (uses shared implementation)."""
+        return self.user_input_grammar(word, translation, index)
         win.transient(self.root)
         win.grab_set()
 
