@@ -3707,15 +3707,21 @@ class GrammarApp:
 
             def _driver_safe_destroy():
                 try:
-                    if getattr(self, \u0027_abw_suppress_driver_cancel_once\u0027, False):
-                        try: self._abw_suppress_driver_cancel_once = False
-                        except Exception: pass
-                    elif getattr(self, \u0027_word_driver_active\u0027, False) and getattr(self, \u0027_word_driver_in_progress\u0027, False):
-                        try: self._word_driver_cancel_current()
-                        except Exception: pass
+                    if getattr(self, '_abw_suppress_driver_cancel_once', False):
+                        try:
+                            self._abw_suppress_driver_cancel_once = False
+                        except Exception:
+                            pass
+                    elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
                 finally:
-                    try: _orig_destroy()
-                    except Exception: pass
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
             win.destroy = _driver_safe_destroy
             try:
                 win.protocol("WM_DELETE_WINDOW", win.destroy)
