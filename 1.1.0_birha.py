@@ -5053,7 +5053,7 @@ class GrammarApp:
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
         num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
-        for txt, val in [("Singular","Singular / ??"),("Plural","Plural / ???"),("Unknown","NA")]:
+        for txt, val in [("Singular","Singular / ਇਕ"),("Plural","Plural / ਬਹੁ"),("Unknown","NA")]:
             tk.Radiobutton(
                 num_frame, text=txt, variable=self.number_var, value=val,
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
@@ -5064,7 +5064,7 @@ class GrammarApp:
                                    font=("Arial", 14, "bold"),
                                    bg="light gray", padx=8, pady=8)
         gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
-        gends = [("Masculine","Masculine / ??????"),("Feminine","Feminine / ?????"),("Neuter","Trans / ??????"),("Unknown","NA")]
+        gends = [("Masculine","Masculine / ਪੁਲਿੰਗ"),("Feminine","Feminine / ਇਸਤਰੀ"),("Neuter","Trans / ਨਪੁਂਸਕ"),("Unknown","NA")]
         gf_col1 = tk.Frame(gend_frame, bg="light gray")
         gf_col2 = tk.Frame(gend_frame, bg="light gray")
         gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
@@ -5082,9 +5082,9 @@ class GrammarApp:
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
         pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
-        pos_choices = [("Noun","Noun / ????"),("Adjective","Adjectives / ??????"),("Adverb","Adverb / ????? ??????"),
-                       ("Verb","Verb / ?????"),("Pronoun","Pronoun / ??????"),("Postposition","Postposition / ??????"),
-                       ("Conjunction","Conjunction / ????"),("Interjection","Interjection / ??????"),("Unknown","NA")]
+        pos_choices = [("Noun","Noun / ਨਾਂਵ"),("Adjective","Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),("Adverb","Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
+                       ("Verb","Verb / ਕਿਰਿਆ"),("Pronoun","Pronoun / ਪੜਨਾਂਵ"),("Postposition","Postposition / ਸੰਬੰਧਕ"),
+                       ("Conjunction","Conjunction / ਯੋਜਕ"),("Interjection","Interjection / ਵਿਸਮਿਕ"),("Unknown","NA")]
         pos_rows = 2
         pos_cols = -(-len(pos_choices) // pos_rows)
         for i, (txt, val) in enumerate(pos_choices):
@@ -5180,7 +5180,7 @@ class GrammarApp:
         back_btn.pack(side=tk.LEFT)
         skip_btn = tk.Button(btns, text="Skip Word", font=('Arial',12), bg='orange', fg='white', padx=20, pady=8, command=lambda: self.skip_word_grammar(win))
         skip_btn.pack(side=tk.LEFT, padx=10)
-        prompt_btn = tk.Button(btns, text="?? Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
+        prompt_btn = tk.Button(btns, text="📋 Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
         prompt_btn.pack(side=tk.LEFT, padx=10)
         # Route submit to the appropriate handler per mode to avoid Verse dependencies in ABW
         submit_handler = (lambda: self.submit_input_grammar(word, index)) if mode == "verse" else (lambda: self.submit_input_grammar_for_word(word, index))
