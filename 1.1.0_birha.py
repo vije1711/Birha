@@ -3388,13 +3388,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
-        try:
-            try:
-                self._wm_for(win).maximize()
-            except Exception:
-                pass
-        except tk.TclError:
-            pass
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
 
         # — Header Bar —
         header = tk.Frame(win, bg='#2f4f4f', height=60)
@@ -3469,13 +3464,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Assess by Verse")
         win.configure(bg='light gray')
-        try:
-            try:
-                self._wm_for(win).maximize()
-            except Exception:
-                pass
-        except tk.TclError:
-            pass
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
         
         # — Optional page‐wide heading —
         tk.Label(
@@ -3693,11 +3683,8 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Paste Darpan Translation")
         win.configure(bg='light gray')
-        # bump default size up so buttons are always visible
-        try:
-            self._wm_for(win).maximize()
-        except Exception:
-            pass
+        # Taskbar-safe sizing: maximize client area with a bottom margin so bottom buttons remain visible
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
         win.transient(self.root)
         win.grab_set()
 
@@ -4304,10 +4291,8 @@ class GrammarApp:
         win.title(f"Assess Grammar: {word}")
         win.configure(bg='light gray')
         # give a reasonable size so buttons show up
-        try:
-            self._wm_for(win).maximize()
-        except Exception:
-            pass
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
         win.resizable(True, True)
 
         # 1) Verse display + highlight (use Gurmukhi‑safe font + metrics padding)
