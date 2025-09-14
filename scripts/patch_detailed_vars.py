@@ -1,0 +1,11 @@
+﻿from pathlib import Path
+p=Path('1.1.0_birha.py')
+s=p.read_text(encoding='utf-8')
+s=s.replace('tk.StringVar(value=entry["Number / ???"])','tk.StringVar(value=(entry.get(COL_NUMBER)  if isinstance(entry, dict) else None) or "NA")')
+s=s.replace('tk.StringVar(value=entry["Grammar / ??????"])','tk.StringVar(value=(entry.get(COL_GRAMMAR) if isinstance(entry, dict) else None) or "")')
+s=s.replace('tk.StringVar(value=entry["Gender / ????"])','tk.StringVar(value=(entry.get(COL_GENDER)  if isinstance(entry, dict) else None) or "NA")')
+s=s.replace('"Number / ???:','"Number / ਵਚਨ:')
+s=s.replace('"Grammar Case / ??????:','"Grammar Case / ਵਯਾਕਰਣ:')
+s=s.replace('"Gender / ????:','"Gender / ਲਿੰਗ:')
+p.write_text(s, encoding='utf-8')
+print('Patched ABW detailed vars.')
