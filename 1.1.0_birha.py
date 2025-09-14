@@ -3387,7 +3387,7 @@ class GrammarApp:
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
         # Taskbar-safe sizing
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        self._wm_apply(win, margin_px=0, defer=True)
 
         # — Header Bar —
         header = tk.Frame(win, bg='#2f4f4f', height=60)
@@ -3463,7 +3463,7 @@ class GrammarApp:
         win.title("Assess by Verse")
         win.configure(bg='light gray')
         # Taskbar-safe sizing
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        self._wm_apply(win, margin_px=0, defer=True)
         
         # — Optional page‐wide heading —
         tk.Label(
