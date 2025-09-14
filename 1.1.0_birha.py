@@ -1706,9 +1706,9 @@ class GrammarApp:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Bottom action bar: anchor at bottom; bottom pady=0 for exact client fit
+        # Bottom action bar: compute bottom gap from body's external bottom padding (16)
         btns = tk.Frame(body, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 16)))
         tk.Button(btns, text="Copy Selected", bg='teal', fg='white', font=("Arial", 11),
                   command=_copy_selected).pack(side=tk.LEFT)
         tk.Button(btns, text="Next: Verse Hits", bg='navy', fg='white', font=("Arial", 11, 'bold'),
@@ -1889,9 +1889,9 @@ class GrammarApp:
         list_frame = tk.Frame(body, bg='light gray')
         list_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Bottom action bar - anchor at bottom; bottom pady=0 for exact client fit
+        # Bottom action bar - compute bottom gap from body's external bottom padding (12)
         btns = tk.Frame(body, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 12)))
         add_btn_bottom = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
         add_btn_bottom.pack(side=tk.LEFT)
         tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
@@ -3877,8 +3877,8 @@ class GrammarApp:
 
         # - Bottom buttons -
         btn_frame = tk.Frame(win, bg="light gray")
-        # Anchor to bottom; bottom pady=0 so client area aligns to work area bottom
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
+        # Anchor to bottom; keep visual gap equal to BOTTOM_PAD
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
 
         tk.Button(
             btn_frame,
@@ -4108,8 +4108,8 @@ class GrammarApp:
 
         # Bottom buttons (consistent bottom spacing)
         btn_frame = tk.Frame(win, bg='light gray')
-        # bottom pady=0; rely on WindowManager for taskbar-safe sizing
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
+        # Visual bottom gap equals BOTTOM_PAD
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(btn_frame, text="Close", font=('Arial', 12), bg='gray', fg='white', command=win.destroy, padx=15, pady=8).pack(side=tk.LEFT)
         tk.Button(btn_frame, text="Submit Translation →", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
                   command=lambda: self._abw_on_translation_submitted(win), padx=15, pady=8).pack(side=tk.RIGHT)
@@ -4866,7 +4866,7 @@ class GrammarApp:
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
 
         btns = tk.Frame(win, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(btns, text="‹ Back to Translation",
                   font=('Arial',12), bg='gray', fg='white',
                   padx=20, pady=8,
@@ -5173,7 +5173,7 @@ class GrammarApp:
         sep = tk.Frame(win, bg='#cccccc', height=2)
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
         btns = tk.Frame(win, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         back_btn_text = "< Back to Translation" if mode == "verse" else "< Back to ABW Translation"
         back_cmd = (lambda: [win.destroy(), self.show_translation_input()]) if mode == "verse" else (lambda: [win.destroy(), self.show_word_translation_input()])
         back_btn = tk.Button(btns, text=back_btn_text, font=('Arial',12), bg='gray', fg='white', padx=20, pady=8, command=back_cmd)
@@ -5195,7 +5195,7 @@ class GrammarApp:
         """Verse entry: build shared UI and run modally (unchanged behavior)."""
         win = tk.Toplevel(self.root)
         win.title(f"Assess Grammar: {word}")
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        self._wm_apply(win, margin_px=0, defer=True)
         try:
             self.current_translation = translation
         except Exception:
@@ -5218,7 +5218,7 @@ class GrammarApp:
         """
         win = tk.Toplevel(self.root)
         win.title(f"Assess by Word – Grammar: {word}")
-        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+        self._wm_apply(win, margin_px=0, defer=True)
         try:
             self.current_translation = translation
         except Exception:
@@ -6836,7 +6836,7 @@ class GrammarApp:
         sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(5, 0))
 
         btns = tk.Frame(win, bg="light gray")
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
 
         tk.Button(
             btns, text="‹ Back",
