@@ -2023,6 +2023,8 @@ class GrammarApp:
                 start_now = True
             if start_now:
                 try:
+                    self._abw_suppress_driver_cancel_once = True
+                    win.destroy()
                     win.destroy()
                 except Exception:
                     pass
@@ -3705,17 +3707,15 @@ class GrammarApp:
 
             def _driver_safe_destroy():
                 try:
-                    if getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
-                        try:
-                            self._word_driver_cancel_current()
-                        except Exception:
-                            pass
+                    if getattr(self, \u0027_abw_suppress_driver_cancel_once\u0027, False):
+                        try: self._abw_suppress_driver_cancel_once = False
+                        except Exception: pass
+                    elif getattr(self, \u0027_word_driver_active\u0027, False) and getattr(self, \u0027_word_driver_in_progress\u0027, False):
+                        try: self._word_driver_cancel_current()
+                        except Exception: pass
                 finally:
-                    try:
-                        _orig_destroy()
-                    except Exception:
-                        pass
-
+                    try: _orig_destroy()
+                    except Exception: pass
             win.destroy = _driver_safe_destroy
             try:
                 win.protocol("WM_DELETE_WINDOW", win.destroy)
@@ -3977,7 +3977,12 @@ class GrammarApp:
             _orig_destroy = win.destroy
             def _driver_safe_destroy():
                 try:
-                    if getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                    if getattr(self, '_abw_suppress_driver_cancel_once', False):
+                        try:
+                            self._abw_suppress_driver_cancel_once = False
+                        except Exception:
+                            pass
+                    elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
                         try:
                             self._word_driver_cancel_current()
                         except Exception:
@@ -4102,7 +4107,7 @@ class GrammarApp:
         word_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
 
         self._word_selection_vars = []
-        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        verse_text = (self.selected_verse_text or '').split('\u0965', 1)[0].strip()
         words = verse_text.split()
         for i, w in enumerate(words):
             var = tk.BooleanVar(value=False)
@@ -4143,6 +4148,7 @@ class GrammarApp:
             return
         self._selected_word_indices = selected_idxs
         try:
+            self._abw_suppress_driver_cancel_once = True
             win.destroy()
         except Exception:
             pass
