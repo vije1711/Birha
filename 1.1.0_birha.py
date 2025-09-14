@@ -4892,6 +4892,11 @@ class GrammarApp:
         Returns (win, ctx) where ctx exposes key widgets for callers to tweak.
         mode in {"verse", "word"} controls small call-site differences (e.g., back button).
         """
+        # Stash current mode so skip/advance chooses correct queue handler
+        try:
+            self._current_grammar_mode = mode
+        except Exception:
+            pass
         win.configure(bg='light gray')
         win.resizable(True, True)
 
@@ -5246,7 +5251,11 @@ class GrammarApp:
 
         try:
             self.current_queue_pos += 1
-            self.process_next_word_assessment()
+            is_abw = (getattr(self, '_current_grammar_mode', 'verse') == 'word') or (getattr(self, '_current_detailed_mode', 'verse') == 'word')
+            if is_abw:
+                self.abw_process_next_word_assessment()
+            else:
+                self.process_next_word_assessment()
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while skipping: {e}")
 
@@ -5383,6 +5392,11 @@ class GrammarApp:
         with dropdowns for the detailed grammar fields _and_ a place
         to paste ChatGPT's commentary.
         """
+        # Stash mode for save-phase routing (ABW vs Verse)
+        try:
+            self._current_detailed_mode = mode
+        except Exception:
+            pass
 
         # 1) --------------  Load & filter your CSV  -----------------
         self.grammar_db = pd.read_csv("1.1.1_birha.csv")
@@ -6908,7 +6922,11 @@ class GrammarApp:
                     # advance in the selected-words queue if that flow is active
                     if hasattr(self, 'grammar_queue'):
                         self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
-                        self.process_next_word_assessment()
+                        is_abw = (getattr(self, '_current_detailed_mode', 'verse') == 'word') or (getattr(self, '_current_grammar_mode', 'verse') == 'word')
+                        if is_abw:
+                            self.abw_process_next_word_assessment()
+                        else:
+                            self.process_next_word_assessment()
                 except Exception:
                     pass
 
