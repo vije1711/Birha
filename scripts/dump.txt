@@ -334,9 +334,9 @@ def load_predefined_keyset(csv_path: str = "1.1.1_birha.csv") -> set[tuple[str, 
 
     eval_col   = col("Evaluation")
     # Prefer Punjabi headers; accept both with/without "options"; fall back to legacy names
-    num_col    = col(COL_NUMBER, f"{COL_NUMBER} options", "Number / ਵਚਨ options", "Number / ਵਚਨ", "Number")
-    gram_col   = col(COL_GRAMMAR, f"{COL_GRAMMAR} options", "Grammar Case / ਵਯਾਕਰਣ options", "Grammar Case / ਵਯਾਕਰਣ", "Grammar")
-    gen_col    = col(COL_GENDER, f"{COL_GENDER} options", "Gender / ਲਿੰਗ options", "Gender / ਲਿੰਗ", "Gender")
+    num_col    = col("Number / ਵਚਨ", "Number / ਵਚਨ options", "Number / ???", "Number")
+    gram_col   = col("Grammar / ਵਯਾਕਰਣ", "Grammar / ਵਯਾਕਰਣ options", "Grammar / ??????", "Grammar")
+    gen_col    = col("Gender / ਲਿੰਗ", "Gender / ਲਿੰਗ options", "Gender / ????", "Gender")
     root_col   = col("Word Root", "Root")
     type_col   = col("Type", "Word Type")
 
@@ -5384,9 +5384,9 @@ class GrammarApp:
         meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
         entry = {
             "Vowel Ending":       word,
-            COL_NUMBER:            number,
-            COL_GRAMMAR:           "",
-            COL_GENDER:            gender,
+            "Number / ???":       number,
+            "Grammar / ??????":    "",
+            "Gender / ????":       gender,
             "Word Root":           "",
             "Type":                pos,
             "Evaluation":          "Derived",
@@ -5419,13 +5419,13 @@ class GrammarApp:
         df = self.grammar_db[self.grammar_db["Type"] == pos]
 
         # option lists
-        # option lists (resolve actual headers robustly)
-        _num_col  = _resolve_col(df, COL_NUMBER, 'Number / ਵਚਨ', 'Number')
-        _gram_col = _resolve_col(df, COL_GRAMMAR, 'Grammar / ਵਯਾਕਰਣ', 'Grammar Case / ਵਯਾਕਰਣ', 'Grammar')
-        _gen_col  = _resolve_col(df, COL_GENDER, 'Gender / ਲਿੰਗ', 'Gender')
-        num_opts  = sorted(df[_num_col].dropna().unique().tolist()) if _num_col else []
-        gram_opts = sorted(df[_gram_col].dropna().unique().tolist()) if _gram_col else []
-        gen_opts  = sorted(df[_gen_col].dropna().unique().tolist()) if _gen_col else []
+        num_opts  = sorted(df["Number / ਵਚਨ"].dropna().unique().tolist())
+        gram_opts = sorted(df["Grammar / ਵਯਾਕਰਣ"].dropna().unique().tolist())
+        gen_opts  = sorted(df["Gender / ਲਿੰਗ"].dropna().unique().tolist())
+        
+        # pull the saved entry first
+        entry = self.current_detailed_entry
+        # Extract the POS type
         pos_type = entry["Type"]
 
         # Choose how to build root_opts based on whether it's a Noun
