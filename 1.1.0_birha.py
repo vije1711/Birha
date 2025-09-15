@@ -4531,6 +4531,30 @@ class GrammarApp:
         for c in range(pos_cols):
             pos_frame.grid_columnconfigure(c, weight=1)
 
+        # B & D) Increase Translation height using space reclaimed from Meanings (≈10% shrink; guard for small)
+        try:
+            # Current translation height (text lines)
+            t_h = int(trans.cget('height'))
+            # Approximate meanings height in lines via canvas height and label line spacing
+            m_h_px = int(self.meanings_canvas.cget('height') or 200)
+            label_font = tkfont.Font(family='Arial', size=12)
+            line_px = max(12, int(label_font.metrics('linespace') or 16))
+            m_h_lines = max(1, int(round(m_h_px / float(line_px))))
+            # Target meanings lines: ~10% shorter, min 8 lines; if very small, keep at least m_h-1
+            new_m_lines = max(8, int(round(m_h_lines * 0.90)))
+            if m_h_lines <= 10:
+                new_m_lines = max(8, m_h_lines - 1)
+            delta_lines = max(0, m_h_lines - new_m_lines)
+            # Clamp translation to a reasonable max
+            t_max = 20
+            gain = max(1, delta_lines)
+            trans.config(height=min(t_max, t_h + gain))
+            # Apply new meanings height in pixels
+            new_m_px = max(8 * line_px, int(round(new_m_lines * line_px)))
+            self.meanings_canvas.config(height=new_m_px)
+        except Exception:
+            pass
+
         # Expert-prompt builder
         def ask_suggestion():
             verse = self.selected_verse_text
@@ -5058,6 +5082,33 @@ class GrammarApp:
                 num_frame, text=txt, variable=self.number_var, value=val,
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
             ).pack(anchor="w", pady=2)
+
+        # A) Re-layout Number radios into 2x2 grid: row0 (Singular, Plural), row1 (Unknown, spacer)
+        try:
+            for child in list(num_frame.winfo_children()):
+                try:
+                    child.pack_forget()
+                except Exception:
+                    pass
+            try:
+                num_frame.grid_columnconfigure(0, weight=0)
+                num_frame.grid_columnconfigure(1, weight=1)
+            except Exception:
+                pass
+            tk.Radiobutton(
+                num_frame, text="Singular", variable=self.number_var, value="Singular / ??",
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).grid(row=0, column=0, sticky='w', padx=2, pady=2)
+            tk.Radiobutton(
+                num_frame, text="Plural", variable=self.number_var, value="Plural / ???",
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).grid(row=0, column=1, sticky='w', padx=2, pady=2)
+            tk.Radiobutton(
+                num_frame, text="Unknown", variable=self.number_var, value="NA",
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            ).grid(row=1, column=0, sticky='w', padx=2, pady=2)
+        except Exception:
+            pass
 
         # Gender (two columns)
         gend_frame = tk.LabelFrame(grp_row, text="Gender",
