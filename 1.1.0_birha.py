@@ -4498,8 +4498,13 @@ class GrammarApp:
         # two sub-frames for the two columns
         gf_col1 = tk.Frame(gend_frame, bg="light gray")
         gf_col2 = tk.Frame(gend_frame, bg="light gray")
-        gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
-        gf_col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
+        try:
+            gap = COL_GAP
+        except Exception:
+            gap = 24
+        # Equalize the inter-column gap in Gender to match Number's 2-column gap
+        gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, max(0, gap//2)))
+        gf_col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(max(0, gap//2), 0))
 
         # split the list in half
         half = (len(gends)+1)//2
