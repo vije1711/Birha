@@ -52,7 +52,7 @@ def test_save_finish_abv(tmp_path):
          patch.object(app, 'prompt_save_results', return_value=True), \
          patch('tkinter.messagebox.showinfo') as mock_info:
         app.on_accept_detailed_grammar(None)
-        app.finish_and_prompt_save(quiet=False)
+        app.finish_and_prompt_save()
         titles = [call.args[0] for call in mock_info.call_args_list]
         messages = [call.args[1] for call in mock_info.call_args_list]
         assert "No Entries" not in titles
@@ -85,7 +85,7 @@ def test_save_finish_abw(tmp_path):
          patch.object(app, 'prompt_save_results', return_value=True), \
          patch('tkinter.messagebox.showinfo') as mock_info:
         app.on_accept_detailed_grammar(None)
-        app.finish_and_prompt_save(quiet=False)
+        app.finish_and_prompt_save()
         titles = [call.args[0] for call in mock_info.call_args_list]
         messages = [call.args[1] for call in mock_info.call_args_list]
         assert "No Entries" not in titles
@@ -138,15 +138,3 @@ def test_save_finish_preserves_entries_on_cancel():
         app.finish_and_prompt_save()
         assert app.all_new_entries == [{"Word": "bye"}]
         mock_err.assert_not_called()
-
-
-def test_finish_and_prompt_save_quiet_by_default():
-    app = create_app()
-    app.all_new_entries = [{"Word": "silent"}]
-    entries = list(app.all_new_entries)
-    with patch.object(app, 'prompt_save_results', return_value=True) as mock_save, \
-         patch('tkinter.messagebox.showinfo') as mock_info:
-        app.finish_and_prompt_save()
-        mock_info.assert_not_called()
-        mock_save.assert_called_once_with(entries, skip_copy=True, quiet=True)
-        assert app.all_new_entries == []
