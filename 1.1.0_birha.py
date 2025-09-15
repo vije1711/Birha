@@ -4563,7 +4563,7 @@ class GrammarApp:
             ### Verse
             {verse}
 
-            ### Darpan Translation (condensed)
+            ### Darpan Translation
             {trans}
 
             ### Target Word
@@ -4753,9 +4753,9 @@ class GrammarApp:
         pos    = self.pos_var.get()
 
         # 2) Gather verse + translation context:
-        verse            = self.selected_verse_text
-        raw_translation  = self.current_translation
-        translation      = extract_darpan_translation(raw_translation)
+        verse                   = self.selected_verse_text
+        raw_translation         = self.current_translation
+        translation_condensed   = extract_darpan_translation(raw_translation)
 
         # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
         meanings = next(
@@ -4773,7 +4773,8 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
-            "Darpan Translation":  translation,
+            "Darpan Translation":  translation_condensed,
+            "Darpan Translation (Raw)": raw_translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
             "ChatGPT Commentary":  "",    # to be pasted later
             # Ensure each saved word within the same verse is uniquely identified
@@ -4791,9 +4792,9 @@ class GrammarApp:
         number = self.number_var.get()
         gender = self.gender_var.get()
         pos    = self.pos_var.get()
-        verse            = self.selected_verse_text
-        raw_translation  = self.current_translation
-        translation      = extract_darpan_translation(raw_translation)
+        verse                   = self.selected_verse_text
+        raw_translation         = self.current_translation
+        translation_condensed   = extract_darpan_translation(raw_translation)
         meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
         entry = {
             "Vowel Ending":       word,
@@ -4804,7 +4805,8 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
-            "Darpan Translation":  translation,
+            "Darpan Translation":  translation_condensed,
+            "Darpan Translation (Raw)": raw_translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
             "ChatGPT Commentary":  "",
             "Word Index":          int(index) if index is not None else ""
@@ -5096,7 +5098,7 @@ class GrammarApp:
             gen   = self.detailed_gender_var.get()  or "(please choose)"
             root  = self.detailed_root_var.get()    or "(please choose)"
             verse = entry["Reference Verse"]
-            trans = entry["Darpan Translation"]
+            trans = entry.get("Darpan Translation (Raw)", entry.get("Darpan Translation", ""))
             dm    = entry["Darpan Meaning"]
 
             def make_block(title, items):
