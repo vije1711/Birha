@@ -1,6 +1,7 @@
 import importlib.util
 import pathlib
 from unittest.mock import patch
+import pandas as pd
 
 # Dynamically import the main module with a valid name
 SPEC = importlib.util.spec_from_file_location(
@@ -91,3 +92,26 @@ def test_save_finish_abw(tmp_path):
         assert any("Session Summary" == t for t in titles)
         assert any("1 grammar assessments" in m for m in messages)
         assert app.all_new_entries == []
+
+
+def test_prompt_save_results_infers_verses():
+    app = create_app()
+    app.selected_verses = []
+    app.accumulated_pankti = ""
+    entry = {
+        "Word": "foo",
+        "\ufeffVowel Ending": "foo",
+        "Number / ਵਚਨ": "",
+        "Grammar / ਵਯਾਕਰਣ": "",
+        "Gender / ਲਿੰਗ": "",
+        "Word Root": "",
+        "Type": "",
+        "Reference Verse": "foo bar",
+    }
+    with patch.object(app, 'load_existing_assessment_data', return_value=pd.DataFrame()), \
+         patch('tkinter.messagebox.askyesno', return_value=False), \
+         patch('tkinter.messagebox.showinfo'), \
+         patch.object(app, 'prompt_copy_to_clipboard'), \
+         patch.object(app, 'prompt_for_assessment_once', return_value={}):
+        app.prompt_save_results([entry], skip_copy=True)
+        assert app.selected_verses == ["foo bar"]

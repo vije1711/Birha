@@ -1475,6 +1475,8 @@ class GrammarApp:
             return d.get("\ufeffVowel Ending") or d.get("Vowel Ending")
         if key == "Type" or key == "Word Type":
             return d.get("Type") or d.get("Word Type")
+        if key == "Verse" or key == "Reference Verse":
+            return d.get("Verse") or d.get("Reference Verse")
         return d.get(key)
 
     # TODO: Reuse in user_input(...) and prompt_save_results(...) for consistent comparisons.
@@ -4789,6 +4791,7 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
+            "Verse":              verse,
             "Darpan Translation":  translation_condensed,
             "Darpan Translation (Raw)": raw_translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
@@ -4822,6 +4825,7 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
+            "Verse":              verse,
             "Darpan Translation":  translation_condensed,
             "Darpan Translation (Raw)": raw_translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
@@ -6320,6 +6324,8 @@ class GrammarApp:
 
             # Update the current detailed entry with finalized values
             entry = getattr(self, 'current_detailed_entry', {}) or {}
+            if 'Verse' not in entry:
+                entry['Verse'] = entry.get('Reference Verse', '')
             if ve:
                 entry["Vowel Ending"] = ve
             if num:
@@ -11290,9 +11296,9 @@ class GrammarApp:
         if not verses:
             verses = list(
                 dict.fromkeys(
-                    _s(e.get("Verse"))
+                    _s(e.get("Verse") or e.get("Reference Verse"))
                     for e in (new_entries or [])
-                    if e.get("Verse")
+                    if e.get("Verse") or e.get("Reference Verse")
                 )
             )
             self.selected_verses = verses
@@ -11326,7 +11332,8 @@ class GrammarApp:
             # Filter new_entries to only those whose "Word" is present in the current verse.
             filtered_new_entries = [
                 entry for entry in new_entries
-                if _s(entry.get("Word")) in normalized_words and _s(entry.get("Verse")) == verse_norm
+                if _s(entry.get("Word")) in normalized_words and
+                   _s(entry.get("Verse") or entry.get("Reference Verse")) == verse_norm
             ]
 
             duplicate_entries = []
