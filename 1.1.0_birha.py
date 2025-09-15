@@ -6276,19 +6276,6 @@ class GrammarApp:
         self.root.wait_window(win)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     # Wrappers for Verse and ABW to avoid cross-calling
     def open_final_grammar_dropdown(self, word, pos, index):
         return self._open_final_grammar_dropdown_common(word, pos, index, mode='verse')
