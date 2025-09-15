@@ -4564,7 +4564,7 @@ class GrammarApp:
             {verse}
 
             ### Darpan Translation (condensed)
-            {extract_darpan_translation(trans)}
+            {trans}
 
             ### Target Word
             - Word: {w}
