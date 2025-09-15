@@ -150,3 +150,52 @@ def test_finish_and_prompt_save_quiet_by_default():
         mock_info.assert_not_called()
         mock_save.assert_called_once_with(entries, skip_copy=True, quiet=True)
         assert app.all_new_entries == []
+
+
+def test_quiet_save_finish_skips_assessment_abv():
+    app = create_app()
+    app.selected_verses = ["foo bar"]
+    app.accumulated_pankti = ""
+    app.all_new_entries = [{
+        "Word": "foo",
+        "Vowel Ending": "",
+        "Number / ਵਚਨ": "",
+        "Grammar / ਵਯਾਕਰਣ": "",
+        "Gender / ਲਿੰਗ": "",
+        "Word Root": "",
+        "Type": "",
+        "Verse": "foo bar",
+        "Word Index": 0,
+    }]
+    with patch.object(app, 'load_existing_assessment_data', return_value=pd.DataFrame()), \
+         patch.object(app, 'save_assessment_data'), \
+         patch.object(app, 'prompt_copy_to_clipboard'), \
+         patch('tkinter.messagebox.showerror'), \
+         patch.object(app, 'prompt_for_assessment_once') as mock_assess:
+        app.finish_and_prompt_save()  # quiet by default
+        mock_assess.assert_not_called()
+
+
+def test_quiet_save_finish_skips_assessment_abw():
+    app = create_app()
+    app._current_detailed_mode = 'word'
+    app.selected_verses = []
+    app.accumulated_pankti = ""
+    app.all_new_entries = [{
+        "Word": "foo",
+        "Vowel Ending": "",
+        "Number / ਵਚਨ": "",
+        "Grammar / ਵਯਾਕਰਣ": "",
+        "Gender / ਲਿੰਗ": "",
+        "Word Root": "",
+        "Type": "",
+        "Reference Verse": "foo bar",
+        "Word Index": 0,
+    }]
+    with patch.object(app, 'load_existing_assessment_data', return_value=pd.DataFrame()), \
+         patch.object(app, 'save_assessment_data'), \
+         patch.object(app, 'prompt_copy_to_clipboard'), \
+         patch('tkinter.messagebox.showerror'), \
+         patch.object(app, 'prompt_for_assessment_once') as mock_assess:
+        app.finish_and_prompt_save()  # quiet by default
+        mock_assess.assert_not_called()

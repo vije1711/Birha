@@ -8006,7 +8006,12 @@ class GrammarApp:
             self.all_new_entries.extend(current_entries)
             self.process_next_selected_word()
 
-    def prompt_save_results_reanalysis(self, new_entries, skip_copy=False):
+    def prompt_save_results_reanalysis(self, new_entries, skip_copy=False, quiet=False):
+        """Save re-analysis results for selected verses.
+
+        When ``quiet`` is True, clipboard prompts and assessment modals are
+        suppressed.
+        """
         file_path = "1.2.1 assessment_data.xlsx"
         existing_data = self.load_existing_assessment_data(file_path)
         original_accumulated_pankti = self.accumulated_pankti
@@ -8046,7 +8051,11 @@ class GrammarApp:
             if unique_entries:
                 save = messagebox.askyesno("Save Results", f"Would you like to save the new entries for the following verse?\n\n{verse}")
                 if save:
-                    assessment_data = self.prompt_for_assessment_once_reanalysis()
+                    assessment_data = (
+                        {}
+                        if quiet
+                        else self.prompt_for_assessment_once_reanalysis()
+                    )
 
                     # Extract verse metadata from chosen_match if available
                     verse_to_match = self.accumulated_pankti.strip()
@@ -8345,8 +8354,13 @@ class GrammarApp:
 
         return clipboard_text
 
-    def prompt_for_assessment_once_reanalysis(self):
-        """Opens a modal prompt for re-analysis of the entire verse and returns the collected assessment data."""
+    def prompt_for_assessment_once_reanalysis(self, quiet=False):
+        """Opens a modal prompt for re-analysis of the entire verse and returns the collected assessment data.
+
+        When ``quiet`` is True, returns an empty dict without displaying any prompt.
+        """
+        if quiet:
+            return {}
         assessment_win = tk.Toplevel(self.root)
         assessment_win.title(f"Re-Assessment: '{self.accumulated_pankti}'")
         assessment_win.configure(bg='light gray')
@@ -8542,13 +8556,16 @@ class GrammarApp:
         file_path = "1.2.1 assessment_data.xlsx"
         df_existing = self.load_existing_assessment_data(file_path)
 
+        translation = new_entry.get("Translation", "")
+        new_entry["Translation"] = translation
+
         grammar_keys = [
             '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
             'Gender / ਲਿੰਗ', 'Word Root', 'Type'
         ]
 
         # Update translation for all entries of the same verse
-        df_existing.loc[df_existing["Verse"] == new_entry["Verse"], "Translation"] = new_entry["Translation"]
+        df_existing.loc[df_existing["Verse"] == new_entry["Verse"], "Translation"] = translation
 
         # Locate matching entries
         matching_rows = df_existing[
@@ -10794,7 +10811,10 @@ class GrammarApp:
         """
         file_path = "1.2.1 assessment_data.xlsx"
         df_existing = self.load_existing_assessment_data(file_path)
-        
+
+        translation = new_entry.get("Translation", "")
+        new_entry["Translation"] = translation
+
         # Define the grammar keys to compare (excluding Translation, which is updated separately).
         grammar_keys = [
             '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
@@ -10802,7 +10822,7 @@ class GrammarApp:
         ]
         
         # Update the Translation for all rows in the same verse.
-        df_existing.loc[df_existing["Verse"] == new_entry["Verse"], "Translation"] = new_entry["Translation"]
+        df_existing.loc[df_existing["Verse"] == new_entry["Verse"], "Translation"] = translation
         
         # Filter for rows with the same word, same verse, and same word index.
         matching_rows = df_existing[
@@ -11289,10 +11309,10 @@ class GrammarApp:
         return final_choice
 
     def prompt_save_results(self, new_entries, skip_copy=False, quiet=False):
-        """
-        For each verse in self.selected_verses, prompts the user to save new entries (accumulated from all words),
-        checking for duplicates first. Then opens a modal prompt for assessment and saves the finalized data
-        (including verse-level metadata) to an Excel file.
+        """Save newly assessed entries for each verse.
+
+        When ``quiet`` is True, clipboard prompts, confirmation dialogs, and
+        translation assessment modals are suppressed.
         """
         def _s(val):
             if val is None:
@@ -11391,8 +11411,12 @@ class GrammarApp:
                         f"Would you like to save the new entries for the following verse?\n\n{verse_norm}"
                     )
                 if save:
-                    # Open one assessment prompt for the current verse.
-                    assessment_data = self.prompt_for_assessment_once()
+                    # Open one assessment prompt for the current verse unless suppressed.
+                    assessment_data = (
+                        {}
+                        if quiet
+                        else self.prompt_for_assessment_once()
+                    )
 
                     # --- Extract verse metadata from candidate matches ---
                     verse_to_match = _s(self.accumulated_pankti)
@@ -11519,8 +11543,13 @@ class GrammarApp:
 
         return all_saved
 
-    def prompt_for_assessment_once(self):
-        """Opens a modal prompt for the entire verse assessment and returns the collected data."""
+    def prompt_for_assessment_once(self, quiet=False):
+        """Opens a modal prompt for the entire verse assessment and returns the collected data.
+
+        When ``quiet`` is True, returns an empty dict without displaying any prompt.
+        """
+        if quiet:
+            return {}
         assessment_win = tk.Toplevel(self.root)
         assessment_win.title(f"Enter Translation Assessment for: '{self.accumulated_pankti}'")
         assessment_win.configure(bg='light gray')
