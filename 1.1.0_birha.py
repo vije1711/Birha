@@ -16,6 +16,7 @@ import numpy as np
 import textwrap
 import webbrowser
 import platform
+import copy
 try:
     import ctypes
     from ctypes import wintypes
@@ -4181,9 +4182,23 @@ class GrammarApp:
 
         if self.all_new_entries:
             try:
+                summary_lines = [
+                    f"{i+1}. {e.get('Word', e.get('Vowel Ending', ''))}"
+                    for i, e in enumerate(self.all_new_entries)
+                ]
+                summary = "\n".join(summary_lines)
+                messagebox.showinfo(
+                    "Session Summary",
+                    f"{len(self.all_new_entries)} grammar assessments recorded:\n\n{summary}"
+                )
+            except Exception:
+                pass
+            try:
                 self.prompt_save_results(self.all_new_entries)
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred while saving: {e}")
+            finally:
+                self.all_new_entries = []
         else:
             try:
                 messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
@@ -4765,6 +4780,7 @@ class GrammarApp:
 
         # 4) Build the initial "detailed" entry dict:
         entry = {
+            "Word":               word,
             "Vowel Ending":       word,
             "Number / ਵਚਨ":       number,
             "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
@@ -4797,6 +4813,7 @@ class GrammarApp:
         translation_condensed   = extract_darpan_translation(raw_translation)
         meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
         entry = {
+            "Word":               word,
             "Vowel Ending":       word,
             COL_NUMBER:            number,
             COL_GRAMMAR:           "",
@@ -6325,6 +6342,11 @@ class GrammarApp:
                 ui_parent=win
             )
             advance_ok = bool(saved)
+            if saved:
+                try:
+                    self.all_new_entries.append(copy.deepcopy(entry))
+                except Exception:
+                    self.all_new_entries.append(entry.copy())
         except Exception as e:
             try:
                 messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
@@ -11264,12 +11286,22 @@ class GrammarApp:
 
         file_path = "1.2.1 assessment_data.xlsx"
         existing_data = self.load_existing_assessment_data(file_path)
-        
+        verses = getattr(self, "selected_verses", []) or []
+        if not verses:
+            verses = list(
+                dict.fromkeys(
+                    _s(e.get("Verse"))
+                    for e in (new_entries or [])
+                    if e.get("Verse")
+                )
+            )
+            self.selected_verses = verses
+
         # Save the original accumulated_pankti so it can be restored later.
         original_accumulated_pankti = self.accumulated_pankti
 
         # Process each verse in the selected verses
-        for verse in self.selected_verses:
+        for verse in verses:
             # Update the current verse for processing.
             self.accumulated_pankti = verse
             verse_norm = _s(verse)
