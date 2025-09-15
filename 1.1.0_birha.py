@@ -16,7 +16,6 @@ import numpy as np
 import textwrap
 import webbrowser
 import platform
-import copy
 try:
     import ctypes
     from ctypes import wintypes
@@ -1475,8 +1474,6 @@ class GrammarApp:
             return d.get("\ufeffVowel Ending") or d.get("Vowel Ending")
         if key == "Type" or key == "Word Type":
             return d.get("Type") or d.get("Word Type")
-        if key == "Verse" or key == "Reference Verse":
-            return d.get("Verse") or d.get("Reference Verse")
         return d.get(key)
 
     # TODO: Reuse in user_input(...) and prompt_save_results(...) for consistent comparisons.
@@ -4184,24 +4181,9 @@ class GrammarApp:
 
         if self.all_new_entries:
             try:
-                summary_lines = [
-                    f"{i+1}. {e.get('Word', e.get('Vowel Ending', ''))}"
-                    for i, e in enumerate(self.all_new_entries)
-                ]
-                summary = "\n".join(summary_lines)
-                messagebox.showinfo(
-                    "Session Summary",
-                    f"{len(self.all_new_entries)} grammar assessments recorded:\n\n{summary}"
-                )
-            except Exception:
-                pass
-            try:
-                saved = self.prompt_save_results(self.all_new_entries)
+                self.prompt_save_results(self.all_new_entries)
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred while saving: {e}")
-            else:
-                if saved:
-                    self.all_new_entries = []
         else:
             try:
                 messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
@@ -4783,7 +4765,6 @@ class GrammarApp:
 
         # 4) Build the initial "detailed" entry dict:
         entry = {
-            "Word":               word,
             "Vowel Ending":       word,
             "Number / ਵਚਨ":       number,
             "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
@@ -4792,7 +4773,6 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
-            "Verse":              verse,
             "Darpan Translation":  translation_condensed,
             "Darpan Translation (Raw)": raw_translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
@@ -4817,7 +4797,6 @@ class GrammarApp:
         translation_condensed   = extract_darpan_translation(raw_translation)
         meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
         entry = {
-            "Word":               word,
             "Vowel Ending":       word,
             COL_NUMBER:            number,
             COL_GRAMMAR:           "",
@@ -4826,7 +4805,6 @@ class GrammarApp:
             "Type":                pos,
             "Evaluation":          "Derived",
             "Reference Verse":     verse,
-            "Verse":              verse,
             "Darpan Translation":  translation_condensed,
             "Darpan Translation (Raw)": raw_translation,
             "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
@@ -6325,8 +6303,6 @@ class GrammarApp:
 
             # Update the current detailed entry with finalized values
             entry = getattr(self, 'current_detailed_entry', {}) or {}
-            if 'Verse' not in entry:
-                entry['Verse'] = entry.get('Reference Verse', '')
             if ve:
                 entry["Vowel Ending"] = ve
             if num:
@@ -6349,11 +6325,6 @@ class GrammarApp:
                 ui_parent=win
             )
             advance_ok = bool(saved)
-            if saved:
-                try:
-                    self.all_new_entries.append(copy.deepcopy(entry))
-                except Exception:
-                    self.all_new_entries.append(entry.copy())
         except Exception as e:
             try:
                 messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
@@ -11293,23 +11264,12 @@ class GrammarApp:
 
         file_path = "1.2.1 assessment_data.xlsx"
         existing_data = self.load_existing_assessment_data(file_path)
-        verses = getattr(self, "selected_verses", []) or []
-        all_saved = True
-        if not verses:
-            verses = list(
-                dict.fromkeys(
-                    _s(e.get("Verse") or e.get("Reference Verse"))
-                    for e in (new_entries or [])
-                    if e.get("Verse") or e.get("Reference Verse")
-                )
-            )
-            self.selected_verses = verses
-
+        
         # Save the original accumulated_pankti so it can be restored later.
         original_accumulated_pankti = self.accumulated_pankti
 
         # Process each verse in the selected verses
-        for verse in verses:
+        for verse in self.selected_verses:
             # Update the current verse for processing.
             self.accumulated_pankti = verse
             verse_norm = _s(verse)
@@ -11334,8 +11294,7 @@ class GrammarApp:
             # Filter new_entries to only those whose "Word" is present in the current verse.
             filtered_new_entries = [
                 entry for entry in new_entries
-                if _s(entry.get("Word")) in normalized_words and
-                   _s(entry.get("Verse") or entry.get("Reference Verse")) == verse_norm
+                if _s(entry.get("Word")) in normalized_words and _s(entry.get("Verse")) == verse_norm
             ]
 
             duplicate_entries = []
@@ -11496,16 +11455,12 @@ class GrammarApp:
                         entry.update(verse_metadata)
                         self.save_assessment_data(entry)
                     messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse_norm)
-                else:
-                    all_saved = False
 
         # Restore the original accumulated_pankti after processing all verses.
         self.accumulated_pankti = original_accumulated_pankti
 
         if hasattr(self, 'copy_button') and self.copy_button.winfo_exists():
             self.copy_button.config(state=tk.NORMAL)
-
-        return all_saved
 
     def prompt_for_assessment_once(self):
         """Opens a modal prompt for the entire verse assessment and returns the collected data."""
