@@ -5091,22 +5091,23 @@ class GrammarApp:
                 except Exception:
                     pass
             try:
-                num_frame.grid_columnconfigure(0, weight=0)
-                num_frame.grid_columnconfigure(1, weight=1)
+                num_frame.grid_columnconfigure(0, weight=1, uniform='numcols', minsize=220)
+                num_frame.grid_columnconfigure(1, weight=1, uniform='numcols', minsize=220)
             except Exception:
                 pass
+            COL_GAP = 24
             tk.Radiobutton(
-                num_frame, text="Singular", variable=self.number_var, value="Singular / ??",
+                num_frame, text="Singular", variable=self.number_var, value="Singular / ਇਕ",
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).grid(row=0, column=0, sticky='w', padx=2, pady=2)
+            ).grid(row=0, column=0, sticky='w', padx=(0, COL_GAP), pady=2)
             tk.Radiobutton(
-                num_frame, text="Plural", variable=self.number_var, value="Plural / ???",
+                num_frame, text="Plural", variable=self.number_var, value="Plural / ਬਹੁ",
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).grid(row=0, column=1, sticky='w', padx=2, pady=2)
+            ).grid(row=0, column=1, sticky='w', padx=0, pady=2)
             tk.Radiobutton(
                 num_frame, text="Unknown", variable=self.number_var, value="NA",
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).grid(row=1, column=0, sticky='w', padx=2, pady=2)
+            ).grid(row=1, column=0, sticky='w', padx=(0, COL_GAP), pady=2)
         except Exception:
             pass
 
