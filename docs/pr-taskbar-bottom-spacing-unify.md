@@ -8,7 +8,7 @@ Summary
 Dialogs updated
 - Verse
   - `show_translation_input`
-  - `user_input_grammar` (implementation `_user_input_grammar_impl`)
+  - `user_input_grammar`
   - `open_final_grammar_dropdown` (common: `_open_final_grammar_dropdown_common`)
 - Assess by Word (ABW)
   - `show_word_translation_input`

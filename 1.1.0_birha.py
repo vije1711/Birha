@@ -4276,627 +4276,6 @@ class GrammarApp:
         val = self._select_all_words_var.get()
         for var, _ in getattr(self, "_word_selection_vars", []):
             var.set(val)
-
-    def _user_input_grammar_impl(self, word, translation, index):
-        """
-        Pop up a window to collect grammar info for one word:
-        - shows full verse with the `index`th word highlighted
-        - shows the Darpan translation
-        - left pane: dictionary meanings
-        - right pane: Number/Gender/POS radio buttons + Expert-Prompt button
-        - bottom row: Back / Skip / Submit
-        """
-        win = tk.Toplevel(self.root)
-        win.title(f"Assess Grammar: {word}")
-        win.configure(bg='light gray')
-        # Taskbar-safe exact maximize to the work area (deferred)
-        self._wm_apply(win, margin_px=0, defer=True)
-        win.resizable(True, True)
-
-        # 1) Verse display + highlight (use Gurmukhi‑safe font + metrics padding)
-        vf = tk.Frame(win, bg='light gray')
-        vf.pack(fill=tk.X, padx=20, pady=(20,10))
-
-        # Reuse or compute a Gurmukhi-safe font family (shared with translation input)
-        try:
-            if not hasattr(self, '_gurmukhi_font_family'):
-                families = set(map(str, tkfont.families()))
-                candidates = [
-                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
-                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
-                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
-                ]
-                chosen = None
-                for name in candidates:
-                    if name in families:
-                        chosen = name
-                        break
-                if not chosen:
-                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
-                self._gurmukhi_font_family = chosen
-        except Exception:
-            if not hasattr(self, '_gurmukhi_font_family'):
-                try:
-                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
-                except Exception:
-                    self._gurmukhi_font_family = 'TkDefaultFont'
-
-        # Construct fonts for the verse and highlight (persist to avoid GC fallback)
-        if not hasattr(self, '_verse_font'):
-            self._verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
-        if not hasattr(self, '_verse_font_bold'):
-            self._verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
-
-        # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
-        try:
-            ascent = int(self._verse_font.metrics('ascent') or 0)
-            descent = int(self._verse_font.metrics('descent') or 0)
-        except Exception:
-            ascent = descent = 0
-        pad_top = int(math.ceil(ascent * 0.25))
-        pad_bottom = int(math.ceil(descent * 0.35))
-
-        # Text widget for the verse (centered, word-wrap), with internal padding and external pady
-        td = tk.Text(
-            vf,
-            wrap=tk.WORD,
-            bg='light gray',
-            font=self._verse_font,
-            height=1,
-            bd=0,
-            padx=4,
-            pady=max(2, int(math.ceil(max(ascent, descent) * 0.15)))  # internal cushion
-        )
-        td.pack(fill=tk.X, pady=(pad_top, pad_bottom))
-        td.insert('1.0', self.selected_verse_text)
-        td.tag_add('center', '1.0', 'end')
-        td.tag_configure('center', justify='center')
-
-        # highlight the word (keep blue styling, but use Gurmukhi font variant)
-        words = self.selected_verse_text.split()
-        start = sum(len(w)+1 for w in words[:index])
-        end   = start + len(words[index])
-        td.tag_add('highlight', f'1.{start}', f'1.{end}')
-        td.tag_configure('highlight', font=self._verse_font_bold, foreground='blue')
-        td.config(state=tk.DISABLED)
-
-        # Keep text wrapping responsive to window width; adjust char width on resize (approximation)
-        def _sync_text_width(evt):
-            try:
-                # Estimate characters that fit in available width (minus frame padding)
-                avg_px = max(1, int(self._verse_font.measure('0') or 8))
-                width_chars = max(20, int((evt.width - 40) / avg_px))
-                td.configure(width=width_chars)
-            except Exception:
-                pass
-        try:
-            win.bind('<Configure>', _sync_text_width, add='+')
-        except Exception:
-            pass
-
-        # 2) Translation LabelFrame (taller; expands with window)
-        tf = tk.LabelFrame(win, text="Darpan Translation",
-                           font=('Arial',16,'bold'),
-                           bg='light gray', fg='black',
-                           padx=10, pady=10)
-        # Allow translation area to grow and use available vertical space
-        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
-        trans = tk.Text(tf, wrap=tk.WORD, font=('Arial',14),
-                        height=6, bd=0)
-        trans.insert('1.0', translation)
-        trans.config(state=tk.DISABLED)
-        # Let the Text grow within the frame
-        trans.pack(fill=tk.BOTH, expand=True)
-
-        # Prepare vars for grammar options
-        # Default to “Unknown” (NA)
-        self.number_var = tk.StringVar(value="NA")
-        self.gender_var = tk.StringVar(value="NA")
-        self.pos_var    = tk.StringVar(value="NA")
-
-        # 3+4) Stack: meanings (wide) above options (wide), both near bottom
-        stack = tk.Frame(win, bg='light gray')
-        # Pack as a normal/top sibling so the bottom-anchored button row remains the last element.
-        # This ensures the stack sits directly above the action buttons.
-        stack.pack(fill=tk.X, padx=20, pady=(0,15))
-
-        # — Meanings (wide, dense columns) —
-        left = tk.LabelFrame(
-            stack,
-            text=f"Meanings for \u201c{word}\u201d",
-            font=('Arial',16,'bold'),
-            bg='light gray', fg='black',
-            padx=10, pady=10
-        )
-        left.pack(fill=tk.X, expand=False)
-
-        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0, height=200)
-        scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
-        self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
-
-        scrollbar.pack(side='right', fill='y')
-        self.meanings_canvas.pack(side='left', fill='both', expand=True)
-        self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
-        self.meanings_canvas.create_window((0,0), window=self.meanings_inner_frame, anchor='nw')
-
-        def _on_meanings_configure(evt):
-            self.meanings_canvas.configure(scrollregion=self.meanings_canvas.bbox("all"))
-        self.meanings_inner_frame.bind("<Configure>", _on_meanings_configure)
-
-        self.current_word = word   # ← NEW: remember which word we’re looking up
-        threading.Thread(
-            target=lambda: self.lookup_grammar_meanings_thread(word),
-            daemon=True
-        ).start()
-
-
-        # — Grammar Options (wide row of groups) —
-        right = tk.LabelFrame(
-            stack,
-            text="Select Grammar Options",
-            font=("Arial", 16, "bold"),
-            bg="light gray", fg="black",
-            padx=10, pady=10
-        )
-        right.pack(fill=tk.X, expand=False, pady=(8, 0))
-
-        # prepare your choices
-        nums = [
-            ("Singular", "Singular / ਇਕ"),
-            ("Plural",   "Plural / ਬਹੁ"),
-            ("Unknown",  "NA")
-        ]
-        gends = [
-            ("Masculine", "Masculine / ਪੁਲਿੰਗ"),
-            ("Feminine",  "Feminine / ਇਸਤਰੀ"),
-            ("Neuter",    "Trans / ਨਪੁੰਸਕ"),
-            ("Unknown",   "NA")
-        ]
-        pos_choices = [
-            ("Noun",        "Noun / ਨਾਂਵ"),
-            ("Adjective",   "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
-            ("Adverb",      "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
-            ("Verb",        "Verb / ਕਿਰਿਆ"),
-            ("Pronoun",     "Pronoun / ਪੜਨਾਂਵ"),
-            ("Postposition","Postposition / ਸੰਬੰਧਕ"),
-            ("Conjunction", "Conjunction / ਯੋਜਕ"),
-            ("Interjection", "Interjection / ਵਿਸਮਿਕ"),
-            ("Unknown",     "NA")
-        ]
-
-        # Horizontal row of three groups: Number | Gender | Part of Speech
-        # Inside 'right', use grid for all children to avoid pack/grid mix conflicts
-        right.grid_columnconfigure(0, weight=1)
-        grp_row = tk.Frame(right, bg="light gray")
-        grp_row.grid(row=0, column=0, sticky="nsew")
-        # Give more weight to POS group to use width better
-        for c in range(3):
-            grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
-
-        # Number
-        num_frame = tk.LabelFrame(grp_row, text="Number",
-                                  font=("Arial", 14, "bold"),
-                                  bg="light gray", padx=8, pady=8)
-        num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
-        # Arrange Number radios in 2 columns / 2 rows (Singular | Plural on row 0; Unknown on row 1)
-        for i, (txt, val) in enumerate(nums):
-            r = 0 if i < 2 else 1
-            c = i if i < 2 else 0
-            rb = tk.Radiobutton(
-                num_frame, text=txt, variable=self.number_var, value=val,
-                bg="light gray", font=("Arial", 12), anchor="w", justify="left")
-            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-        num_frame.grid_columnconfigure(0, weight=1)
-        num_frame.grid_columnconfigure(1, weight=1)
-
-        # Gender
-        gend_frame = tk.LabelFrame(grp_row, text="Gender",
-                                   font=("Arial", 14, "bold"),
-                                   bg="light gray", padx=8, pady=8)
-        gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
-
-        # two sub-frames for the two columns
-        gf_col1 = tk.Frame(gend_frame, bg="light gray")
-        gf_col2 = tk.Frame(gend_frame, bg="light gray")
-        gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
-        gf_col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
-
-        # split the list in half
-        half = (len(gends)+1)//2
-        for i, (txt, val) in enumerate(gends):
-            parent = gf_col1 if i < half else gf_col2
-            tk.Radiobutton(
-                parent, text=txt, variable=self.gender_var, value=val,
-                bg="light gray", font=("Arial", 12),
-                anchor="w", justify="left"
-            ).pack(anchor="w", pady=2)
-
-        # Part of Speech (compact: 3 columns inside the group)
-        pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
-                                  font=("Arial", 14, "bold"),
-                                  bg="light gray", padx=8, pady=8)
-        pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
-
-        # Arrange POS radios in two rows using multiple columns to minimize height
-        pos_rows = 2
-        pos_cols = -(-len(pos_choices) // pos_rows)
-        for i, (txt, val) in enumerate(pos_choices):
-            r = i % pos_rows
-            c = i // pos_rows
-            rb = tk.Radiobutton(
-                pos_frame, text=txt, variable=self.pos_var, value=val,
-                bg="light gray", font=("Arial", 12),
-                anchor="w", justify="left")
-            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-        for c in range(pos_cols):
-            pos_frame.grid_columnconfigure(c, weight=1)
-
-        # Expert-prompt builder
-        def ask_suggestion():
-            verse = self.selected_verse_text
-            trans = self.current_translation
-            word  = self.current_word
-            num   = self.number_var.get() or "–"
-            gen   = self.gender_var.get() or "–"
-            pos   = self.pos_var.get()    or "–"
-
-            # --------------------------------------------------------------
-            # Surface existing matches from the grammar database.  We mimic
-            # perform_search_and_finish_reanalysis() to determine whether to
-            # call search_by_criteria() or search_by_inflections().
-            # --------------------------------------------------------------
-            try:
-                search_num = self.number_var.get()
-                search_gen = self.gender_var.get()
-                search_pos = self.pos_var.get()
-
-                if (
-                    search_num == "NA" and
-                    search_gen == "NA" and
-                    search_pos == "NA"
-                ):
-                    matches = self.search_by_inflections(word)
-                else:
-                    matches = self.search_by_criteria(
-                        word, search_num, search_gen, search_pos
-                    )
-                    if not matches:
-                        matches = self.search_by_inflections(word)
-
-                # Precompute keyset for Evaluation == "Predefined" rows from CSV
-                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
-                rows = []
-                for result, _count, _perc in matches:
-                    parts = [p.strip() for p in result.split("|")]
-                    if len(parts) < 7:
-                        parts += [""] * (7 - len(parts))
-
-                    # Filter out rows not marked Predefined in CSV (by core feature key)
-                    try:
-                        key = tuple((parts[i] or "").strip() for i in (2, 3, 4, 5, 6))
-                    except Exception:
-                        key = ("") * 5
-                    if key not in pre_keys:
-                        continue
-
-                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
-                    if highlight:
-                        parts = [f"**{p}**" for p in parts]
-                        parts[0] = "✅ " + parts[0]
-
-                    rows.append(
-                        "| "
-                        + " | ".join(parts + [str(_count), f"{_perc:.1f}%"])
-                        + " |"
-                    )
-                    if len(rows) >= 5:
-                        break
-
-                if rows:
-                    headers = [
-                        "Word under Analysis",
-                        "Vowel Ending / Word Matches",
-                        "Number / ਵਚਨ",
-                        "Grammar / ਵਯਾਕਰਣ",
-                        "Gender / ਲਿੰਗ",
-                        "Word Root",
-                        "Type",
-                        "Match Count",
-                        "Match %",
-                    ]
-                    table_lines = [
-                        "**Top Grammar Matches**",
-                        "| " + " | ".join(headers) + " |",
-                        "| " + " | ".join(["---"] * len(headers)) + " |",
-                        *rows,
-                    ]
-                    matches_block = "\n".join(table_lines)
-                else:
-                    matches_block = "**Top Grammar Matches**\nNo predefined examples found"
-            except Exception as exc:
-                print(f"search for matches failed: {exc}")
-                matches_block = ""
-
-            # pull the meanings we stored for this word
-            meanings = next(
-                (e["meanings"] for e in self.grammar_meanings if e["word"] == word),
-                []
-            )
-            meanings_block = "\n".join(f"- {m}" for m in meanings) or "- (no dictionary meanings found)"
-
-            prompt = textwrap.dedent(f"""
-            You are a Punjabi grammar expert trained in the grammatical framework of Sri Guru Granth Sahib (SGGS). I will provide:
-
-            1. **Verse** (in Gurmukhi)  
-            2. **Established Darpan Translation** (by Prof. Sahib Singh)  
-            3. **Word under scrutiny**, along with my selected values for Number, Gender, and Part of Speech  
-            4. **Dictionary Meanings** of that word (as a secondary reference)
-
-            Your job is to confirm or correct my selections based on the **Darpan Translation and its contextual meaning**, which is the **primary reference**. Override my input only if the Darpan explanation makes it grammatically, semantically, or functionally incorrect within the SGGS grammatical framework.
-
-           ---
-
-            ## 🔄 Two-Pass Analysis Workflow
-            **Phase 1 – Functional Tagging**  
-            1 a. Locate every occurrence of the stem in the verse.  
-            1 b. Assign provisional POS to each occurrence from context.  
-
-            **Phase 2 – Morphological Reconciliation**  
-            2 a. Compare endings of all identical stems found in 1 a.  
-            2 b. If endings differ → mark the stem **declinable** and align each form with its noun/pronoun.  
-            2 c. If endings never differ → note “No declension detected.”  
-
-            If Phase 2 detects a declinable pattern but any token fails to agree with its noun/pronoun, **STOP** and return “Agreement Error – Review Needed.”
-
-            ---
-
-            ## 📘 Reference Framework – SGGS Grammar Definitions
-
-            ### 🧩 Implicit Case Logic in Gurbani Grammar
-            Many case roles in SGGS are conveyed through **inflection or contextual meaning**, not modern postpositions. Refer to the gloss clues (“of”, “by”, “with”, etc.) to infer case correctly.
-
-            ### 1. **Noun (ਨਾਂਵ)**  
-            A noun is a word that names a person, place, thing, quality, or idea.
-
-            #### 🔹 Types:
-            - **Proper Noun (ਵਿਸ਼ੇਸ਼ ਨਾਂਵ)** – e.g., ਗੁਰੂ ਨਾਨਕ
-            - **Common Noun (ਸਧਾਰਨ ਨਾਂਵ)** – e.g., ਪਾਣੀ, ਰੋਟੀ
-            - **Abstract Noun (ਭਾਵ ਨਾਂਵ)** – e.g., ਪਿਆਰ, ਗਿਆਨ
-            - **Material Noun (ਦ੍ਰਵ ਨਾਂਵ)** – e.g., ਸੋਨਾ, ਜਲ
-            - **Collective Noun (ਸਮੂਹਕ ਨਾਂਵ)** – e.g., ਸੰਗਤ, ਫੌਜ
-
-            #### 🔹 Cases in Gurbani Grammar:
-            Nouns in Gurbani may appear in the following **grammatical cases** (*vibhakti*), sometimes **without explicit post-positions**:
-
-            | Case         | Helper (Gloss Clue)             | Modern Marker    | When to Use                                                       |
-            |--------------|----------------------------------|------------------|-------------------------------------------------------------------|
-            | **Nominative**     | No helper, subject role         | None             | Default when noun is subject of verb                              |
-            | **Accusative**     | No helper, object role          | None             | Default when noun is object of verb                               |
-            | **Genitive**       | “of”, “ਦੇ/ਦੀ/ਦਾ”                | `ਦੇ`, `ਦੀ`, `ਦਾ` | Use when gloss adds ownership/association                         |
-            | **Instrumental**   | “by”, “with”, “under”           | `ਨਾਲ`, `ਅਧੀਨ`     | Use when gloss suggests means/manner (even if unstated in verse)  |
-            | **Dative**         | “to”, “for”                     | `ਨੂੰ`, `ਲਈ`       | When gloss implies recipient/beneficiary                          |
-            | **Locative**       | “in”, “on”, “at”                | `ਵਿੱਚ`, `ਤੇ`      | When gloss places noun in space/context                           |
-            | **Ablative**       | “from”, “out of”                | `ਤੋਂ`, `ਉਤੋਂ`      | When gloss implies source                                         |
-            | **Vocative**       | “O”, “Hey”                      | *(address)*       | Used for direct address (e.g., *ਹੇ ਭਾਈ!*)                          |
-
-            > 🔸 **Implicit Post-Positions:** If Darpan adds “ਨਾਲ, ਦੇ, ਵਿੱਚ, ਤੋਂ” etc., treat it as a **helper** for inferring the noun’s **grammatical case**, even if the verse lacks a marker.
-            >
-            > 🔸 **Indeclinable Loan Nouns:** Sanskrit-based nouns (like *ਬਿਧਿ*, *ਮਤੀ*) may not show visible inflection. Their case must be inferred from semantic role and Darpan gloss, not suffix alone.
-
-            > 🔹 **Fallback Rule:**  
-            > When the gloss offers no helper and the noun does not visibly decline, default to **Nominative or Accusative**, then refine based on sentence structure and implied role in the Darpan explanation.
-
-            ### 2. **Pronoun (ਪੜਨਾਂਵ)**  
-            Used in place of nouns. Types include:  
-            - **Personal**, **Demonstrative**, **Reflexive**, **Possessive**, **Relative**, **Indefinite**, **Interrogative**
-
-            ### 3. **Adjective (ਵਿਸ਼ੇਸ਼ਣ) – Agreement Framework**
-            Describes or qualifies a noun or pronoun only. Must be directly linked to one.  
-            Adjectives include: **Qualitative**, **Demonstrative**, **Indefinite**, **Pronominal**, **Numeral**, and **Interrogative**.
-            Examples include: ਚੰਗਾ ਮਨੁ, ਚੰਗੀ ਬਾਣੀ, ਚੰਗੇ ਬਚਨ, ਸਾਰਾ ਦੁਖ, ਉਹ ਮਾਇਆ, ਕੋਈ ਮਨੁੱਖ
-
-            🔴 **GURBANI RULE (STRICT)**  
-            ▶️ **All adjectives in Gurbani MUST agree in Number and Gender with the noun or pronoun they qualify.**  
-            This is a **non-negotiable rule** confirmed by both **Sikh Research Institute (SikhRi)** and **Prof. Sahib Singh’s Gurbani Vyakaran**.  
-            The agreement must be:
-            - **Semantic** (referring to the correct noun/pronoun)
-            - **Morphological** (adjective form visibly matches Number & Gender)
-
-            👉 *In Gurbani, adjectives are always **declined** to match the Number and Gender of the noun or pronoun they describe. This means adjectives **change form** based on their grammatical role. They are not fixed or invariable by default.*
-
-            If the adjective’s form appears fixed (e.g., ending in ‘ō’ or ‘au’), consult its grammatical root ending (Muktā, Kannā, Aunkār, Horā, Bihārī) to verify its role and alignment.
-
-            🔍 *Do not assume that any adjective is morphologically invariable unless **Gurbani Vyakaran** explicitly identifies it as a poetic variant that still maintains grammatical agreement.* **Do not conclude invariance merely because the same form appears with multiple nouns.**
-            **Many adjectives follow internal paradigms that are consistent across different contexts, even if they *look* fixed.**
-
-            🧠 *If the adjective’s ending appears unchanged, it must still be evaluated against known adjective paradigms (e.g., hōrā-ending, kannā-ending). Only when those forms confirm invariance through grammatical structure—not intuition—should it be marked as ‘invariable’ in the agreement table.*
-
-            > **Cross-token check ** – If the same stem re-appears with a different ending in the *line*, treat that as conclusive evidence it is **declinable**; do not invoke “indeclinable” unless all tokens are identical in form *and* no paradigm lists inflected endings.
-
-            ---
-
-            **🛑 Mandatory Adjective Agreement Table**
-            ⚠️ **Caution:**  
-            Do **not** classify a word as an Adjective merely because it appears near a noun.  
-            Carefully check whether the word is:
-            - Acting as the **object of a postposition** (e.g., "ਦੇ ਅਧੀਨ", "ਵਿੱਚ", "ਤੋਂ", "ਉੱਤੇ"), in which case it is a **noun**, not an adjective.
-            - Part of an **oblique noun phrase** and not qualifying the noun directly.
-            - Functioning as a **noun in instrumental case** (e.g., ਤ੍ਰਿਬਿਧਿ – by/with threefold means); these may **appear** descriptive but are **semantically instrumental nouns**, not adjectives.
-            
-            These constructions often create **false links**. Always confirm grammatical agreement and functional relationship before assigning Adjective.
-
-            If a word is confirmed as an adjective, this table is required:
-
-            | Step | Requirement | Observation | Result |
-            |------|-------------|-------------|--------|
-            | 1 | Identify the qualified noun/pronoun | (e.g., ਸੁਖੁ – masculine singular) | ... |
-            | 2 | Show matching Number & Gender in adjective form | (e.g., ਅਗਲੋ = masculine singular form of ਹੌਰਾ-ending adjective) | ✅ / ❌ |
-            | 3 | Stem-variation observed? | e.g. ਫਕੜ / ਫਕੜੁ | ✅ / ❌ |
-
-            ❌ *Responses that skip this table or assume invariable adjectives will be treated as incomplete.*
-            *(skip the table entirely if final POS ≠ Adjective)*
-
-            ### 4. **Verb (ਕਿਰਿਆ)**  
-            Expresses an action, state, or condition. Includes forms like transitive/intransitive, passive, causative, auxiliary, etc.
-
-            ### 5. **Adverb (ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ)**  
-            Modifies verbs only. Never nouns. Categories include Time, Place, Manner, Degree, Frequency, etc.
-
-            ### 6. **Postposition (ਸਿੰਬੰਧਕ)** – e.g., ਨਾਲ, ਵਿੱਚ, ਉੱਤੇ  
-            ### 7. **Conjunction (ਯੋਗਕ)** – e.g., ਅਤੇ, ਜੇਕਰ, ਪਰ  
-            ### 8. **Interjection (ਵਿਸਮੀਕ)** – e.g., ਵਾਹ ਵਾਹ!, ਹਾਏ!
-
-            ---
-
-            ## 🎯 Evaluation Guidelines
-
-            1. Use **Darpan Translation** to determine the word’s semantic role.  
-            2. Confirm **Part of Speech**:  
-            - Modifies noun/pronoun → Adjective (**triggers the agreement check**)  
-            - Modifies verb/adjective/adverb → Adverb  
-            - If noun/pronoun → classify accordingly  
-            3. For Adjectives:
-            - Confirm Number & Gender based on the noun/pronoun the adjective qualifies. If the adjective form appears fixed, verify its grammatical alignment using its root ending.
-            - If adjective doesn’t change form (invariable), still list target noun and declare this explicitly 
-            - ⚠️ The **noun’s gender and number** must be derived from **Gurbani Grammar definitions** (as per Darpan and Vyakaran), not from modern Punjabi intuition or pronunciation. For example, abstract nouns like **ਸੇਵਾ** are feminine singular by SGGS convention.
-            ✅ *Trigger Adjective Agreement Table only if:*  
-            - Word semantically modifies a noun/pronoun (confirmed in Darpan gloss)  
-            - Is not the subject/object of a helper-preposition  
-            - Does not serve as the head of a noun phrase or abstract concept (e.g., ਤ੍ਰਿਬਿਧਿ = by/through threefold mode)  
-            4. Do not guess based on spelling or intuition—**rely on function and context from translation**  
-            5. Output is **incomplete** if POS = Adjective and Adjective Agreement Table is missing
-
-            ---
-
-            ## 📥 Inputs
-
-            **Verse (Gurmukhi):**  
-            {verse}
-
-            **Darpan Translation:**  
-            {trans}
-
-            **Word under scrutiny:**  
-            {word}
-
-            **My Selections:**  
-            - Number: {num}  
-            - Gender: {gen}  
-            - Part of Speech: {pos}
-
-            **Dictionary Meanings (Secondary Aid):**
-            {meanings_block}
-
-            {matches_block}
-
-            ---
-
-            ## 📋 Response Format (Follow exactly)
-
-            1. **Feature Confirmation**  
-            - Number: (Correct / Incorrect) – based on Darpan gloss and noun agreement  
-            - Gender: (Correct / Incorrect) – based on noun gender  
-            - Part of Speech: (Correct / Incorrect) – based on function and Darpan context  
-
-            2. **Corrections (if needed)**  
-            - Number: <correct value> – with rationale  
-            - Gender: <correct value> – with rationale  
-            - Part of Speech: <correct value> – with rationale  
-
-            3. **Commentary**  
-            - Explain briefly how the Darpan translation and noun/pronoun connection led to your decision  
-            - If adjective form is invariable, name the adjective group (e.g., **Horaa** ending or **Poetic variation**)
-
-            4. **Adjective-Agreement Table (REQUIRED if POS = Adjective)**  
-            | Step | Requirement              | Observation                    | Result        |
-            |------|--------------------------|--------------------------------|---------------|
-            | 1    | Qualified noun/pronoun   | (e.g., ਸੁਖੁ – masculine-singular) | (Identified) |
-            | 2    | Number & Gender match    | (e.g., adjective ends with -ō, matches masculine singular noun; or declare as invariable) | ✅/❌ |
-            
-            ---
-
-            📘 **Quick Reference: Common Adjective Endings in Gurbani**
-
-            | Ending      | Number & Gender         | Example           |
-            |-------------|--------------------------|-------------------|
-            | **-ō**      | Masculine singular        | ਅਗਲੋ, ਨਿਵ੍ਰਤੋ       |
-            | **-ē / ਏ**  | Masculine plural          | ਅਗਲੇ, ਚੰਗੇ         |
-            | **-ī**      | Feminine singular         | ਚੰਗੀ, ਅਗਲੀ         |
-            | **-īāṁ / ਿਆਂ** | Feminine plural         | ਚੰਗੀਆਂ, ਅਗਲੀਆਂ      |
-
-            These endings are drawn from adjective groups described in Prof. Sahib Singh’s *Gurbani Vyakaran*, e.g., hōrā-samāpt adjectives. Always match these with the gender and number of the qualified noun.
-            🔹 *Tatsam Words (Sanskrit-Derived)*:  
-            Many Sanskrit-origin words in Gurbani—such as **ਤ੍ਰਿਬਿਧਿ**, **ਗੁਹਜ**, **ਤਤ**—often appear morphologically fixed and may superficially resemble adjectives. However, they frequently function as **abstract nouns** or appear in **instrumental** or other oblique grammatical cases.
-
-            > 🔸 **Tatsam Adjectives vs Indeclinable Nouns:**  
-            > Do **not** classify such words as adjectives unless the **Darpan gloss clearly shows them qualifying a noun**, with **visible agreement in Number and Gender**.  
-            > ▶️ If the gloss inserts a helper like *“by,” “with,” “in,” or “of”*, this usually signals a **noun in an oblique case**—not an adjective.  
-            > ➕ For example, **ਤ੍ਰਿਬਿਧਿ** may mean *“by threefold means”* or *“through the three qualities”*, serving a **functional role** rather than describing a noun.
-
-            🔍 *Key Insight:*  
-            Words like **ਤ੍ਰਿਬਿਧਿ**, despite their descriptive appearance, often act as **instrumental-case nouns** or form part of a **compound abstract expression** (e.g., *ਤ੍ਰਿਗੁਣੀ ਮਾਇਆ*). Always validate their role against the **Darpan translation** and **Gurbani grammar definitions**, not surface resemblance.
-
-            ---
-
-            ### 📑 Stem-Variation Check 🆕
-            *(Fill this mini-grid during Phase 2 if you detected more than one token of the same stem)*  
-            | Token | Ending | Nearby noun/pronoun | Expected agreement | Matches? |
-            |-------|--------|---------------------|--------------------|----------|
-
-            ---
-
-            🛠 **Debug Trace** 🆕 (single line at the very end):  
-            `[TokensChecked:X | Declined:Yes/No | FinalPOS:___ | AgreementOK:Yes/No]`
-
-            """).strip()
-
-            # copy to clipboard
-            self.root.clipboard_clear()
-            self.root.clipboard_append(prompt)
-            messagebox.showinfo(
-                "Prompt Ready",
-                "Expert-level prompt (with secondary dictionary meanings) has been copied to your clipboard.\n"
-                "Paste it into ChatGPT for its recommendation."
-            )
-
-        # (Button moved to the bottom action bar)
-
-        # 5) Bottom separator + buttons
-        sep = tk.Frame(win, bg='#cccccc', height=2)
-        sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
-
-        btns = tk.Frame(win, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
-        tk.Button(btns, text="‹ Back to Translation",
-                  font=('Arial',12), bg='gray', fg='white',
-                  padx=20, pady=8,
-                  command=lambda: [win.destroy(), self.show_translation_input()]
-        ).pack(side=tk.LEFT)
-        tk.Button(btns, text="Skip Word",
-                  font=('Arial',12), bg='orange', fg='white',
-                  padx=20, pady=8,
-                  command=lambda: self.skip_word_grammar(win)
-        ).pack(side=tk.LEFT, padx=10)
-        # Moved here from options frame: Build Expert Prompt
-        tk.Button(btns,
-                  text="📋 Build Expert Prompt",
-                  font=("Arial", 14, "italic"),
-                  bg='white', fg='dark cyan',
-                  padx=6, pady=4,
-                  command=ask_suggestion
-        ).pack(side=tk.LEFT, padx=10)
-        tk.Button(btns, text="Submit",
-                  font=('Arial',12,'bold'),
-                  bg='dark cyan', fg='white',
-                  padx=20, pady=8,
-                  command=lambda: self.submit_input_grammar(word, index)
-        ).pack(side=tk.RIGHT)
-
-        # Modal
-        win.transient(self.root)
-        win.grab_set()
-        self.root.wait_window(win)
-
     def _build_user_input_grammar(self, win, *, word, translation, index, mode):
         """Shared builder for the per-word Grammar UI. Does not start a mainloop.
 
@@ -5023,7 +4402,7 @@ class GrammarApp:
             padx=10, pady=10
         )
         left.pack(fill=tk.X, expand=False)
-        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0, height=200)
+        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0)
         scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
         self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side='right', fill='y')
@@ -5046,45 +4425,66 @@ class GrammarApp:
         grp_row = tk.Frame(right, bg="light gray")
         grp_row.pack(fill=tk.X)
         for c in range(3):
-            grp_row.grid_columnconfigure(c, weight=1)
+            grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
 
-        # Number
+        # Number (2×2 grid)
         num_frame = tk.LabelFrame(grp_row, text="Number",
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
         num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
-        for txt, val in [("Singular","Singular / ਇਕ"),("Plural","Plural / ਬਹੁ"),("Unknown","NA")]:
+        nums = [
+            ("Singular", "Singular / ਇਕ"),
+            ("Plural",   "Plural / ਬਹੁ"),
+            ("Unknown",  "NA"),
+        ]
+        for i, (txt, val) in enumerate(nums):
+            r = 0 if i < 2 else 1
+            c = i if i < 2 else 0
             tk.Radiobutton(
                 num_frame, text=txt, variable=self.number_var, value=val,
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).pack(anchor="w", pady=2)
+            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+        num_frame.grid_columnconfigure(0, weight=1)
+        num_frame.grid_columnconfigure(1, weight=1)
 
-        # Gender (two columns)
+        # Gender (two columns using grid)
         gend_frame = tk.LabelFrame(grp_row, text="Gender",
                                    font=("Arial", 14, "bold"),
                                    bg="light gray", padx=8, pady=8)
         gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
-        gends = [("Masculine","Masculine / ਪੁਲਿੰਗ"),("Feminine","Feminine / ਇਸਤਰੀ"),("Neuter","Trans / ਨਪੁਂਸਕ"),("Unknown","NA")]
-        gf_col1 = tk.Frame(gend_frame, bg="light gray")
-        gf_col2 = tk.Frame(gend_frame, bg="light gray")
-        gf_col1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
-        gf_col2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
-        half = (len(gends)+1)//2
+        gends = [
+            ("Masculine", "Masculine / ਪੁਲਿੰਗ"),
+            ("Feminine",  "Feminine / ਇਸਤਰੀ"),
+            ("Neuter",    "Trans / ਨਪੁਂਸਕ"),
+            ("Unknown",   "NA"),
+        ]
+        half = (len(gends) + 1) // 2
         for i, (txt, val) in enumerate(gends):
-            parent = gf_col1 if i < half else gf_col2
+            c = 0 if i < half else 1
+            r = i if i < half else i - half
             tk.Radiobutton(
-                parent, text=txt, variable=self.gender_var, value=val,
+                gend_frame, text=txt, variable=self.gender_var, value=val,
                 bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).pack(anchor="w", pady=2)
+            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+        for c in range(2):
+            gend_frame.grid_columnconfigure(c, weight=1)
 
         # POS
         pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
         pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
-        pos_choices = [("Noun","Noun / ਨਾਂਵ"),("Adjective","Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),("Adverb","Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
-                       ("Verb","Verb / ਕਿਰਿਆ"),("Pronoun","Pronoun / ਪੜਨਾਂਵ"),("Postposition","Postposition / ਸੰਬੰਧਕ"),
-                       ("Conjunction","Conjunction / ਯੋਜਕ"),("Interjection","Interjection / ਵਿਸਮਿਕ"),("Unknown","NA")]
+        pos_choices = [
+            ("Noun", "Noun / ਨਾਂਵ"),
+            ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
+            ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
+            ("Verb", "Verb / ਕਿਰਿਆ"),
+            ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"),
+            ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
+            ("Conjunction", "Conjunction / ਯੋਜਕ"),
+            ("Interjection", "Interjection / ਵਿਸਮਿਕ"),
+            ("Unknown", "NA"),
+        ]
         pos_rows = 2
         pos_cols = -(-len(pos_choices) // pos_rows)
         for i, (txt, val) in enumerate(pos_choices):
@@ -5096,6 +4496,24 @@ class GrammarApp:
             ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
         for c in range(pos_cols):
             pos_frame.grid_columnconfigure(c, weight=1)
+
+        # Rebalance translation/meanings heights after layout
+        def _rebalance_heights():
+            try:
+                win.update_idletasks()
+                line_px = tkfont.Font(font=('Arial', 14)).metrics('linespace') or 20
+                curr_lines = max(1, int(trans.winfo_height() / line_px))
+                trans.configure(height=curr_lines + 1)
+                canvas_h = self.meanings_canvas.winfo_height()
+                min_canvas = int(line_px * 8)
+                self.meanings_canvas.configure(height=max(min_canvas, int(canvas_h * 0.9)))
+            except Exception:
+                pass
+
+        try:
+            win.after(100, _rebalance_heights)
+        except Exception:
+            pass
 
         # Expert-prompt builder
         def ask_suggestion():
