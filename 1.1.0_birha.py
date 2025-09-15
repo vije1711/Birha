@@ -5069,14 +5069,15 @@ class GrammarApp:
         right.pack(fill=tk.X, expand=False, pady=(8, 0))
         grp_row = tk.Frame(right, bg="light gray")
         grp_row.pack(fill=tk.X)
-        for c in range(3):
-            grp_row.grid_columnconfigure(c, weight=1)
+        # Use a 9-column grid and span frames to enforce a visible 2:2:5 ratio
+        for c in range(9):
+            grp_row.grid_columnconfigure(c, weight=1, uniform='grpcols')
 
         # Number
         num_frame = tk.LabelFrame(grp_row, text="Number",
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
-        num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
+        num_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=(0,5))
         for txt, val in [("Singular","Singular / ਇਕ"),("Plural","Plural / ਬਹੁ"),("Unknown","NA")]:
             tk.Radiobutton(
                 num_frame, text=txt, variable=self.number_var, value=val,
@@ -5115,7 +5116,7 @@ class GrammarApp:
         gend_frame = tk.LabelFrame(grp_row, text="Gender",
                                    font=("Arial", 14, "bold"),
                                    bg="light gray", padx=8, pady=8)
-        gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
+        gend_frame.grid(row=0, column=2, columnspan=2, sticky="nsew", padx=5)
         gends = [("Masculine","Masculine / ਪੁਲਿੰਗ"),("Feminine","Feminine / ਇਸਤਰੀ"),("Neuter","Trans / ਨਪੁਂਸਕ"),("Unknown","NA")]
         gf_col1 = tk.Frame(gend_frame, bg="light gray")
         gf_col2 = tk.Frame(gend_frame, bg="light gray")
@@ -5133,7 +5134,7 @@ class GrammarApp:
         pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
                                   font=("Arial", 14, "bold"),
                                   bg="light gray", padx=8, pady=8)
-        pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
+        pos_frame.grid(row=0, column=4, columnspan=5, sticky="nsew", padx=(5,0))
         pos_choices = [("Noun","Noun / ਨਾਂਵ"),("Adjective","Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),("Adverb","Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
                        ("Verb","Verb / ਕਿਰਿਆ"),("Pronoun","Pronoun / ਪੜਨਾਂਵ"),("Postposition","Postposition / ਸੰਬੰਧਕ"),
                        ("Conjunction","Conjunction / ਯੋਜਕ"),("Interjection","Interjection / ਵਿਸਮਿਕ"),("Unknown","NA")]
@@ -5149,13 +5150,7 @@ class GrammarApp:
         for c in range(pos_cols):
             pos_frame.grid_columnconfigure(c, weight=1)
 
-        # Proportional widths for Number:Gender:POS ~ 2:2:pos_cols
-        try:
-            grp_row.grid_columnconfigure(0, weight=2)
-            grp_row.grid_columnconfigure(1, weight=2)
-            grp_row.grid_columnconfigure(2, weight=max(3, int(pos_cols)))
-        except Exception:
-            pass
+        # Column spanning above enforces the 2:2:5 proportion; no extra handling needed
 
         # Expert-prompt builder
         def ask_suggestion():
