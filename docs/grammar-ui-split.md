@@ -15,7 +15,7 @@ Developer Notes
 
 Dead Code Cleanup
 - Removed undefined references in the new ABW entry and ensured no unreachable blocks remain in the new functions.
-- Note: The legacy implementation body was renamed to `_user_input_grammar_impl` for reference. If desired, it can be deleted once the new path is verified on all platforms.
+- The legacy implementation `_user_input_grammar_impl` has been removed after verification.
 
 Screenshots (placeholders)
 - Add screenshots to these paths before final PR review:
