@@ -49,7 +49,7 @@ def test_save_finish_abv(tmp_path):
     app.detailed_root_var = DummyVar("root")
 
     with patch.object(app, '_append_birha_csv_row', return_value=(True, 1, 'append')), \
-         patch.object(app, 'prompt_save_results', return_value=None), \
+         patch.object(app, 'prompt_save_results', return_value=True), \
          patch('tkinter.messagebox.showinfo') as mock_info:
         app.on_accept_detailed_grammar(None)
         app.finish_and_prompt_save()
@@ -82,7 +82,7 @@ def test_save_finish_abw(tmp_path):
     }
 
     with patch.object(app, '_append_birha_csv_row', return_value=(True, 1, 'append')), \
-         patch.object(app, 'prompt_save_results', return_value=None), \
+         patch.object(app, 'prompt_save_results', return_value=True), \
          patch('tkinter.messagebox.showinfo') as mock_info:
         app.on_accept_detailed_grammar(None)
         app.finish_and_prompt_save()
@@ -113,5 +113,28 @@ def test_prompt_save_results_infers_verses():
          patch('tkinter.messagebox.showinfo'), \
          patch.object(app, 'prompt_copy_to_clipboard'), \
          patch.object(app, 'prompt_for_assessment_once', return_value={}):
-        app.prompt_save_results([entry], skip_copy=True)
+        result = app.prompt_save_results([entry], skip_copy=True)
         assert app.selected_verses == ["foo bar"]
+        assert result is False
+
+
+def test_save_finish_preserves_entries_on_error():
+    app = create_app()
+    app.all_new_entries = [{"Word": "oops"}]
+    with patch.object(app, 'prompt_save_results', side_effect=RuntimeError("boom")), \
+         patch('tkinter.messagebox.showinfo'), \
+         patch('tkinter.messagebox.showerror') as mock_err:
+        app.finish_and_prompt_save()
+        assert app.all_new_entries == [{"Word": "oops"}]
+        mock_err.assert_called_once()
+
+
+def test_save_finish_preserves_entries_on_cancel():
+    app = create_app()
+    app.all_new_entries = [{"Word": "bye"}]
+    with patch.object(app, 'prompt_save_results', return_value=False), \
+         patch('tkinter.messagebox.showinfo'), \
+         patch('tkinter.messagebox.showerror') as mock_err:
+        app.finish_and_prompt_save()
+        assert app.all_new_entries == [{"Word": "bye"}]
+        mock_err.assert_not_called()

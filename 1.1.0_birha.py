@@ -4196,11 +4196,12 @@ class GrammarApp:
             except Exception:
                 pass
             try:
-                self.prompt_save_results(self.all_new_entries)
+                saved = self.prompt_save_results(self.all_new_entries)
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred while saving: {e}")
-            finally:
-                self.all_new_entries = []
+            else:
+                if saved:
+                    self.all_new_entries = []
         else:
             try:
                 messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
@@ -11293,6 +11294,7 @@ class GrammarApp:
         file_path = "1.2.1 assessment_data.xlsx"
         existing_data = self.load_existing_assessment_data(file_path)
         verses = getattr(self, "selected_verses", []) or []
+        all_saved = True
         if not verses:
             verses = list(
                 dict.fromkeys(
@@ -11494,12 +11496,16 @@ class GrammarApp:
                         entry.update(verse_metadata)
                         self.save_assessment_data(entry)
                     messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse_norm)
+                else:
+                    all_saved = False
 
         # Restore the original accumulated_pankti after processing all verses.
         self.accumulated_pankti = original_accumulated_pankti
 
         if hasattr(self, 'copy_button') and self.copy_button.winfo_exists():
             self.copy_button.config(state=tk.NORMAL)
+
+        return all_saved
 
     def prompt_for_assessment_once(self):
         """Opens a modal prompt for the entire verse assessment and returns the collected data."""
