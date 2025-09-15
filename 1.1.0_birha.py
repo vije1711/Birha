@@ -4174,8 +4174,12 @@ class GrammarApp:
         self.current_word_index = idx
         self.user_input_grammar(word, self.current_translation, idx)
 
-    def finish_and_prompt_save(self):
-        """Finalize grammar assessment and prompt to save results."""
+    def finish_and_prompt_save(self, quiet=True):
+        """Finalize grammar assessment and prompt to save results.
+
+        When ``quiet`` is True, suppress non-error dialogs and clipboard
+        side-effects so that "Save & Finish" can run silently.
+        """
         try:
             if hasattr(self, "save_results_btn") and self.save_results_btn.winfo_exists():
                 self.save_results_btn.config(state=tk.NORMAL)
@@ -4184,29 +4188,33 @@ class GrammarApp:
 
         if self.all_new_entries:
             try:
-                summary_lines = [
-                    f"{i+1}. {e.get('Word', e.get('Vowel Ending', ''))}"
-                    for i, e in enumerate(self.all_new_entries)
-                ]
-                summary = "\n".join(summary_lines)
-                messagebox.showinfo(
-                    "Session Summary",
-                    f"{len(self.all_new_entries)} grammar assessments recorded:\n\n{summary}"
-                )
+                if not quiet:
+                    summary_lines = [
+                        f"{i+1}. {e.get('Word', e.get('Vowel Ending', ''))}"
+                        for i, e in enumerate(self.all_new_entries)
+                    ]
+                    summary = "\n".join(summary_lines)
+                    messagebox.showinfo(
+                        "Session Summary",
+                        f"{len(self.all_new_entries)} grammar assessments recorded:\n\n{summary}"
+                    )
             except Exception:
                 pass
             try:
-                saved = self.prompt_save_results(self.all_new_entries)
+                saved = self.prompt_save_results(
+                    self.all_new_entries, skip_copy=quiet, quiet=quiet
+                )
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred while saving: {e}")
             else:
                 if saved:
                     self.all_new_entries = []
         else:
-            try:
-                messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
-            except Exception:
-                pass
+            if not quiet:
+                try:
+                    messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
+                except Exception:
+                    pass
 
         # Word-driver hook: after a verse completes, advance and update tracker
         try:
@@ -11280,7 +11288,7 @@ class GrammarApp:
         self.root.wait_window(final_win)
         return final_choice
 
-    def prompt_save_results(self, new_entries, skip_copy=False):
+    def prompt_save_results(self, new_entries, skip_copy=False, quiet=False):
         """
         For each verse in self.selected_verses, prompts the user to save new entries (accumulated from all words),
         checking for duplicates first. Then opens a modal prompt for assessment and saves the finalized data
@@ -11367,18 +11375,21 @@ class GrammarApp:
                 else:
                     unique_entries.append(new_entry)
 
-            if duplicate_entries:
+            if duplicate_entries and not quiet:
                 duplicate_message = "Some entries are already present:\n" + "\n".join(map(str, duplicate_entries))
                 messagebox.showinfo("Duplicates Found", duplicate_message)
 
-            if not skip_copy:
+            if not skip_copy and not quiet:
                 self.prompt_copy_to_clipboard()
 
             if unique_entries:
-                save = messagebox.askyesno(
-                    "Save Results",
-                    f"Would you like to save the new entries for the following verse?\n\n{verse_norm}"
-                )
+                if quiet:
+                    save = True
+                else:
+                    save = messagebox.askyesno(
+                        "Save Results",
+                        f"Would you like to save the new entries for the following verse?\n\n{verse_norm}"
+                    )
                 if save:
                     # Open one assessment prompt for the current verse.
                     assessment_data = self.prompt_for_assessment_once()
@@ -11495,7 +11506,8 @@ class GrammarApp:
                         entry.update(assessment_data)
                         entry.update(verse_metadata)
                         self.save_assessment_data(entry)
-                    messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse_norm)
+                    if not quiet:
+                        messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse_norm)
                 else:
                     all_saved = False
 
