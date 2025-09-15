@@ -4525,32 +4525,32 @@ class GrammarApp:
         # Arrange POS radios in two rows using multiple columns to minimize height
         pos_rows = 2
         pos_cols = -(-len(pos_choices) // pos_rows)
+        try:
+            gap = COL_GAP
+        except Exception:
+            gap = 24
         for i, (txt, val) in enumerate(pos_choices):
-    r = i % pos_rows
-    c = i // pos_rows
-    cc = 2 * c
-    rb = tk.Radiobutton(
-        pos_frame, text=txt, variable=self.pos_var, value=val,
-        bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-    )
-    try:
-        gap = COL_GAP
-    except Exception:
-        gap = 24
-    if c == 0:
-        pad = (0, max(0, gap//2))
-    elif c == pos_cols - 1:
-        pad = (max(0, gap//2), 0)
-    else:
-        pad = (max(0, gap//2), max(0, gap//2))
-    rb.grid(row=r, column=cc, sticky='w', padx=pad, pady=2)
-# configure spacer columns (odd) to expand, content columns (even) to fixed
-_total_cols = 2 * pos_cols - 1
-for _cc in range(_total_cols):
-    if _cc % 2 == 0:
-        pos_frame.grid_columnconfigure(_cc, weight=0)
-    else:
-        pos_frame.grid_columnconfigure(_cc, weight=1, minsize=gap)
+            r = i % pos_rows
+            c = i // pos_rows
+            cc = 2 * c
+            rb = tk.Radiobutton(
+                pos_frame, text=txt, variable=self.pos_var, value=val,
+                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
+            )
+            if c == 0:
+                pad = (0, max(0, gap//2))
+            elif c == pos_cols - 1:
+                pad = (max(0, gap//2), 0)
+            else:
+                pad = (max(0, gap//2), max(0, gap//2))
+            rb.grid(row=r, column=cc, sticky='w', padx=pad, pady=2)
+        # configure spacer columns (odd) to expand, content columns (even) to fixed
+        _total_cols = 2 * pos_cols - 1
+        for _cc in range(_total_cols):
+            if _cc % 2 == 0:
+                pos_frame.grid_columnconfigure(_cc, weight=0)
+            else:
+                pos_frame.grid_columnconfigure(_cc, weight=1, minsize=gap)
 
         # B & D) Increase Translation height using space reclaimed from Meanings (ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€¹Ã¢â‚¬Â 10% shrink; guard for small)
         try:
