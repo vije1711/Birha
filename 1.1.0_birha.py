@@ -5149,6 +5149,14 @@ class GrammarApp:
         for c in range(pos_cols):
             pos_frame.grid_columnconfigure(c, weight=1)
 
+        # Proportional widths for Number:Gender:POS ~ 2:2:pos_cols
+        try:
+            grp_row.grid_columnconfigure(0, weight=2)
+            grp_row.grid_columnconfigure(1, weight=2)
+            grp_row.grid_columnconfigure(2, weight=max(3, int(pos_cols)))
+        except Exception:
+            pass
+
         # Expert-prompt builder
         def ask_suggestion():
             verse = self.selected_verse_text
