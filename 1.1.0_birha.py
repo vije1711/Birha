@@ -2481,7 +2481,7 @@ class GrammarApp:
 
             # Load verse-level grammar data for drill-down display
             try:
-                grammar_df = pd.read_csv("1.1.1_birha.csv").fillna("")
+                grammar_df = pd.read_csv("1.1.1_birha.csv", encoding="utf-8-sig").fillna("")
             except Exception:
                 grammar_df = pd.DataFrame()
 
@@ -2571,34 +2571,43 @@ class GrammarApp:
             table_holder = tk.Frame(right, bg='light gray')
             table_holder.pack(fill=tk.BOTH, expand=True, pady=(6, 4))
             columns = (
-                "word", "word_index", "reference", "number", "grammar", "gender",
-                "word_root", "type", "translation", "meaning", "commentary"
+                "vowel_ending",
+                "number",
+                "grammar",
+                "gender",
+                "word_root",
+                "type",
+                "reference",
+                "translation",
+                "meaning",
+                "commentary",
+                "word_index",
             )
             headings = {
-                "word": "Vowel Ending",
-                "word_index": "Word Index",
-                "reference": "Reference Verse",
-                "number": "Number / ???",
-                "grammar": "Grammar / ??????",
-                "gender": "Gender / ????",
+                "vowel_ending": "Vowel Ending",
+                "number": "Number / ਵਚਨ",
+                "grammar": "Grammar / ਵਯਾਕਰਣ",
+                "gender": "Gender / ਲਿੰਗ",
                 "word_root": "Word Root",
                 "type": "Type",
+                "reference": "Reference Verse",
                 "translation": "Darpan Translation",
                 "meaning": "Darpan Meaning",
                 "commentary": "ChatGPT Commentary",
+                "word_index": "Word Index",
             }
             col_widths = {
-                "word": 160,
-                "word_index": 90,
-                "reference": 280,
+                "vowel_ending": 160,
                 "number": 180,
-                "grammar": 200,
-                "gender": 160,
+                "grammar": 220,
+                "gender": 180,
                 "word_root": 200,
                 "type": 150,
-                "translation": 280,
-                "meaning": 260,
-                "commentary": 280,
+                "reference": 280,
+                "translation": 300,
+                "meaning": 280,
+                "commentary": 320,
+                "word_index": 110,
             }
             tree = ttk.Treeview(table_holder, columns=columns, show='headings', selectmode='extended', height=12)
             for col in columns:
@@ -2613,7 +2622,11 @@ class GrammarApp:
             table_holder.grid_rowconfigure(0, weight=1)
             table_holder.grid_columnconfigure(0, weight=1)
 
-            detail_hint = tk.StringVar(value="Use Ctrl/Shift to select multiple verses for re-analysis.")
+            detail_hint = tk.StringVar(
+                value=(
+                    "Highlight one, many (Ctrl/Shift), or use Select All before choosing a re-analysis option."
+                )
+            )
             hint_label = tk.Label(right, textvariable=detail_hint, font=('Arial', 10), bg='light gray', fg='dim gray', justify='left', wraplength=680)
             hint_label.pack(anchor='w', pady=(2, 6))
 
@@ -2758,16 +2771,16 @@ class GrammarApp:
                     detail_row = _match_detail(norm_key, idx_key, verse_key)
                     values = (
                         _value(detail_row, ve_col, word_label),
-                        _value(detail_row, idx_col, idx_key),
-                        _value(detail_row, ref_col, verse_val),
                         _value(detail_row, num_col),
                         _value(detail_row, gram_col),
                         _value(detail_row, gender_col),
                         _value(detail_row, root_col),
                         _value(detail_row, type_col),
+                        _value(detail_row, ref_col, verse_val),
                         _value(detail_row, trans_col),
                         _value(detail_row, meaning_col),
                         _value(detail_row, comm_col),
+                        _value(detail_row, idx_col, idx_key),
                     )
                     item = tree.insert('', tk.END, values=values)
                     item_to_index[item] = idx
