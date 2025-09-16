@@ -2479,7 +2479,57 @@ class GrammarApp:
                 messagebox.showinfo("None", "No completed words found.")
                 return
 
-            # Build chooser
+            # Load verse-level grammar data for drill-down display
+            try:
+                grammar_df = pd.read_csv("1.1.1_birha.csv").fillna("")
+            except Exception:
+                grammar_df = pd.DataFrame()
+
+            ve_col = _resolve_col(grammar_df, "\ufeffVowel Ending", "Vowel Ending")
+            num_col = _resolve_col(grammar_df, COL_NUMBER, "Number")
+            gram_col = _resolve_col(grammar_df, COL_GRAMMAR, "Grammar")
+            gender_col = _resolve_col(grammar_df, COL_GENDER, "Gender")
+            root_col = _resolve_col(grammar_df, "Word Root", "Root")
+            type_col = _resolve_col(grammar_df, "Type", "Word Type")
+            ref_col = _resolve_col(grammar_df, "Reference Verse", "Verse")
+            trans_col = _resolve_col(grammar_df, "Darpan Translation")
+            meaning_col = _resolve_col(grammar_df, "Darpan Meaning")
+            comm_col = _resolve_col(grammar_df, "ChatGPT Commentry", "ChatGPT Commentary")
+            idx_col = _resolve_col(grammar_df, "Word Index", "word_index")
+
+            grammar_df = grammar_df.copy()
+            if ve_col:
+                grammar_df["__norm_word__"] = grammar_df[ve_col].map(_normalize_simple)
+            else:
+                grammar_df["__norm_word__"] = ""
+            if idx_col:
+                def _idx_key(val):
+                    try:
+                        if pd.isna(val):
+                            return ""
+                    except Exception:
+                        pass
+                    try:
+                        if isinstance(val, float):
+                            if math.isnan(val):
+                                return ""
+                            if float(val).is_integer():
+                                return str(int(val))
+                        return str(val).strip()
+                    except Exception:
+                        try:
+                            return str(val)
+                        except Exception:
+                            return ""
+                grammar_df["__word_index_key__"] = grammar_df[idx_col].map(_idx_key)
+            else:
+                grammar_df["__word_index_key__"] = ""
+            if ref_col:
+                grammar_df["__verse_key__"] = grammar_df[ref_col].map(_normalize_verse_key)
+            else:
+                grammar_df["__verse_key__"] = ""
+
+            # Build chooser with drill-down pane
             win = tk.Toplevel(self.root)
             win.title("Completed Words - Review / Re-Analyze")
             win.configure(bg='light gray')
@@ -2487,11 +2537,93 @@ class GrammarApp:
                 self._wm_for(win)
             except Exception:
                 pass
-            tk.Label(win, text="Select a word to re-analyze:", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
-            lb = tk.Listbox(win, height=10)
+
+            header = tk.Label(
+                win,
+                text="Select a word to inspect verse-level completions:",
+                font=('Arial', 12, 'bold'),
+                bg='light gray'
+            )
+            header.pack(padx=12, pady=(10, 6), anchor='w')
+
+            content = tk.Frame(win, bg='light gray')
+            content.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 10))
+
+            left = tk.Frame(content, bg='light gray')
+            left.pack(side=tk.LEFT, fill=tk.Y)
+
+            tk.Label(left, text="Completed words", font=('Arial', 11, 'bold'), bg='light gray').pack(anchor='w')
+            list_holder = tk.Frame(left, bg='light gray')
+            list_holder.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
+            lb = tk.Listbox(list_holder, height=14, exportselection=False)
+            lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            lb_scroll = tk.Scrollbar(list_holder, orient='vertical', command=lb.yview)
+            lb_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+            lb.configure(yscrollcommand=lb_scroll.set)
+
+            right = tk.Frame(content, bg='light gray')
+            right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0))
+
+            selected_title = tk.StringVar(value="Select a word to view saved verses.")
+            selection_label = tk.Label(right, textvariable=selected_title, font=('Arial', 12, 'bold'), bg='light gray', justify='left', wraplength=680)
+            selection_label.pack(anchor='w')
+
+            table_holder = tk.Frame(right, bg='light gray')
+            table_holder.pack(fill=tk.BOTH, expand=True, pady=(6, 4))
+            columns = (
+                "word", "word_index", "reference", "number", "grammar", "gender",
+                "word_root", "type", "translation", "meaning", "commentary"
+            )
+            headings = {
+                "word": "Vowel Ending",
+                "word_index": "Word Index",
+                "reference": "Reference Verse",
+                "number": "Number / ???",
+                "grammar": "Grammar / ??????",
+                "gender": "Gender / ????",
+                "word_root": "Word Root",
+                "type": "Type",
+                "translation": "Darpan Translation",
+                "meaning": "Darpan Meaning",
+                "commentary": "ChatGPT Commentary",
+            }
+            col_widths = {
+                "word": 160,
+                "word_index": 90,
+                "reference": 280,
+                "number": 180,
+                "grammar": 200,
+                "gender": 160,
+                "word_root": 200,
+                "type": 150,
+                "translation": 280,
+                "meaning": 260,
+                "commentary": 280,
+            }
+            tree = ttk.Treeview(table_holder, columns=columns, show='headings', selectmode='extended', height=12)
+            for col in columns:
+                tree.heading(col, text=headings.get(col, col))
+                tree.column(col, width=col_widths.get(col, 160), anchor=tk.W, stretch=True)
+            tree.grid(row=0, column=0, sticky='nsew')
+            vsb = tk.Scrollbar(table_holder, orient='vertical', command=tree.yview)
+            vsb.grid(row=0, column=1, sticky='ns')
+            hsb = tk.Scrollbar(table_holder, orient='horizontal', command=tree.xview)
+            hsb.grid(row=1, column=0, sticky='ew')
+            tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+            table_holder.grid_rowconfigure(0, weight=1)
+            table_holder.grid_columnconfigure(0, weight=1)
+
+            detail_hint = tk.StringVar(value="Use Ctrl/Shift to select multiple verses for re-analysis.")
+            hint_label = tk.Label(right, textvariable=detail_hint, font=('Arial', 10), bg='light gray', fg='dim gray', justify='left', wraplength=680)
+            hint_label.pack(anchor='w', pady=(2, 6))
+
+            select_bar = tk.Frame(right, bg='light gray')
+            select_bar.pack(fill=tk.X, pady=(0, 6))
+            tk.Button(select_bar, text="Select All", bg='teal', fg='white', font=('Arial', 10, 'bold'), command=lambda: tree.selection_set(tree.get_children())).pack(side=tk.LEFT)
+            tk.Button(select_bar, text="Clear Selection", bg='gray', fg='white', font=('Arial', 10), command=lambda: tree.selection_remove(*tree.get_children())).pack(side=tk.LEFT, padx=(6, 0))
+
             items = []
             try:
-                # Optionally show count of completed verses per word
                 comp_counts = {}
                 if prog_df is not None and not prog_df.empty and 'status' in prog_df.columns and 'word_key_norm' in prog_df.columns:
                     pp = prog_df.copy()
@@ -2501,32 +2633,172 @@ class GrammarApp:
                     comp_counts = {k: int(v) for k, v in grp.to_dict().items()}
                 for _, r in completed.iterrows():
                     w = str(r.get('word', ''))
-                    n = str(r.get('word_key_norm', ''))
-                    norm = _normalize_simple(n)
-                    cnt = comp_counts.get(norm)
+                    n = _normalize_simple(str(r.get('word_key_norm', '')) or w)
+                    cnt = comp_counts.get(n)
                     label = f"{w}" if not cnt else f"{w}  (completed verses: {cnt})"
                     items.append((w, n))
                     lb.insert(tk.END, label)
             except Exception:
                 for _, r in completed.iterrows():
                     w = str(r.get('word', ''))
-                    n = str(r.get('word_key_norm', ''))
+                    n = _normalize_simple(str(r.get('word_key_norm', '')) or w)
                     items.append((w, n))
                     lb.insert(tk.END, w)
-            lb.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0,8))
 
-            def _get_selected_word():
-                sel = lb.curselection()
-                if not sel:
-                    return None
-                return items[sel[0]][0]
+            state = {"word": None, "norm": None, "row_count": 0}
+            item_to_index = {}
+
+            def _get_selected():
+                try:
+                    sel = lb.curselection()
+                    if not sel:
+                        return None, None
+                    return items[sel[0]]
+                except Exception:
+                    return None, None
+
+            def _as_text(val):
+                try:
+                    if isinstance(val, float):
+                        if math.isnan(val):
+                            return ""
+                        if val.is_integer():
+                            return str(int(val))
+                    if val is None:
+                        return ""
+                    s = str(val)
+                    return s.strip()
+                except Exception:
+                    try:
+                        return str(val)
+                    except Exception:
+                        return ""
+
+            def _value(source, column, fallback=""):
+                if not column or not isinstance(source, dict):
+                    return fallback
+                val = source.get(column, "")
+                text = _as_text(val)
+                return text if text else fallback
+
+            def _match_detail(norm_word, idx_key, verse_key):
+                if grammar_df.empty or not ve_col:
+                    return {}
+                subset = grammar_df.loc[grammar_df["__norm_word__"] == norm_word]
+                if subset.empty:
+                    return {}
+                match = subset
+                if idx_key:
+                    idx_match = match.loc[match["__word_index_key__"] == idx_key]
+                    if not idx_match.empty:
+                        match = idx_match
+                if verse_key:
+                    verse_match = match.loc[match["__verse_key__"] == verse_key]
+                    if verse_match.empty and not idx_key:
+                        verse_match = subset.loc[subset["__verse_key__"] == verse_key]
+                    if not verse_match.empty:
+                        match = verse_match
+                if match.empty and idx_key:
+                    idx_match = subset.loc[subset["__word_index_key__"] == idx_key]
+                    if not idx_match.empty:
+                        match = idx_match
+                if match.empty and verse_key:
+                    verse_match = subset.loc[subset["__verse_key__"] == verse_key]
+                    if not verse_match.empty:
+                        match = verse_match
+                if match.empty:
+                    try:
+                        return subset.iloc[0].to_dict()
+                    except Exception:
+                        return {}
+                try:
+                    return match.iloc[0].to_dict()
+                except Exception:
+                    return {}
+
+            def _refresh_table(word_label, norm_key):
+                state["word"] = word_label
+                state["norm"] = norm_key
+                state["row_count"] = 0
+                try:
+                    selected_title.set(f"Completed verses for '{word_label}':")
+                except Exception:
+                    pass
+                for item in tree.get_children():
+                    tree.delete(item)
+                item_to_index.clear()
+
+                df_local = prog_df.copy() if prog_df is not None else pd.DataFrame(columns=_PROGRESS_COLUMNS)
+                if df_local.empty:
+                    detail_hint.set("No tracker progress rows available for this word.")
+                    return
+                try:
+                    if 'word_key_norm' in df_local.columns:
+                        df_local['_norm'] = df_local['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s))
+                        df_local = df_local.loc[df_local['_norm'] == norm_key]
+                    if 'status' in df_local.columns:
+                        df_local = df_local.loc[df_local['status'].astype(str).str.lower() == 'completed']
+                except Exception:
+                    pass
+                df_local = df_local.reset_index(drop=True)
+                state["row_count"] = len(df_local)
+                if df_local.empty:
+                    detail_hint.set("No completed verses stored for this word yet.")
+                    return
+                detail_hint.set("Select verses below and schedule targeted re-analysis as needed.")
+
+                for idx, rec in df_local.iterrows():
+                    idx_key = ""
+                    try:
+                        idx_key = _as_text(rec.get('word_index', ""))
+                    except Exception:
+                        idx_key = ""
+                    verse_val = _as_text(rec.get('verse', ""))
+                    verse_key = _normalize_verse_key(verse_val)
+                    detail_row = _match_detail(norm_key, idx_key, verse_key)
+                    values = (
+                        _value(detail_row, ve_col, word_label),
+                        _value(detail_row, idx_col, idx_key),
+                        _value(detail_row, ref_col, verse_val),
+                        _value(detail_row, num_col),
+                        _value(detail_row, gram_col),
+                        _value(detail_row, gender_col),
+                        _value(detail_row, root_col),
+                        _value(detail_row, type_col),
+                        _value(detail_row, trans_col),
+                        _value(detail_row, meaning_col),
+                        _value(detail_row, comm_col),
+                    )
+                    item = tree.insert('', tk.END, values=values)
+                    item_to_index[item] = idx
+
+            def _on_select(event=None):
+                try:
+                    word_label, norm_key = _get_selected()
+                    if not word_label:
+                        return
+                    norm_val = norm_key or _normalize_simple(word_label)
+                    _refresh_table(word_label, norm_val)
+                except Exception:
+                    pass
+
+            lb.bind('<<ListboxSelect>>', _on_select)
+
+            if items:
+                try:
+                    lb.selection_set(0)
+                except Exception:
+                    pass
+                _on_select()
 
             def _re_analyze_all():
                 try:
-                    word = _get_selected_word()
-                    if not word:
+                    word_label = state.get("word")
+                    if not word_label:
                         return
-                    self._reset_progress_for_word_and_restart(word, only_selected=None)
+                    if state.get("row_count", 0) == 0:
+                        return
+                    self._reset_progress_for_word_and_restart(word_label, only_selected=None)
                     try:
                         win.destroy()
                     except Exception:
@@ -2534,20 +2806,35 @@ class GrammarApp:
                 except Exception:
                     pass
 
-            def _open_selector():
+            def _re_analyze_selected():
                 try:
-                    word = _get_selected_word()
-                    if not word:
+                    word_label = state.get("word")
+                    if not word_label:
                         return
-                    self._open_reanalyze_selector(word)
+                    selection = tree.selection()
+                    if not selection:
+                        return
+                    indices = []
+                    for item in selection:
+                        idx = item_to_index.get(item)
+                        if idx is not None:
+                            indices.append(idx)
+                    if not indices:
+                        return
+                    indices = sorted(set(indices))
+                    self._reset_progress_for_word_and_restart(word_label, only_selected=indices)
+                    try:
+                        win.destroy()
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
-            btns = tk.Frame(win, bg='light gray')
-            btns.pack(fill=tk.X, padx=12, pady=(0, 10))
-            tk.Button(btns, text="Re-analyze...", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_open_selector).pack(side=tk.RIGHT)
-            tk.Button(btns, text="Re-analyze All", bg='teal', fg='white', font=('Arial', 11, 'bold'), command=_re_analyze_all).pack(side=tk.RIGHT, padx=(0,6))
-            tk.Button(btns, text="Cancel", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0,6))
+            footer = tk.Frame(win, bg='light gray')
+            footer.pack(fill=tk.X, padx=12, pady=(0, 10))
+            tk.Button(footer, text="Re-analyze Selected", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_re_analyze_selected).pack(side=tk.RIGHT)
+            tk.Button(footer, text="Re-analyze All", bg='teal', fg='white', font=('Arial', 11, 'bold'), command=_re_analyze_all).pack(side=tk.RIGHT, padx=(0, 6))
+            tk.Button(footer, text="Close", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0, 6))
         except Exception as e:
             try:
                 messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
