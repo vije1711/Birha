@@ -24,7 +24,6 @@ except Exception:
 from datetime import datetime, timezone
 import subprocess
 import json
-import webbrowser
 from openpyxl import load_workbook
 import tempfile
 import shutil
@@ -2576,140 +2575,6 @@ class GrammarApp:
             except Exception:
                 pass
 
-    def _open_reanalyze_selector(self, word: str):
-        """Open a modal to pick completed verses for a word to re-analyze (reset status and start driver)."""
-        try:
-            tracker_path = self._get_word_tracker_path()
-            words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            norm = self._norm_tok(word)
-            df = prog_df.copy() if prog_df is not None else pd.DataFrame(columns=_PROGRESS_COLUMNS)
-            if not df.empty:
-                if 'word_key_norm' in df.columns:
-                    df = df.loc[df['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)]
-                if 'status' in df.columns:
-                    df = df.loc[df['status'].astype(str).str.lower() == 'completed']
-            if df is None or df.empty:
-                try:
-                    messagebox.showinfo("None", f"No completed verses found for '{word}'.")
-                except Exception:
-                    pass
-                return
-
-            win = tk.Toplevel(self.root)
-            win.title(f"Re-Analyze Verses - {word}")
-            win.configure(bg='light gray')
-            try:
-                self._wm_for(win)
-            except Exception:
-                pass
-            tk.Label(win, text=f"Select completed verses to re-analyze for '{word}':", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
-            outer = tk.Frame(win, bg='light gray')
-            outer.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
-            canvas = tk.Canvas(outer, bg='light gray', highlightthickness=0)
-            vsb = tk.Scrollbar(outer, orient='vertical', command=canvas.yview)
-            canvas.configure(yscrollcommand=vsb.set)
-            vsb.pack(side='right', fill='y')
-            canvas.pack(side='left', fill='both', expand=True)
-            list_frame = tk.Frame(canvas, bg='light gray')
-            canvas.create_window((0, 0), window=list_frame, anchor='nw')
-
-            sel_vars = []
-            rows = df.reset_index(drop=True).to_dict('records')
-
-            def _on_configure(event=None):
-                try:
-                    canvas.configure(scrollregion=canvas.bbox('all'))
-                except Exception:
-                    pass
-            list_frame.bind('<Configure>', _on_configure)
-
-            # Top toolbar: Select All / Clear All
-            toolbar = tk.Frame(win, bg='light gray')
-            toolbar.pack(fill=tk.X, padx=12, pady=(0, 8))
-            def _select_all():
-                for v, _ in sel_vars:
-                    try:
-                        v.set(True)
-                    except Exception:
-                        pass
-            def _clear_all():
-                for v, _ in sel_vars:
-                    try:
-                        v.set(False)
-                    except Exception:
-                        pass
-            tk.Button(toolbar, text="Select All", bg='teal', fg='white', command=_select_all).pack(side=tk.LEFT)
-            tk.Button(toolbar, text="Clear All", bg='gray', fg='white', command=_clear_all).pack(side=tk.LEFT, padx=(6,0))
-
-            for i, rec in enumerate(rows):
-                rf = tk.Frame(list_frame, bg='light gray')
-                rf.pack(fill=tk.X, pady=2)
-                v = tk.BooleanVar(value=False)
-                sel_vars.append((v, i))
-                tk.Checkbutton(rf, variable=v, bg='light gray').pack(side=tk.LEFT)
-                verse = str(rec.get('verse', ''))
-                page = str(rec.get('page_number', ''))
-                tk.Label(rf, text=verse, font=('Arial', 12), width=64, anchor='w', bg='light gray', justify='left', wraplength=900).pack(side=tk.LEFT)
-                tk.Label(rf, text=page, font=('Arial', 12), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
-
-            btns = tk.Frame(win, bg='light gray')
-            btns.pack(fill=tk.X, padx=12, pady=(8, 10))
-
-            def _apply_and_start(selected_only=True):
-                try:
-                    indices = [i for v, i in sel_vars if v.get()] if selected_only else list(range(len(rows)))
-                    if not indices:
-                        return
-                    # Reset chosen Progress rows to 'not started' and mark Words as incomplete
-                    p2 = prog_df.copy()
-                    if 'word_key_norm' in p2.columns:
-                        maskw = p2['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
-                    else:
-                        maskw = pd.Series([False] * len(p2))
-                    # Narrow to only completed rows selected
-                    if 'status' in p2.columns:
-                        maskw = maskw & (p2['status'].astype(str).str.lower() == 'completed')
-                    subset = p2.loc[maskw].reset_index()
-                    keep_idx = set(subset.loc[indices, 'index'].tolist())
-                    sel_mask = p2.index.isin(list(keep_idx))
-                    if 'status' in p2.columns:
-                        p2.loc[sel_mask, 'status'] = 'not started'
-                    if 'completed_at' in p2.columns:
-                        try:
-                            p2.loc[sel_mask, 'completed_at'] = None
-                        except Exception:
-                            pass
-
-                    w2 = words_df.copy()
-                    if 'word_key_norm' in w2.columns:
-                        m2 = w2['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)
-                        if 'analysis_completed' in w2.columns:
-                            w2.loc[m2, 'analysis_completed'] = False
-                        if 'analysis_completed_at' in w2.columns:
-                            try:
-                                w2.loc[m2, 'analysis_completed_at'] = None
-                            except Exception:
-                                pass
-
-                    _save_tracker(tracker_path, w2, p2, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-                    try:
-                        win.destroy()
-                    except Exception:
-                        pass
-                    self.start_word_driver_for(word)
-                except Exception:
-                    pass
-
-            tk.Button(btns, text="Re-analyze Selected", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=lambda: _apply_and_start(True)).pack(side=tk.RIGHT)
-            tk.Button(btns, text="Re-analyze All", bg='teal', fg='white', font=('Arial', 11, 'bold'), command=lambda: _apply_and_start(False)).pack(side=tk.RIGHT, padx=(0,6))
-            tk.Button(btns, text="Cancel", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0,6))
-        except Exception as e:
-            try:
-                messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
-            except Exception:
-                pass
-
-
     def _is_missing_csv_value(self, value) -> bool:
         try:
             if value is None:
@@ -2760,7 +2625,9 @@ class GrammarApp:
             rec_word = self._norm_get(rec, 'Vowel Ending') or ''
             if _normalize_simple(self._norm_tok(rec_word)) != norm_word:
                 continue
-            if self._is_missing_csv_value(rec.get('Reference Verse')):
+            has_reference = not self._is_missing_csv_value(rec.get('Reference Verse'))
+            has_index = self._word_index_key(rec.get('Word Index')) is not None
+            if not has_reference and not has_index:
                 continue
             matches.append(rec)
         self._birha_word_cache[norm_word] = matches
@@ -2892,6 +2759,10 @@ class GrammarApp:
                 pass
         try:
             self._wm_for(win)
+        except Exception:
+            pass
+        try:
+            win.grab_set()
         except Exception:
             pass
 
@@ -3067,6 +2938,30 @@ class GrammarApp:
         tk.Button(btns, text='Re-analyze Selected', bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_reanalyze_selected).pack(side=tk.RIGHT)
         tk.Button(btns, text='Re-analyze All', bg='teal', fg='white', font=('Arial', 11, 'bold'), command=_reanalyze_all).pack(side=tk.RIGHT, padx=(0, 6))
         tk.Button(btns, text='Close', bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0, 6))
+
+        try:
+            win.update_idletasks()
+            base = None
+            if parent is not None:
+                try:
+                    if parent.winfo_exists():
+                        base = parent
+                except Exception:
+                    base = None
+            if base is None:
+                base = self.root if hasattr(self, 'root') else None
+            if base is not None and base.winfo_exists():
+                bx = base.winfo_rootx()
+                by = base.winfo_rooty()
+                bw = base.winfo_width()
+                bh = base.winfo_height()
+                w = win.winfo_width()
+                h = win.winfo_height()
+                x = bx + max(0, (bw - w) // 2)
+                y = by + max(0, (bh - h) // 2)
+                win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
 
     def _reset_progress_for_word_and_restart(self, word: str, only_selected: list[int] | None = None):
         """Reset Progress rows to 'not started' for the given word (optionally by row indices),
