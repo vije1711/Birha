@@ -1430,6 +1430,7 @@ class GrammarApp:
         self.match_vars                    = []
         self.all_matches                   = []
         self.all_new_entries               = []   # global accumulator
+        self.detailed_grammar_entries_saved = 0   # session counter for detailed grammar CSV writes
 
         # Lexicon index cache (built lazily from 1.1.3 Excel)
         self._lexicon_index = None
@@ -4179,7 +4180,15 @@ class GrammarApp:
         except Exception:
             pass
 
-        if self.all_new_entries:
+        detailed_saved = getattr(self, "detailed_grammar_entries_saved", 0)
+
+        if detailed_saved:
+            try:
+                noun = "entry" if detailed_saved == 1 else "entries"
+                messagebox.showinfo("Saved", f"Saved {detailed_saved} detailed grammar {noun} to 1.1.1_birha.csv.")
+            except Exception:
+                pass
+        elif self.all_new_entries:
             try:
                 self.prompt_save_results(self.all_new_entries)
             except Exception as e:
@@ -4235,6 +4244,8 @@ class GrammarApp:
         # (you should have created a tk.BooleanVar list self._word_vars there)
         selected_indices = self._selected_word_indices
 
+        self.detailed_grammar_entries_saved = 0
+
         # build the queue
         self.grammar_queue = [
             (i, words[i]) for i in selected_indices
@@ -4256,6 +4267,7 @@ class GrammarApp:
         verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
         words = verse_text.split()
         selected_indices = getattr(self, '_selected_word_indices', [])
+        self.detailed_grammar_entries_saved = 0
         self.grammar_queue = [(i, words[i]) for i in selected_indices if 0 <= i < len(words)]
         self.grammar_meanings = []
         self.current_queue_pos = 0
@@ -6333,6 +6345,7 @@ class GrammarApp:
         finally:
             # Close and advance only if save succeeded or confirmed overwrite
             if advance_ok:
+                self.detailed_grammar_entries_saved = getattr(self, 'detailed_grammar_entries_saved', 0) + 1
                 try:
                     if win and win.winfo_exists():
                         win.destroy()
