@@ -1435,6 +1435,8 @@ class GrammarApp:
         # Lexicon index cache (built lazily from 1.1.3 Excel)
         self._lexicon_index = None
         self._lexicon_index_path = "1.1.3_lexicon_index.json"
+        # Cached lookups for verse-level Birha CSV rows keyed by normalized word
+        self._birha_word_cache: dict[str, list[dict]] = {}
 
         # word‑by‑word navigation
         self.current_word_index = 0
@@ -2514,6 +2516,14 @@ class GrammarApp:
                     items.append((w, n))
                     lb.insert(tk.END, w)
             lb.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0,8))
+            tk.Label(
+                win,
+                text="Double-click a word or use “View Details / Re-analyze” to inspect completed verses.",
+                font=('Arial', 10),
+                bg='light gray',
+                wraplength=520,
+                justify='left'
+            ).pack(padx=12, pady=(0, 8), anchor='w')
 
             def _get_selected_word():
                 sel = lb.curselection()
@@ -2534,18 +2544,30 @@ class GrammarApp:
                 except Exception:
                     pass
 
-            def _open_selector():
+            def _open_details():
                 try:
                     word = _get_selected_word()
                     if not word:
                         return
-                    self._open_reanalyze_selector(word)
+                    self._open_completed_word_details(word, parent=win)
                 except Exception:
                     pass
 
+            try:
+                lb.bind('<Double-1>', lambda e: _open_details())
+            except Exception:
+                pass
+
             btns = tk.Frame(win, bg='light gray')
             btns.pack(fill=tk.X, padx=12, pady=(0, 10))
-            tk.Button(btns, text="Re-analyze...", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_open_selector).pack(side=tk.RIGHT)
+            tk.Button(
+                btns,
+                text="View Details / Re-analyze",
+                bg='navy',
+                fg='white',
+                font=('Arial', 11, 'bold'),
+                command=_open_details
+            ).pack(side=tk.RIGHT)
             tk.Button(btns, text="Re-analyze All", bg='teal', fg='white', font=('Arial', 11, 'bold'), command=_re_analyze_all).pack(side=tk.RIGHT, padx=(0,6))
             tk.Button(btns, text="Cancel", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0,6))
         except Exception as e:
@@ -2686,6 +2708,365 @@ class GrammarApp:
                 messagebox.showerror("Tracker Error", f"Failed to load tracker: {e}")
             except Exception:
                 pass
+
+
+    def _is_missing_csv_value(self, value) -> bool:
+        try:
+            if value is None:
+                return True
+            if isinstance(value, (float, np.floating)):
+                if math.isnan(float(value)):
+                    return True
+            text = str(value).strip()
+        except Exception:
+            return True
+        return text == '' or text.lower() in {'na', 'nan', 'none', 'null'}
+
+    def _csv_value_or_na(self, value, default: str = 'NA') -> str:
+        if self._is_missing_csv_value(value):
+            return default
+        try:
+            return str(value).strip()
+        except Exception:
+            return default
+
+    def _word_index_key(self, value) -> str | None:
+        if self._is_missing_csv_value(value):
+            return None
+        try:
+            if isinstance(value, (int, np.integer)):
+                return str(int(value))
+            if isinstance(value, (float, np.floating)):
+                if math.isnan(float(value)):
+                    return None
+                return str(int(value))
+            text = str(value).strip()
+            if re.fullmatch(r'-?\d+(?:\.0+)?', text):
+                return str(int(float(text)))
+            return text
+        except Exception:
+            return None
+
+    def _get_birha_records_for_word(self, word: str) -> list[dict]:
+        norm_word = _normalize_simple(self._norm_tok(word))
+        if not norm_word:
+            return []
+        cached = self._birha_word_cache.get(norm_word)
+        if cached is not None:
+            return cached
+
+        matches: list[dict] = []
+        for rec in self.grammar_data:
+            rec_word = self._norm_get(rec, 'Vowel Ending') or ''
+            if _normalize_simple(self._norm_tok(rec_word)) != norm_word:
+                continue
+            if self._is_missing_csv_value(rec.get('Reference Verse')):
+                continue
+            matches.append(rec)
+        self._birha_word_cache[norm_word] = matches
+        return matches
+
+    def _match_birha_record(self, candidates: list[dict], verse: str, index_key: str | None):
+        if not candidates:
+            return None
+        if index_key is not None:
+            for rec in candidates:
+                rec_idx = self._word_index_key(rec.get('Word Index'))
+                if rec_idx == index_key:
+                    return rec
+        verse_key = self._verse_key(verse) if verse else ''
+        if verse_key:
+            for rec in candidates:
+                ref_key = self._verse_key(rec.get('Reference Verse', ''))
+                if ref_key == verse_key:
+                    return rec
+        if len(candidates) == 1:
+            return candidates[0]
+        return None
+
+    def _open_completed_word_details(self, word: str, parent=None):
+        try:
+            tracker_path = self._get_word_tracker_path()
+            _, prog_df, _ = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+        except Exception as e:
+            try:
+                messagebox.showerror('Tracker Error', f"Failed to load tracker: {e}")
+            except Exception:
+                pass
+            return
+
+        norm = self._norm_tok(word)
+        df = prog_df.copy() if prog_df is not None else pd.DataFrame(columns=_PROGRESS_COLUMNS)
+        if not df.empty:
+            if 'word_key_norm' in df.columns:
+                df = df.loc[df['word_key_norm'].astype(str).map(lambda s: _normalize_simple(s)) == _normalize_simple(norm)]
+            if 'status' in df.columns:
+                df = df.loc[df['status'].astype(str).str.lower() == 'completed']
+        if df is None or df.empty:
+            try:
+                messagebox.showinfo('None', f"No completed verses found for '{word}'.")
+            except Exception:
+                pass
+            return
+
+        subset = df.reset_index(drop=True)
+        csv_records = self._get_birha_records_for_word(word)
+        available = list(csv_records)
+        detail_rows = []
+        for idx, row in subset.iterrows():
+            verse_text = str(row.get('verse', '') or '')
+            page_val = _parse_page_value(row.get('page_number')) or 'NA'
+            progress_idx_key = self._word_index_key(row.get('word_index'))
+            match = self._match_birha_record(available, verse_text, progress_idx_key)
+            if match in available:
+                available.remove(match)
+
+            def _field(rec, key, default='NA'):
+                if not rec:
+                    return default
+                if key == 'Vowel Ending':
+                    return self._csv_value_or_na(self._norm_get(rec, key), default)
+                return self._csv_value_or_na(rec.get(key), default)
+
+            reference_source = None
+            if match and not self._is_missing_csv_value(match.get('Reference Verse')):
+                reference_source = match.get('Reference Verse')
+            elif not self._is_missing_csv_value(verse_text):
+                reference_source = verse_text
+            reference_display = self._csv_value_or_na(reference_source, default='NA')
+            tracker_verse_display = self._csv_value_or_na(verse_text, default='NA')
+
+            word_index_key = self._word_index_key(match.get('Word Index') if match else None)
+            if word_index_key is None:
+                word_index_key = progress_idx_key
+            word_index_display = word_index_key if word_index_key is not None else 'NA'
+            try:
+                word_index_sort = int(word_index_key) if word_index_key is not None and re.fullmatch(r'-?\d+', word_index_key) else None
+            except Exception:
+                word_index_sort = None
+
+            snippet_source = reference_source if reference_source is not None and not self._is_missing_csv_value(reference_source) else verse_text
+            snippet_clean = self._csv_value_or_na(snippet_source, default='')
+            if snippet_clean and len(snippet_clean) > 90:
+                snippet_clean = snippet_clean[:87] + '…'
+            if not snippet_clean:
+                snippet_clean = 'NA'
+
+            detail_rows.append(
+                {
+                    'subset_idx': idx,
+                    'word_index_display': word_index_display,
+                    'word_index_sort': word_index_sort,
+                    'vowel': _field(match, 'Vowel Ending', default=word or 'NA'),
+                    'number': _field(match, 'Number / ਵਚਨ'),
+                    'grammar': _field(match, 'Grammar / ਵਯਾਕਰਣ'),
+                    'gender': _field(match, 'Gender / ਲਿੰਗ'),
+                    'root': _field(match, 'Word Root'),
+                    'type': _field(match, 'Type'),
+                    'evaluation': _field(match, 'Evaluation'),
+                    'reference': reference_display,
+                    'translation': _field(match, 'Darpan Translation'),
+                    'meaning': _field(match, 'Darpan Meaning'),
+                    'commentary': _field(match, 'ChatGPT Commentry'),
+                    'tracker_verse': tracker_verse_display,
+                    'page': page_val,
+                    'snippet': snippet_clean,
+                }
+            )
+
+        def _sort_key(rec):
+            sort_val = rec.get('word_index_sort')
+            if sort_val is None:
+                return (1, rec['subset_idx'])
+            return (0, sort_val, rec['subset_idx'])
+
+        detail_rows.sort(key=_sort_key)
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Completed Word – {word}")
+        win.configure(bg='light gray')
+        if parent is not None:
+            try:
+                win.transient(parent)
+            except Exception:
+                pass
+        try:
+            self._wm_for(win)
+        except Exception:
+            pass
+
+        tk.Label(
+            win,
+            text=f"Completed verses for “{word}”. Select one or more rows to review or re-analyze.",
+            font=('Arial', 12, 'bold'),
+            bg='light gray',
+            wraplength=900,
+            justify='left',
+        ).pack(padx=12, pady=(10, 4), anchor='w')
+        tk.Label(
+            win,
+            text='Use Ctrl/Cmd-click or Shift-click to select multiple verses. ‘Re-analyze Selected’ resets only the highlighted entries.',
+            font=('Arial', 10),
+            bg='light gray',
+            wraplength=900,
+            justify='left',
+        ).pack(padx=12, pady=(0, 10), anchor='w')
+
+        table_frame = tk.Frame(win, bg='light gray')
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 8))
+        columns = ('index', 'vowel', 'number', 'grammar', 'gender', 'root', 'type', 'snippet')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', selectmode='extended')
+        tree.grid(row=0, column=0, sticky='nsew')
+        vsb = tk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb = tk.Scrollbar(table_frame, orient='horizontal', command=tree.xview)
+        hsb.grid(row=1, column=0, sticky='ew')
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        table_frame.grid_rowconfigure(0, weight=1)
+        table_frame.grid_columnconfigure(0, weight=1)
+
+        headings = {
+            'index': 'Word Index',
+            'vowel': 'Vowel Ending',
+            'number': 'Number / ਵਚਨ',
+            'grammar': 'Grammar / ਵਯਾਕਰਣ',
+            'gender': 'Gender / ਲਿੰਗ',
+            'root': 'Word Root',
+            'type': 'Type',
+            'snippet': 'Reference Verse (excerpt)',
+        }
+        for col, text_val in headings.items():
+            tree.heading(col, text=text_val)
+
+        tree.column('index', width=110, anchor='center', stretch=False)
+        tree.column('vowel', width=140, anchor='w', stretch=False)
+        tree.column('number', width=170, anchor='w', stretch=False)
+        tree.column('grammar', width=190, anchor='w', stretch=False)
+        tree.column('gender', width=160, anchor='w', stretch=False)
+        tree.column('root', width=160, anchor='w', stretch=False)
+        tree.column('type', width=170, anchor='w', stretch=False)
+        tree.column('snippet', width=520, anchor='w')
+
+        records = detail_rows
+        for i, rec in enumerate(records):
+            tree.insert(
+                '',
+                'end',
+                iid=str(i),
+                values=(
+                    rec['word_index_display'],
+                    rec['vowel'],
+                    rec['number'],
+                    rec['grammar'],
+                    rec['gender'],
+                    rec['root'],
+                    rec['type'],
+                    rec['snippet'],
+                ),
+            )
+
+        detail_box = scrolledtext.ScrolledText(win, height=12, wrap=tk.WORD, font=('Arial', 11))
+        detail_box.pack(fill=tk.BOTH, expand=False, padx=12, pady=(0, 10))
+        detail_box.configure(state=tk.DISABLED)
+
+        def _detail_text(rec: dict) -> str:
+            lines = [
+                f'Word: {word}',
+                f"Word Index: {rec['word_index_display']}",
+                f"Vowel Ending: {rec['vowel']}",
+                f"Number / ਵਚਨ: {rec['number']}",
+                f"Grammar / ਵਯਾਕਰਣ: {rec['grammar']}",
+                f"Gender / ਲਿੰਗ: {rec['gender']}",
+                f"Word Root: {rec['root']}",
+                f"Type: {rec['type']}",
+                f"Evaluation: {rec['evaluation']}",
+                f"Page Number: {rec['page']}",
+                '',
+                'Reference Verse:',
+                rec['reference'],
+                '',
+                'Darpan Translation:',
+                rec['translation'],
+                '',
+                'Darpan Meaning:',
+                rec['meaning'],
+                '',
+                'ChatGPT Commentary:',
+                rec['commentary'],
+            ]
+            tracker_text = rec.get('tracker_verse')
+            if tracker_text and tracker_text not in {'', 'NA'} and tracker_text != rec['reference']:
+                lines.extend(['', 'Tracker Verse (from progress):', tracker_text])
+            return '\n'.join(lines)
+
+        def _render_selection(event=None):
+            sel = tree.selection()
+            if not sel:
+                text_val = 'Select a verse to view detailed context.'
+            else:
+                try:
+                    rec = records[int(sel[0])]
+                except Exception:
+                    rec = None
+                text_val = _detail_text(rec) if rec else 'Select a verse to view detailed context.'
+            detail_box.configure(state=tk.NORMAL)
+            detail_box.delete('1.0', tk.END)
+            detail_box.insert(tk.END, text_val)
+            detail_box.configure(state=tk.DISABLED)
+
+        tree.bind('<<TreeviewSelect>>', _render_selection)
+        if records:
+            first = tree.get_children()
+            if first:
+                tree.focus(first[0])
+                tree.selection_set(first[0])
+                _render_selection()
+
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(fill=tk.X, padx=12, pady=(0, 12))
+
+        def _reanalyze_selected():
+            try:
+                sel = tree.selection()
+                if not sel:
+                    return
+                indices = sorted({records[int(iid)]['subset_idx'] for iid in sel})
+                if not indices:
+                    return
+                try:
+                    win.destroy()
+                except Exception:
+                    pass
+                self._reset_progress_for_word_and_restart(word, only_selected=indices)
+            except Exception:
+                pass
+
+        def _reanalyze_all():
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self._reset_progress_for_word_and_restart(word, only_selected=None)
+
+        def _select_all_rows():
+            try:
+                tree.selection_set(tree.get_children())
+                _render_selection()
+            except Exception:
+                pass
+
+        def _clear_selection():
+            try:
+                tree.selection_remove(tree.selection())
+                _render_selection()
+            except Exception:
+                pass
+
+        tk.Button(btns, text='Select All', bg='teal', fg='white', font=('Arial', 11), command=_select_all_rows).pack(side=tk.LEFT)
+        tk.Button(btns, text='Clear Selection', bg='gray', fg='white', font=('Arial', 11), command=_clear_selection).pack(side=tk.LEFT, padx=(6, 0))
+        tk.Button(btns, text='Re-analyze Selected', bg='navy', fg='white', font=('Arial', 11, 'bold'), command=_reanalyze_selected).pack(side=tk.RIGHT)
+        tk.Button(btns, text='Re-analyze All', bg='teal', fg='white', font=('Arial', 11, 'bold'), command=_reanalyze_all).pack(side=tk.RIGHT, padx=(0, 6))
+        tk.Button(btns, text='Close', bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(0, 6))
 
     def _reset_progress_for_word_and_restart(self, word: str, only_selected: list[int] | None = None):
         """Reset Progress rows to 'not started' for the given word (optionally by row indices),
