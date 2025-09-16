@@ -4237,8 +4237,9 @@ class GrammarApp:
         into words and build the queue of those words the user selected
         for grammar assessment. Then immediately start the first word.
         """
-        # split the verse text
-        words = self.selected_verse_text.strip().split()
+        # Use the same trimmed verse text that powered the selection UI so indices line up
+        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        words = verse_text.split()
 
         # collect exactly those indices the user checked in show_translation_input()
         # (you should have created a tk.BooleanVar list self._word_vars there)
@@ -4246,9 +4247,9 @@ class GrammarApp:
 
         self.detailed_grammar_entries_saved = 0
 
-        # build the queue
+        # build the queue using only valid indices to avoid out-of-range lookups
         self.grammar_queue = [
-            (i, words[i]) for i in selected_indices
+            (i, words[i]) for i in selected_indices if 0 <= i < len(words)
         ]
         self.grammar_meanings = []        # ← NEW: clear out any old entries
         self.current_queue_pos = 0
