@@ -7710,18 +7710,10 @@ class GrammarApp:
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"[Edit Mode] Input for {word}")
         self.input_window.configure(bg='light gray')
-        mgr = self._wm_for(self.input_window)
-        try:
-            if mgr:
-                # Prefer client-maximize with bottom margin per "Improve the Bottom Task Bar Overlap Issue" note.
-                mgr.maximize_client(bottom_margin_px=BOTTOM_PAD)
-        except Exception:
-            try:
-                if mgr:
-                    mgr.maximize()
-            except Exception:
-                pass
         self.input_window.resizable(True, True)
+        # Attach WindowManager and defer maximize so the window realizes before sizing.
+        # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
+        self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
@@ -9181,18 +9173,10 @@ class GrammarApp:
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"Input for {word}")
         self.input_window.configure(bg='light gray')
-        mgr = self._wm_for(self.input_window)
-        try:
-            if mgr:
-                # Prefer client-maximize with bottom margin per "Improve the Bottom Task Bar Overlap Issue" note.
-                mgr.maximize_client(bottom_margin_px=BOTTOM_PAD)
-        except Exception:
-            try:
-                if mgr:
-                    mgr.maximize()
-            except Exception:
-                pass
         self.input_window.resizable(True, True)
+        # Attach WindowManager and defer maximize so the window realizes before sizing.
+        # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
+        self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
