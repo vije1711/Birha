@@ -8094,8 +8094,11 @@ class GrammarApp:
         self.display_matches_section_reanalysis(main_frame, unique_matches, index, max_display)
 
         # --- Bottom Buttons ---
+        PAD_TOP = 6
+        parent_bottom_pad = 10  # main_frame.pack(... pady=10) contributes this much bottom spacing
+        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
         button_frame = tk.Frame(self.match_window, bg='light gray')
-        button_frame.pack(pady=10)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
 
         tk.Button(
             button_frame,
@@ -9921,8 +9924,11 @@ class GrammarApp:
         # ---------------------------
         # Bottom Button Frame: Submit and Back
         # ---------------------------
+        PAD_TOP = 6
+        parent_bottom_pad = 10  # main_frame.pack(... pady=10) contributes this much bottom spacing
+        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
         button_frame = tk.Frame(self.match_window, bg='light gray')
-        button_frame.pack(pady=10)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
         tk.Button(button_frame, text="Submit", command=self.submit_matches,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white', padx=20, pady=10
                 ).pack(side=tk.LEFT, padx=5)
