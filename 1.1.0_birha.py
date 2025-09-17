@@ -8095,8 +8095,10 @@ class GrammarApp:
 
         # --- Bottom Buttons ---
         PAD_TOP = 6
-        parent_bottom_pad = 10  # main_frame.pack(... pady=10) contributes this much bottom spacing
-        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
+        # Once the bar is bottom-anchored, the parent's pady no longer affects the
+        # visible clearance. Keep the full BOTTOM_PAD gap so the buttons align with
+        # other dialogs.
+        bottom_gap = BOTTOM_PAD
         button_frame = tk.Frame(self.match_window, bg='light gray')
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
 
@@ -9925,8 +9927,10 @@ class GrammarApp:
         # Bottom Button Frame: Submit and Back
         # ---------------------------
         PAD_TOP = 6
-        parent_bottom_pad = 10  # main_frame.pack(... pady=10) contributes this much bottom spacing
-        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
+        # Once the bar is bottom-anchored, the parent's pady no longer affects the
+        # visible clearance. Keep the full BOTTOM_PAD gap so the buttons align with
+        # other dialogs.
+        bottom_gap = BOTTOM_PAD
         button_frame = tk.Frame(self.match_window, bg='light gray')
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
         tk.Button(button_frame, text="Submit", command=self.submit_matches,
