@@ -7712,7 +7712,8 @@ class GrammarApp:
         self.input_window.configure(bg='light gray')
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
-        self._wm_apply(self.input_window, margin_px=0, defer=True)
+        # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
+        self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
@@ -9174,7 +9175,8 @@ class GrammarApp:
         self.input_window.configure(bg='light gray')
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
-        self._wm_apply(self.input_window, margin_px=0, defer=True)
+        # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
+        self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
