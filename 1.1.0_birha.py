@@ -7921,15 +7921,16 @@ class GrammarApp:
 
         PAD_TOP = 6
 
-        # Body uses grid while the button bar is bottom-docked with pack.
+        # Body uses grid layout; button bar spans both columns for centering.
         content = tk.Frame(self.input_window, bg='light gray')
         content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         content.grid_rowconfigure(1, weight=1)
         content.grid_columnconfigure(0, weight=1)
+        content.grid_columnconfigure(1, weight=1)
 
         # Display the Pankti with word highlight
         pankti_frame = tk.Frame(content, bg='light gray')
-        pankti_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
+        pankti_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=(10, 10))
 
         pankti_display = tk.Text(
             pankti_frame, wrap=tk.WORD, bg='light gray', font=('Arial', 32),
@@ -7954,7 +7955,7 @@ class GrammarApp:
 
         # Create layout pane
         split_pane = tk.PanedWindow(content, orient=tk.HORIZONTAL, bg='light gray')
-        split_pane.grid(row=1, column=0, sticky="nsew", padx=20)
+        split_pane.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20)
 
         # Left: Meanings
         self.left_pane = tk.Frame(split_pane, bg='light gray')
@@ -7999,8 +8000,8 @@ class GrammarApp:
 
         # Submit / Skip
         bottom_gap = BOTTOM_PAD
-        button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
+        button_frame = tk.Frame(content, bg='light gray')
+        button_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=20, pady=(PAD_TOP, bottom_gap))
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(3, weight=1)
         tk.Button(button_frame, text="Submit", command=self.submit_input_reanalysis,
@@ -9411,17 +9412,18 @@ class GrammarApp:
 
         PAD_TOP = 6
 
-        # Body uses grid while the button bar is bottom-docked with pack.
+        # Body uses grid layout; button bar spans both columns for centering.
         content = tk.Frame(self.input_window, bg='light gray')
         content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         content.grid_rowconfigure(1, weight=1)
         content.grid_columnconfigure(0, weight=1)
+        content.grid_columnconfigure(1, weight=1)
 
         # ---------------------------
         # Display the Pankti on top
         # ---------------------------
         pankti_frame = tk.Frame(content, bg='light gray')
-        pankti_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
+        pankti_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=(10, 10))
 
         pankti_display = tk.Text(
             pankti_frame, wrap=tk.WORD, bg='light gray', font=('Arial', 32),
@@ -9451,7 +9453,7 @@ class GrammarApp:
         # Create a horizontal PanedWindow for split layout
         # ---------------------------
         split_pane = tk.PanedWindow(content, orient=tk.HORIZONTAL, bg='light gray')
-        split_pane.grid(row=1, column=0, sticky="nsew", padx=20)
+        split_pane.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20)
 
         # Left pane: Meanings
         self.left_pane = tk.Frame(split_pane, bg='light gray')
@@ -9498,8 +9500,8 @@ class GrammarApp:
         # Bottom Button Frame
         # ---------------------------
         bottom_gap = BOTTOM_PAD
-        button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
+        button_frame = tk.Frame(content, bg='light gray')
+        button_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=20, pady=(PAD_TOP, bottom_gap))
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(3, weight=1)
         tk.Button(button_frame, text="Submit", command=self.submit_input,
