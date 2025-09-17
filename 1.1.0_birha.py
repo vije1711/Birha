@@ -7710,10 +7710,17 @@ class GrammarApp:
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"[Edit Mode] Input for {word}")
         self.input_window.configure(bg='light gray')
+        mgr = self._wm_for(self.input_window)
         try:
-            self._wm_for(self.input_window).maximize()
+            if mgr:
+                # Prefer client-maximize with bottom margin per "Improve the Bottom Task Bar Overlap Issue" note.
+                mgr.maximize_client(bottom_margin_px=BOTTOM_PAD)
         except Exception:
-            pass
+            try:
+                if mgr:
+                    mgr.maximize()
+            except Exception:
+                pass
         self.input_window.resizable(True, True)
 
         # Display the Pankti with word highlight
@@ -7787,17 +7794,19 @@ class GrammarApp:
         )
 
         # Submit / Skip
-        button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
-        # Center the action buttons: use expanding spacers on both sides
-        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
-        tk.Button(button_frame, text="Submit", command=self.submit_input_reanalysis,
+        parent_bottom_pad = 0  # Toplevel packs without external bottom padding.
+        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
+        btns = tk.Frame(self.input_window, bg='light gray')
+        # Keep buttons off the taskbar using the shared spacing recipe from "Improve the Bottom Task Bar Overlap Issue".
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, bottom_gap))
+        btns.grid_columnconfigure(0, weight=1)
+        btns.grid_columnconfigure(3, weight=1)
+        tk.Button(btns, text="Submit", command=self.submit_input_reanalysis,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
-                padx=30, pady=15).pack(side=tk.LEFT, padx=15)
-        tk.Button(button_frame, text="Skip", command=self.skip_input,
+                padx=30, pady=15).grid(row=0, column=1, padx=15, pady=0)
+        tk.Button(btns, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
-                padx=30, pady=15).pack(side=tk.LEFT, padx=15)
-        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
+                padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
 
         # Progress + Dictionary Lookup
         self.start_progress()
@@ -9168,10 +9177,17 @@ class GrammarApp:
         self.input_window = tk.Toplevel(self.root)
         self.input_window.title(f"Input for {word}")
         self.input_window.configure(bg='light gray')
+        mgr = self._wm_for(self.input_window)
         try:
-            self._wm_for(self.input_window).maximize()
+            if mgr:
+                # Prefer client-maximize with bottom margin per "Improve the Bottom Task Bar Overlap Issue" note.
+                mgr.maximize_client(bottom_margin_px=BOTTOM_PAD)
         except Exception:
-            pass
+            try:
+                if mgr:
+                    mgr.maximize()
+            except Exception:
+                pass
         self.input_window.resizable(True, True)
 
         # ---------------------------
@@ -9254,17 +9270,19 @@ class GrammarApp:
         # ---------------------------
         # Bottom Button Frame
         # ---------------------------
-        button_frame = tk.Frame(self.input_window, bg='light gray')
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, 0))
-        # Center the action buttons: use expanding spacers on both sides
-        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
-        tk.Button(button_frame, text="Submit", command=self.submit_input,
+        parent_bottom_pad = 0  # Toplevel packs without external bottom padding.
+        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
+        btns = tk.Frame(self.input_window, bg='light gray')
+        # Keep buttons off the taskbar using the shared spacing recipe from "Improve the Bottom Task Bar Overlap Issue".
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, bottom_gap))
+        btns.grid_columnconfigure(0, weight=1)
+        btns.grid_columnconfigure(3, weight=1)
+        tk.Button(btns, text="Submit", command=self.submit_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
-                padx=30, pady=15).pack(side=tk.LEFT, padx=15)
-        tk.Button(button_frame, text="Skip", command=self.skip_input,
+                padx=30, pady=15).grid(row=0, column=1, padx=15, pady=0)
+        tk.Button(btns, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
-                padx=30, pady=15).pack(side=tk.LEFT, padx=15)
-        tk.Frame(button_frame, bg='light gray').pack(side=tk.LEFT, expand=True)
+                padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
 
         # ---------------------------
         # Launch the dictionary lookup in a separate thread
