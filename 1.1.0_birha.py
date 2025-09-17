@@ -7875,11 +7875,15 @@ class GrammarApp:
             mgr.enable_safe_maximize(0)
 
         PAD_TOP = 6
-        self.input_window.grid_rowconfigure(1, weight=1)
-        self.input_window.grid_columnconfigure(0, weight=1)
+
+        # Body uses grid while the button bar is bottom-docked with pack.
+        content = tk.Frame(self.input_window, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        content.grid_rowconfigure(1, weight=1)
+        content.grid_columnconfigure(0, weight=1)
 
         # Display the Pankti with word highlight
-        pankti_frame = tk.Frame(self.input_window, bg='light gray')
+        pankti_frame = tk.Frame(content, bg='light gray')
         pankti_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
 
         pankti_display = tk.Text(
@@ -7904,7 +7908,7 @@ class GrammarApp:
         pankti_display.config(state=tk.DISABLED)
 
         # Create layout pane
-        split_pane = tk.PanedWindow(self.input_window, orient=tk.HORIZONTAL, bg='light gray')
+        split_pane = tk.PanedWindow(content, orient=tk.HORIZONTAL, bg='light gray')
         split_pane.grid(row=1, column=0, sticky="nsew", padx=20)
 
         # Left: Meanings
@@ -7949,17 +7953,15 @@ class GrammarApp:
         )
 
         # Submit / Skip
-        parent_bottom_pad = 0  # Toplevel grid uses no external bottom padding.
-        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
-        btns = tk.Frame(self.input_window, bg='light gray')
-        # Keep buttons off the taskbar using the shared spacing recipe from "Improve the Bottom Task Bar Overlap Issue".
-        btns.grid(row=2, column=0, sticky="ews", padx=20, pady=(PAD_TOP, bottom_gap))
-        btns.grid_columnconfigure(0, weight=1)
-        btns.grid_columnconfigure(3, weight=1)
-        tk.Button(btns, text="Submit", command=self.submit_input_reanalysis,
+        bottom_gap = BOTTOM_PAD
+        button_frame = tk.Frame(self.input_window, bg='light gray')
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
+        button_frame.grid_columnconfigure(0, weight=1)
+        button_frame.grid_columnconfigure(3, weight=1)
+        tk.Button(button_frame, text="Submit", command=self.submit_input_reanalysis,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=1, padx=15, pady=0)
-        tk.Button(btns, text="Skip", command=self.skip_input,
+        tk.Button(button_frame, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
 
@@ -9356,13 +9358,17 @@ class GrammarApp:
             mgr.enable_safe_maximize(0)
 
         PAD_TOP = 6
-        self.input_window.grid_rowconfigure(1, weight=1)
-        self.input_window.grid_columnconfigure(0, weight=1)
+
+        # Body uses grid while the button bar is bottom-docked with pack.
+        content = tk.Frame(self.input_window, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        content.grid_rowconfigure(1, weight=1)
+        content.grid_columnconfigure(0, weight=1)
 
         # ---------------------------
         # Display the Pankti on top
         # ---------------------------
-        pankti_frame = tk.Frame(self.input_window, bg='light gray')
+        pankti_frame = tk.Frame(content, bg='light gray')
         pankti_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
 
         pankti_display = tk.Text(
@@ -9392,7 +9398,7 @@ class GrammarApp:
         # ---------------------------
         # Create a horizontal PanedWindow for split layout
         # ---------------------------
-        split_pane = tk.PanedWindow(self.input_window, orient=tk.HORIZONTAL, bg='light gray')
+        split_pane = tk.PanedWindow(content, orient=tk.HORIZONTAL, bg='light gray')
         split_pane.grid(row=1, column=0, sticky="nsew", padx=20)
 
         # Left pane: Meanings
@@ -9439,17 +9445,15 @@ class GrammarApp:
         # ---------------------------
         # Bottom Button Frame
         # ---------------------------
-        parent_bottom_pad = 0  # Toplevel grid uses no external bottom padding.
-        bottom_gap = max(0, BOTTOM_PAD - parent_bottom_pad)
-        btns = tk.Frame(self.input_window, bg='light gray')
-        # Keep buttons off the taskbar using the shared spacing recipe from "Improve the Bottom Task Bar Overlap Issue".
-        btns.grid(row=2, column=0, sticky="ews", padx=20, pady=(PAD_TOP, bottom_gap))
-        btns.grid_columnconfigure(0, weight=1)
-        btns.grid_columnconfigure(3, weight=1)
-        tk.Button(btns, text="Submit", command=self.submit_input,
+        bottom_gap = BOTTOM_PAD
+        button_frame = tk.Frame(self.input_window, bg='light gray')
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
+        button_frame.grid_columnconfigure(0, weight=1)
+        button_frame.grid_columnconfigure(3, weight=1)
+        tk.Button(button_frame, text="Submit", command=self.submit_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=1, padx=15, pady=0)
-        tk.Button(btns, text="Skip", command=self.skip_input,
+        tk.Button(button_frame, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
 
