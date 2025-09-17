@@ -7869,10 +7869,10 @@ class GrammarApp:
         self.input_window.configure(bg='light gray')
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
-        # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
-        mgr = self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
+        # Align with other dialogs: request native maximize without taskbar margin.
+        mgr = self._wm_apply(self.input_window, margin_px=0, defer=True)
         if mgr:
-            mgr.enable_safe_maximize(BOTTOM_PAD)
+            mgr.enable_safe_maximize(0)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
@@ -7967,7 +7967,18 @@ class GrammarApp:
         self.start_progress()
         threading.Thread(target=self.lookup_meanings_thread, args=(word,), daemon=True).start()
 
-        self.input_window.transient(self.root)
+        try:
+            self.input_window.update_idletasks()
+        except Exception:
+            pass
+        try:
+            self.input_window.lift(self.root)
+        except Exception:
+            pass
+        try:
+            self.input_window.focus_set()
+        except Exception:
+            pass
         self.input_window.grab_set()
         self.root.wait_window(self.input_window)
         print(f"[Reanalysis] Closed input window for {word}")
@@ -9334,10 +9345,10 @@ class GrammarApp:
         self.input_window.configure(bg='light gray')
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
-        # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
-        mgr = self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
+        # Align with other dialogs: request native maximize without taskbar margin.
+        mgr = self._wm_apply(self.input_window, margin_px=0, defer=True)
         if mgr:
-            mgr.enable_safe_maximize(BOTTOM_PAD)
+            mgr.enable_safe_maximize(0)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
@@ -9443,7 +9454,18 @@ class GrammarApp:
         self.start_progress()
         threading.Thread(target=self.lookup_meanings_thread, args=(word,), daemon=True).start()
 
-        self.input_window.transient(self.root)
+        try:
+            self.input_window.update_idletasks()
+        except Exception:
+            pass
+        try:
+            self.input_window.lift(self.root)
+        except Exception:
+            pass
+        try:
+            self.input_window.focus_set()
+        except Exception:
+            pass
         self.input_window.grab_set()
         self.root.wait_window(self.input_window)
         print(f"Input window for {word} closed")
