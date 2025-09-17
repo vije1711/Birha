@@ -296,6 +296,163 @@ class WindowManager:
         except Exception:
             pass
 
+    def enable_safe_maximize(self, bottom_margin_px: int = 0):
+        """Ensure the window exposes a native maximize control and keeps a safe
+        bottom margin when maximized.
+
+        - Stores the desired client margin so F11 toggles reuse it.
+        - On Windows, restores the maximize button (WS_MAXIMIZEBOX) and hooks
+          WM_GETMINMAXINFO so a native maximize honors the bottom margin.
+        """
+        try:
+            self._client_margin_px = int(bottom_margin_px or 0)
+        except Exception:
+            self._client_margin_px = 0
+
+        if os.name != 'nt' or ctypes is None:
+            return
+
+        try:
+            hwnd = int(self.win.winfo_id())
+        except Exception:
+            return
+
+        user32 = ctypes.windll.user32
+
+        # Ensure the caption has Maximize/Minimize buttons and a sizable frame.
+        try:
+            GWL_STYLE = -16
+            WS_MAXIMIZEBOX = 0x00010000
+            WS_MINIMIZEBOX = 0x00020000
+            WS_THICKFRAME = 0x00040000
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            desired = style | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME
+            if desired != style:
+                user32.SetWindowLongW(hwnd, GWL_STYLE, desired)
+                SWP_NOSIZE = 0x0001
+                SWP_NOMOVE = 0x0002
+                SWP_NOZORDER = 0x0004
+                SWP_FRAMECHANGED = 0x0020
+                user32.SetWindowPos(
+                    hwnd,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED,
+                )
+        except Exception:
+            pass
+
+        if getattr(self, "_safe_maximize_hook", False):
+            return
+
+        try:
+            GWL_WNDPROC = -4
+
+            # Helper wrappers to read/update the window procedure across 32/64-bit.
+            def _get_wndproc(handle):
+                try:
+                    fn = user32.GetWindowLongPtrW
+                    fn.restype = ctypes.c_void_p
+                    fn.argtypes = [wintypes.HWND, ctypes.c_int]
+                    return ctypes.c_void_p(fn(handle, GWL_WNDPROC))
+                except AttributeError:
+                    fn = user32.GetWindowLongW
+                    fn.restype = ctypes.c_long
+                    fn.argtypes = [wintypes.HWND, ctypes.c_int]
+                    return ctypes.c_void_p(fn(handle, GWL_WNDPROC))
+
+            def _set_wndproc(handle, new_proc):
+                ptr_value = ctypes.cast(new_proc, ctypes.c_void_p).value
+                try:
+                    fn = user32.SetWindowLongPtrW
+                    fn.restype = ctypes.c_void_p
+                    fn.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+                    fn(handle, GWL_WNDPROC, ctypes.c_void_p(ptr_value))
+                except AttributeError:
+                    fn = user32.SetWindowLongW
+                    fn.restype = ctypes.c_long
+                    fn.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+                    fn(handle, GWL_WNDPROC, ctypes.c_long(ptr_value))
+
+            orig_proc = _get_wndproc(hwnd)
+            if not getattr(orig_proc, "value", None):
+                return
+
+            self._orig_wndproc = orig_proc
+
+            class POINT(ctypes.Structure):
+                _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+            class MINMAXINFO(ctypes.Structure):
+                _fields_ = [
+                    ("ptReserved", POINT),
+                    ("ptMaxSize", POINT),
+                    ("ptMaxPosition", POINT),
+                    ("ptMinTrackSize", POINT),
+                    ("ptMaxTrackSize", POINT),
+                ]
+
+            WNDPROC = ctypes.WINFUNCTYPE(
+                wintypes.LRESULT,
+                wintypes.HWND,
+                wintypes.UINT,
+                wintypes.WPARAM,
+                wintypes.LPARAM,
+            )
+
+            try:
+                user32.CallWindowProcW.restype = wintypes.LRESULT
+                user32.CallWindowProcW.argtypes = [
+                    ctypes.c_void_p,
+                    wintypes.HWND,
+                    wintypes.UINT,
+                    wintypes.WPARAM,
+                    wintypes.LPARAM,
+                ]
+            except Exception:
+                pass
+
+            @WNDPROC
+            def _proc(h, msg, w_param, l_param):
+                if msg == 0x0024 and isinstance(self._client_margin_px, int):  # WM_GETMINMAXINFO
+                    try:
+                        info = ctypes.cast(l_param, ctypes.POINTER(MINMAXINFO)).contents
+                        x, y, w, h = self._usable_area()
+                        margin = max(0, int(self._client_margin_px or 0))
+                        safe_h = max(100, int(h) - margin)
+                        info.ptMaxPosition.x = int(x)
+                        info.ptMaxPosition.y = int(y)
+                        info.ptMaxSize.x = int(w)
+                        info.ptMaxSize.y = int(safe_h)
+                        info.ptMaxTrackSize.x = int(w)
+                        info.ptMaxTrackSize.y = int(safe_h)
+                    except Exception:
+                        pass
+                return user32.CallWindowProcW(
+                    ctypes.c_void_p(self._orig_wndproc.value), h, msg, w_param, l_param
+                )
+
+            self._wndproc = _proc
+            _set_wndproc(hwnd, self._wndproc)
+            self._safe_maximize_hook = True
+
+            def _cleanup(_event=None):
+                try:
+                    if getattr(self, "_orig_wndproc", None) is not None:
+                        _set_wndproc(hwnd, ctypes.c_void_p(self._orig_wndproc.value))
+                except Exception:
+                    pass
+
+            try:
+                self.win.bind("<Destroy>", _cleanup, add="+")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
 # ------------------------------------------------------------------
 # CSV helper: load Predefined-only keyset for Top Matches filtering
 # ------------------------------------------------------------------
@@ -7713,7 +7870,9 @@ class GrammarApp:
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
         # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
-        self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
+        mgr = self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(BOTTOM_PAD)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
@@ -9176,7 +9335,9 @@ class GrammarApp:
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
         # Use taskbar-safe margin so bottom buttons stay visible under auto-hide bars.
-        self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
+        mgr = self._wm_apply(self.input_window, margin_px=BOTTOM_PAD, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(BOTTOM_PAD)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
