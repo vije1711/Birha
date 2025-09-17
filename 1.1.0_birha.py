@@ -3756,6 +3756,51 @@ class GrammarApp:
             pass
         return mgr
 
+    def _sync_bottom_button_gap(self, win, bar, pad_top):
+        """Keep the bottom button bar aligned with the taskbar-safe gap."""
+        try:
+            if not win.winfo_exists() or not bar.winfo_exists():
+                return
+        except Exception:
+            return
+        bottom_gap = BOTTOM_PAD
+        screen_gap = 0
+        mgr = None
+        try:
+            mgr = self._wm_for(win)
+        except Exception:
+            mgr = None
+        win_bottom = None
+        try:
+            win.update_idletasks()
+            win_bottom = win.winfo_rooty() + win.winfo_height()
+        except Exception:
+            win_bottom = None
+        if win_bottom is not None:
+            gap = None
+            if mgr:
+                try:
+                    ux, uy, uw, uh = mgr._usable_area()
+                    gap = max(0, (uy + uh) - win_bottom)
+                except Exception:
+                    gap = None
+            if gap is None:
+                try:
+                    screen_bottom = win.winfo_screenheight()
+                    gap = max(0, screen_bottom - win_bottom)
+                except Exception:
+                    gap = 0
+            screen_gap = gap if gap is not None else 0
+        bottom_gap = max(0, BOTTOM_PAD - screen_gap)
+        cached = getattr(bar, "_cached_padding", None)
+        if cached == (pad_top, bottom_gap):
+            return
+        try:
+            bar.pack_configure(pady=(pad_top, bottom_gap))
+            bar._cached_padding = (pad_top, bottom_gap)
+        except Exception:
+            pass
+
     def _do_prompt_whats_new(self, state: dict):
         try:
             if messagebox.askyesno(
@@ -7965,6 +8010,13 @@ class GrammarApp:
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
 
+        self._sync_bottom_button_gap(self.input_window, button_frame, PAD_TOP)
+        self.input_window.bind(
+            "<Configure>",
+            lambda _e, win=self.input_window, bar=button_frame, top=PAD_TOP: self._sync_bottom_button_gap(win, bar, top),
+            add="+"
+        )
+
         # Progress + Dictionary Lookup
         self.start_progress()
         threading.Thread(target=self.lookup_meanings_thread, args=(word,), daemon=True).start()
@@ -9456,6 +9508,13 @@ class GrammarApp:
         tk.Button(button_frame, text="Skip", command=self.skip_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
+
+        self._sync_bottom_button_gap(self.input_window, button_frame, PAD_TOP)
+        self.input_window.bind(
+            "<Configure>",
+            lambda _e, win=self.input_window, bar=button_frame, top=PAD_TOP: self._sync_bottom_button_gap(win, bar, top),
+            add="+"
+        )
 
         # ---------------------------
         # Launch the dictionary lookup in a separate thread
