@@ -3795,8 +3795,18 @@ class GrammarApp:
         cached = getattr(bar, "_cached_padding", None)
         if cached == (pad_top, bottom_gap):
             return
+        manager = None
         try:
-            bar.pack_configure(pady=(pad_top, bottom_gap))
+            manager = bar.winfo_manager()
+        except Exception:
+            manager = None
+        try:
+            if manager == "pack":
+                bar.pack_configure(pady=(pad_top, bottom_gap))
+            elif manager == "grid":
+                bar.grid_configure(pady=(pad_top, bottom_gap))
+            else:
+                bar.configure(pady=(pad_top, bottom_gap))
             bar._cached_padding = (pad_top, bottom_gap)
         except Exception:
             pass
