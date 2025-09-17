@@ -4926,13 +4926,28 @@ class GrammarApp:
         """Verse entry: build shared UI and run modally (unchanged behavior)."""
         win = tk.Toplevel(self.root)
         win.title(f"Assess Grammar: {word}")
-        self._wm_apply(win, margin_px=0, defer=True)
+        try:
+            win.resizable(True, True)
+        except Exception:
+            pass
+        try:
+            screen_w = win.winfo_screenwidth()
+            screen_h = win.winfo_screenheight()
+            min_w = min(900, max(640, screen_w - 120)) if screen_w else 900
+            min_h = min(600, max(520, screen_h - 160)) if screen_h else 600
+            if screen_w:
+                min_w = min(min_w, screen_w)
+            if screen_h:
+                min_h = min(min_h, screen_h)
+            win.minsize(min_w, min_h)
+        except Exception:
+            pass
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
         try:
             self.current_translation = translation
         except Exception:
             pass
         self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="verse")
-        win.transient(self.root)
         try:
             win.grab_set()
         except Exception:
@@ -4944,18 +4959,33 @@ class GrammarApp:
 
         - Sets ABW-specific title
         - Taskbar-safe maximize + F11 toggle
-        - Modal via transient + grab_set
+        - Modal via grab_set
         - Self-contained; does not call Verse UI handlers
         """
         win = tk.Toplevel(self.root)
         win.title(f"Assess by Word – Grammar: {word}")
-        self._wm_apply(win, margin_px=0, defer=True)
+        try:
+            win.resizable(True, True)
+        except Exception:
+            pass
+        try:
+            screen_w = win.winfo_screenwidth()
+            screen_h = win.winfo_screenheight()
+            min_w = min(900, max(640, screen_w - 120)) if screen_w else 900
+            min_h = min(600, max(520, screen_h - 160)) if screen_h else 600
+            if screen_w:
+                min_w = min(min_w, screen_w)
+            if screen_h:
+                min_h = min(min_h, screen_h)
+            win.minsize(min_w, min_h)
+        except Exception:
+            pass
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
         try:
             self.current_translation = translation
         except Exception:
             pass
         self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="word")
-        win.transient(self.root)
         try:
             win.grab_set()
         except Exception:
