@@ -8103,12 +8103,21 @@ class GrammarApp:
         main_frame = tk.Frame(self.match_window, bg='light gray')
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
+        palette = {
+            "panel_bg": 'light gray',
+            "card_bg": 'light gray',
+            "border_color": '#000000',
+            "heading_fg": '#000000',
+            "indicator_fill": '#dbe9ff',
+            "assessment_highlight_bg": 'MistyRose',
+        }
+
         # --- Left Pane: Meanings ---
         word = self.pankti_words[index]
-        self.display_meanings_section_reanalysis(main_frame, word, index, meanings)
+        self.display_meanings_section_reanalysis(main_frame, word, index, meanings, palette)
 
         # --- Right Pane: Matches ---
-        self.display_matches_section_reanalysis(main_frame, unique_matches, index, max_display)
+        self.display_matches_section_reanalysis(main_frame, unique_matches, index, max_display, palette)
 
         # --- Bottom Buttons ---
         PAD_TOP = 6
@@ -8171,29 +8180,74 @@ class GrammarApp:
         display.tag_config("highlight", foreground="blue", font=('Arial', 32, 'bold'))
         display.config(state=tk.DISABLED)
 
-    def display_meanings_section_reanalysis(self, parent_frame, word, index, meanings):
+    def display_meanings_section_reanalysis(self, parent_frame, word, index, meanings, palette):
         """Display meanings as checkboxes for reanalysis with prior selection support."""
-        meanings_frame = tk.Frame(parent_frame, bg='light gray')
-        meanings_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        panel_bg = palette.get("panel_bg", 'light gray')
+        card_bg = palette.get("card_bg", panel_bg)
+        border_color = palette.get("border_color", '#000000')
+        heading_fg = palette.get("heading_fg", 'black')
+        indicator_fill = palette.get("indicator_fill", '#dbe9ff')
+        assessment_highlight_bg = palette.get("assessment_highlight_bg", 'MistyRose')
 
-        tk.Label(meanings_frame, text=f"Select Meanings for {word}:", bg='light gray',
-                font=('Arial', 14, 'bold')).pack(pady=10)
+        meanings_wrapper = tk.Frame(parent_frame, bg=panel_bg)
+        meanings_wrapper.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 5), pady=6)
+
+        tk.Label(
+            meanings_wrapper,
+            text=f"Select Meanings for {word}:",
+            bg=panel_bg,
+            fg=heading_fg,
+            font=('Arial', 14, 'bold')
+        ).pack(anchor='w', padx=6, pady=(0, 6))
+
+        card_outer = tk.Frame(meanings_wrapper, bg=border_color, bd=0, highlightthickness=0)
+        card_outer.pack(fill=tk.BOTH, expand=True)
+
+        card_body = tk.Frame(card_outer, bg=card_bg, bd=0, highlightthickness=0)
+        card_body.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
         self.select_all_meanings_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(meanings_frame, text="Select/Deselect All Meanings",
-                    variable=self.select_all_meanings_var, bg='light gray',
-                    font=('Arial', 12), command=self.toggle_all_meanings).pack(pady=5)
+        tk.Checkbutton(
+            card_body,
+            text="Select/Deselect All Meanings",
+            variable=self.select_all_meanings_var,
+            bg=card_bg,
+            fg='black',
+            font=('Arial', 12),
+            command=self.toggle_all_meanings,
+            activebackground=card_bg,
+            activeforeground='black',
+            highlightthickness=0,
+            bd=0,
+            selectcolor=indicator_fill
+        ).pack(anchor='w', pady=(0, 6))
 
-        meanings_canvas = tk.Canvas(meanings_frame, bg='light gray', borderwidth=0)
+        scroller = tk.Frame(card_body, bg=card_bg)
+        scroller.pack(fill=tk.BOTH, expand=True)
+
+        meanings_canvas = tk.Canvas(
+            scroller,
+            bg=card_bg,
+            borderwidth=0,
+            highlightthickness=0
+        )
         meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar = tk.Scrollbar(meanings_frame, orient=tk.VERTICAL, command=meanings_canvas.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        meanings_canvas.config(yscrollcommand=scrollbar.set)
+        meanings_scrollbar = tk.Scrollbar(scroller, orient=tk.VERTICAL, command=meanings_canvas.yview)
+        meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set)
 
-        inner_frame = tk.Frame(meanings_canvas, bg='light gray')
-        meanings_canvas.create_window((0, 0), window=inner_frame, anchor='nw')
+        meanings_content = tk.Frame(meanings_canvas, bg=card_bg)
+        meanings_window = meanings_canvas.create_window((0, 0), window=meanings_content, anchor='nw')
 
-        # Merge past meanings
+        meanings_canvas.bind(
+            "<Configure>",
+            lambda e, canvas=meanings_canvas, window=meanings_window: canvas.itemconfigure(window, width=e.width)
+        )
+        meanings_content.bind(
+            "<Configure>",
+            lambda e, canvas=meanings_canvas: canvas.configure(scrollregion=canvas.bbox('all'))
+        )
+
         first_index = next((i for i, w in enumerate(self.pankti_words) if w == word), index)
         merged_meanings = []
         for idx in range(first_index, index):
@@ -8203,133 +8257,150 @@ class GrammarApp:
                     merged_meanings.extend(entry.get("meanings", []))
         prior_meanings = list(dict.fromkeys(merged_meanings))
 
-        # Extract assessment-specific selected meanings from past_word_details.
-        # These are the meanings the user had previously selected (from assessment).
         assessment_meanings = self.past_word_details.get(index, {}).get("darpan_meanings", [])
 
-        # Reorder current meanings
         if isinstance(meanings, dict):
             current_meanings = meanings.get("meanings", [])
         else:
             current_meanings = meanings
-            
-        # Tier 1: assessment_meanings at very top
+
         reordered_assessment = [m for m in current_meanings if m in assessment_meanings]
-
-        # Tier 2: prior_meanings next
-        reordered_prior = [m for m in current_meanings 
-                        if (m in prior_meanings and m not in assessment_meanings)]
-
-        # Tier 3: everything else
-        reordered_others = [m for m in current_meanings
-                            if m not in prior_meanings and m not in assessment_meanings]
-
+        reordered_prior = [m for m in current_meanings if (m in prior_meanings and m not in assessment_meanings)]
+        reordered_others = [m for m in current_meanings if m not in prior_meanings and m not in assessment_meanings]
         reordered = reordered_assessment + reordered_prior + reordered_others
 
         split = self.split_meanings_for_display(reordered)
         self.meaning_vars = []
 
         for i, column in enumerate(split.values()):
-            col_frame = tk.Frame(inner_frame, bg='light gray')
-            col_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
+            column_frame = tk.Frame(meanings_content, bg=card_bg)
+            column_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
             for meaning in column:
-                # Determine whether this meaning was previously chosen during
-                # the earlier assessment.  Those meanings should stand out in
-                # MistyRose so that the user can easily recognise them when
-                # re‑analysing a word (mirroring the behaviour of grammar
-                # rule highlighting).
                 highlight = (meaning in assessment_meanings)
-
-                # Default selection – for re‑analysis we only pre‑select a
-                # meaning if it was explicitly chosen earlier.  Previously the
-                # first occurrence of a word had every meaning pre‑selected
-                # which made it difficult to spot the assessed choice.  By
-                # limiting the pre‑selection to the highlighted meanings we
-                # keep the focus on what was actually picked before.
                 if index != first_index:
                     preselect = (meaning in prior_meanings) or highlight
                 else:
                     preselect = highlight
 
-                # Apply the MistyRose background when the meaning was part of
-                # the previous assessment; otherwise fall back to light gray.
-                bg_color = "MistyRose" if highlight else "light gray"
+                bg_color = assessment_highlight_bg if highlight else card_bg
 
                 var = tk.BooleanVar(value=preselect)
                 chk = tk.Checkbutton(
-                    col_frame,
+                    column_frame,
                     text=f"- {meaning}",
                     variable=var,
                     bg=bg_color,
+                    fg='black',
                     font=('Arial', 12),
                     wraplength=325,
                     anchor='w',
                     justify=tk.LEFT,
-                    selectcolor='light blue',
+                    selectcolor=indicator_fill,
+                    activebackground=bg_color,
+                    activeforeground='black',
+                    highlightthickness=0,
+                    bd=0
                 )
                 chk.pack(anchor='w', padx=15, pady=5)
                 self.meaning_vars.append((var, meaning))
 
-        inner_frame.update_idletasks()
+        meanings_content.update_idletasks()
         meanings_canvas.config(scrollregion=meanings_canvas.bbox("all"))
 
-    def display_matches_section_reanalysis(self, parent_frame, unique_matches, index, max_display=30):
+    def display_matches_section_reanalysis(self, parent_frame, unique_matches, index, max_display=30, palette=None):
         """Display matching rule checkboxes in the reanalysis pane."""
-        matches_frame = tk.Frame(parent_frame, bg='light gray')
-        matches_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+        palette = palette or {}
+        panel_bg = palette.get("panel_bg", 'light gray')
+        card_bg = palette.get("card_bg", panel_bg)
+        border_color = palette.get("border_color", '#000000')
+        heading_fg = palette.get("heading_fg", 'black')
+        indicator_fill = palette.get("indicator_fill", '#dbe9ff')
+        assessment_highlight_bg = palette.get("assessment_highlight_bg", 'MistyRose')
 
-        tk.Label(matches_frame, text="Select the matching rules:",
-                bg='light gray', font=('Arial', 14, 'bold')).pack(pady=10)
+        matches_wrapper = tk.Frame(parent_frame, bg=panel_bg)
+        matches_wrapper.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 10), pady=6)
 
-        canvas = tk.Canvas(matches_frame, bg='light gray', borderwidth=0)
+        tk.Label(
+            matches_wrapper,
+            text="Select the matching rules:",
+            bg=panel_bg,
+            fg=heading_fg,
+            font=('Arial', 14, 'bold')
+        ).pack(anchor='w', padx=6, pady=(0, 6))
+
+        card_outer = tk.Frame(matches_wrapper, bg=border_color, bd=0, highlightthickness=0)
+        card_outer.pack(fill=tk.BOTH, expand=True)
+
+        card_body = tk.Frame(card_outer, bg=card_bg, bd=0, highlightthickness=0)
+        card_body.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+
+        scroller = tk.Frame(card_body, bg=card_bg)
+        scroller.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(
+            scroller,
+            bg=card_bg,
+            borderwidth=0,
+            highlightthickness=0
+        )
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar = tk.Scrollbar(matches_frame, orient=tk.VERTICAL, command=canvas.yview)
+        scrollbar = tk.Scrollbar(scroller, orient=tk.VERTICAL, command=canvas.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        canvas.config(yscrollcommand=scrollbar.set)
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        inner_frame = tk.Frame(canvas, bg='light gray')
-        canvas.create_window((0, 0), window=inner_frame, anchor='nw')
+        inner_frame = tk.Frame(canvas, bg=card_bg)
+        matches_window = canvas.create_window((0, 0), window=inner_frame, anchor='nw')
 
-        self.match_vars = []  # Reset match_vars in reanalysis flow
+        canvas.bind(
+            "<Configure>",
+            lambda e, canv=canvas, window=matches_window: canv.itemconfigure(window, width=e.width)
+        )
+        inner_frame.bind(
+            "<Configure>",
+            lambda e, canv=canvas: canv.configure(scrollregion=canv.bbox('all'))
+        )
 
-        # Retrieve the prior assessment grammar details for this word occurrence.
+        self.match_vars = []
+
         grammar_assessment = self.past_word_details.get(index, {})
         assessment_fields = self.extract_grammar_fields(grammar_assessment)
-        
-        # For each match, we assume a tuple (label, value). In some cases,
-        # label might be a composite string (e.g. with fields joined by " | ").
-        # We reorder or highlight based on whether the extracted values match.
-        reordered_matches = unique_matches[:max_display]  # (Assume prior reordering if needed)
+        reordered_matches = unique_matches[:max_display]
 
         for match in reordered_matches:
             field_label, match_value = match[0], match[1]
 
-            # If the field label is composite, parse it.
             if " | " in field_label:
                 parsed = self.parse_composite(field_label)
-                # Check for each target field whether the parsed value matches the assessment.
                 highlight = True
                 for key, expected in assessment_fields.items():
                     if key in parsed:
                         if not self.safe_equal_matches_reanalysis(parsed[key], expected):
                             highlight = False
                             break
-                bg_color = "MistyRose" if highlight else "light gray"
+                bg_color = assessment_highlight_bg if highlight else card_bg
             else:
-                # Otherwise, if the label is a single field name, use a simple check.
                 if field_label in assessment_fields and assessment_fields[field_label] == match_value:
-                    bg_color = "MistyRose"
+                    bg_color = assessment_highlight_bg
                 else:
-                    bg_color = "light gray"
+                    bg_color = card_bg
 
             var = tk.BooleanVar()
-            chk = tk.Checkbutton(inner_frame,
-                                text=f"{field_label}: {match_value}",
-                                variable=var,
-                                bg=bg_color,
-                                font=('Arial', 12),
-                                selectcolor='light blue',
-                                anchor='w')
+            chk = tk.Checkbutton(
+                inner_frame,
+                text=f"{field_label}: {match_value}",
+                variable=var,
+                bg=bg_color,
+                fg='black',
+                font=('Arial', 12),
+                selectcolor=indicator_fill,
+                anchor='w',
+                justify=tk.LEFT,
+                wraplength=540,
+                activebackground=bg_color,
+                activeforeground='black',
+                highlightthickness=0,
+                bd=0
+            )
             chk.pack(fill=tk.X, padx=10, pady=5)
             self.match_vars.append((var, match))
 
