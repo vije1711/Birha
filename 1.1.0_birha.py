@@ -9833,37 +9833,59 @@ class GrammarApp:
         # ---------------------------
         # Left Pane: Display Meanings as Checkboxes
         # ---------------------------
-        meanings_frame = tk.LabelFrame(
-            main_frame,
+        panel_bg = main_frame.cget('bg') or 'light gray'
+        meaning_highlight_bg = '#fdf1b5'
+        rule_highlight_bg = '#f2e7ff'
+        indicator_fill = '#dbe9ff'
+
+        meanings_section = tk.Frame(main_frame, bg=panel_bg)
+        meanings_section.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+
+        tk.Label(
+            meanings_section,
             text=f"Select Meanings for {self.pankti_words[self.current_word_index]}:",
-            bg='light gray', fg='black',
-            font=('Arial', 14, 'bold'),
-            padx=10, pady=10,
-            labelanchor='n'
-        )
-        meanings_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
-        # NEW: Add a toggle checkbutton to select/deselect all meanings
+            bg=panel_bg,
+            fg='black',
+            font=('Arial', 14, 'bold')
+        ).pack(pady=(0, 8))
+
         self.select_all_meanings_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(meanings_frame, text="Select/Deselect All Meanings",
-                    variable=self.select_all_meanings_var, bg='light gray',
-                    font=('Arial', 12), command=self.toggle_all_meanings).pack(pady=5)
+        tk.Checkbutton(
+            meanings_section,
+            text="Select/Deselect All Meanings",
+            variable=self.select_all_meanings_var,
+            bg=panel_bg,
+            fg='black',
+            font=('Arial', 12),
+            command=self.toggle_all_meanings,
+            activebackground=panel_bg,
+            activeforeground='black',
+            highlightthickness=0,
+            bd=0,
+            selectcolor=indicator_fill
+        ).pack(pady=5)
 
-        meanings_canvas = tk.Canvas(meanings_frame, bg='light gray', borderwidth=0)
+        meanings_canvas = tk.Canvas(meanings_section, bg=panel_bg, borderwidth=0, highlightthickness=0)
         meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        meanings_scrollbar = tk.Scrollbar(meanings_frame, orient=tk.VERTICAL, command=meanings_canvas.yview)
+        meanings_scrollbar = tk.Scrollbar(meanings_section, orient=tk.VERTICAL, command=meanings_canvas.yview)
         meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        meanings_canvas.config(yscrollcommand=meanings_scrollbar.set)
+        meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set)
 
-        meanings_content = tk.Frame(meanings_canvas, bg='light gray')
-        meanings_canvas.create_window((0, 0), window=meanings_content, anchor='nw')
+        meanings_content = tk.Frame(meanings_canvas, bg=panel_bg)
+        meanings_window = meanings_canvas.create_window((0, 0), window=meanings_content, anchor='nw')
 
-        # Split the meanings into two columns and create a checkbox for each meaning
-        split_meanings = self.split_meanings_for_display(meanings)
-        # --- Determine if the current word is repeated and merge prior selections ---
+        meanings_canvas.bind(
+            "<Configure>",
+            lambda e, canvas=meanings_canvas, window=meanings_window: canvas.itemconfigure(window, width=e.width)
+        )
+        meanings_content.bind(
+            "<Configure>",
+            lambda e, canvas=meanings_canvas: canvas.configure(scrollregion=canvas.bbox('all'))
+        )
+
         current_word = self.pankti_words[self.current_word_index]
         first_index = next((i for i, w in enumerate(self.pankti_words) if w == current_word), self.current_word_index)
 
-        # Merge meanings from all occurrences from the first occurrence up to (but not including) the current occurrence.
         merged_meanings = []
         for idx in range(first_index, self.current_word_index):
             if idx < len(self.accumulated_meanings):
@@ -9872,81 +9894,86 @@ class GrammarApp:
                     merged_meanings.extend(entry.get("meanings", []))
                 else:
                     merged_meanings.extend(entry)
-        # Remove duplicates while preserving order
         prior_meanings = list(dict.fromkeys(merged_meanings))
 
-        # If this is a repeated occurrence (current index is not the first occurrence), reorder the meanings.
+        if isinstance(meanings, dict):
+            current_meanings = list(meanings.get("meanings", []))
+        else:
+            current_meanings = list(meanings or [])
+
         if self.current_word_index != first_index:
-            # Obtain the current meanings list
-            if isinstance(meanings, dict):
-                current_meanings = meanings.get("meanings", [])
-            else:
-                current_meanings = meanings
-            # Reorder: meanings from the first occurrence first, then the rest.
-            reordered = [m for m in current_meanings if m in prior_meanings]
-            reordered += [m for m in current_meanings if m not in prior_meanings]
-            if isinstance(meanings, dict):
-                meanings["meanings"] = reordered
-            else:
-                meanings = reordered
+            ordered_meanings = [m for m in current_meanings if m in prior_meanings]
+            ordered_meanings += [m for m in current_meanings if m not in prior_meanings]
+        else:
+            ordered_meanings = current_meanings
 
-        # Now split the meanings for display using the (possibly) reordered meanings.
-        split_meanings = self.split_meanings_for_display(meanings)
-
-        # --- Create the checkboxes as before ---
+        split_meanings = self.split_meanings_for_display(ordered_meanings)
+        self.meaning_vars = []
         for i, column in enumerate(split_meanings.values()):
-            column_frame = tk.Frame(meanings_content, bg='light gray')
+            column_frame = tk.Frame(meanings_content, bg=panel_bg)
             column_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
             for meaning in column:
-                # For repeated occurrences, preselect if the meaning was chosen in the first occurrence,
-                # and highlight those checkbuttons with yellow.
-                if self.current_word_index != first_index:
-                    preselect = meaning in prior_meanings
-                    bg_color = "yellow" if preselect else "light gray"
-                else:
+                was_prior = meaning in prior_meanings
+                if self.current_word_index == first_index:
                     preselect = True
-                    bg_color = "light gray"
+                else:
+                    preselect = was_prior
+                chk_bg = meaning_highlight_bg if was_prior else panel_bg
                 var = tk.BooleanVar(value=preselect)
                 chk = tk.Checkbutton(
                     column_frame,
                     text=f"- {meaning}",
                     variable=var,
-                    bg=bg_color,
-                    font=('Arial', 12),
+                    bg=chk_bg,
+                    fg='black',
+                    font=('Arial', 12, 'bold') if was_prior else ('Arial', 12),
                     wraplength=325,
                     anchor='w',
                     justify=tk.LEFT,
-                    selectcolor='light blue'
+                    selectcolor=indicator_fill,
+                    activebackground=chk_bg,
+                    activeforeground='black',
+                    highlightthickness=0,
+                    bd=0
                 )
                 chk.pack(anchor='w', padx=15, pady=5)
                 self.meaning_vars.append((var, meaning))
 
-        meanings_content.update_idletasks()
-        meanings_canvas.config(scrollregion=meanings_canvas.bbox("all"))
-
+        if self.meaning_vars:
+            all_selected = all(var.get() for var, _ in self.meaning_vars)
+            self.select_all_meanings_var.set(all_selected)
         # ---------------------------
         # Right Pane: Display Matching Rules as Checkboxes
         # ---------------------------
-        matches_frame = tk.LabelFrame(
-            main_frame,
+        matches_section = tk.Frame(main_frame, bg=panel_bg)
+        matches_section.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+
+        tk.Label(
+            matches_section,
             text="Select the matching rules:",
-            bg='light gray', fg='black',
-            font=('Arial', 14, 'bold'),
-            padx=10, pady=10,
-            labelanchor='n'
-        )
-        matches_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+            bg=panel_bg,
+            fg='black',
+            font=('Arial', 14, 'bold')
+        ).pack(pady=(0, 8))
 
-        matches_canvas = tk.Canvas(matches_frame, bg='light gray', borderwidth=0)
+        matches_canvas = tk.Canvas(matches_section, bg=panel_bg, borderwidth=0, highlightthickness=0)
         matches_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        matches_scrollbar = tk.Scrollbar(matches_frame, orient=tk.VERTICAL, command=matches_canvas.yview)
+        matches_scrollbar = tk.Scrollbar(matches_section, orient=tk.VERTICAL, command=matches_canvas.yview)
         matches_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        matches_canvas.config(yscrollcommand=matches_scrollbar.set)
+        matches_canvas.configure(yscrollcommand=matches_scrollbar.set)
 
-        matches_content = tk.Frame(matches_canvas, bg='light gray')
-        matches_canvas.create_window((0, 0), window=matches_content, anchor='nw')
+        matches_content = tk.Frame(matches_canvas, bg=panel_bg)
+        matches_window = matches_canvas.create_window((0, 0), window=matches_content, anchor='nw')
 
-        # Determine if the current word is repeated and gather prior grammar rules
+        matches_canvas.bind(
+            "<Configure>",
+            lambda e, canvas=matches_canvas, window=matches_window: canvas.itemconfigure(window, width=e.width)
+        )
+        matches_content.bind(
+            "<Configure>",
+            lambda e, canvas=matches_canvas: canvas.configure(scrollregion=canvas.bbox('all'))
+        )
+
         prior_rules = set()
         if self.current_word_index != first_index:
             for idx in range(first_index, self.current_word_index):
@@ -9956,31 +9983,38 @@ class GrammarApp:
                         for entry in self.accumulated_finalized_matches[idx]
                     })
 
-        # Display each match with a checkbox
         for match in unique_matches[:max_display]:
             display_str = match[0]
             core = re.sub(r'\s*\(Matching Characters:\s*\d+\)\s*$', '', display_str).strip()
-            if self.current_word_index != first_index:
-                preselect = core in prior_rules
-                bg_color = "yellow" if preselect else "light gray"
-            else:
+            was_prior = core in prior_rules
+            if self.current_word_index == first_index:
                 preselect = False
-                bg_color = "light gray"
+            else:
+                preselect = was_prior
+            chk_bg = rule_highlight_bg if was_prior else panel_bg
             var = tk.BooleanVar(value=preselect)
             text_str = display_str if " (Matching Characters:" in display_str else f"{display_str} (Matching Characters: {match[1]})"
-            tk.Checkbutton(
+            chk = tk.Checkbutton(
                 matches_content,
                 text=text_str,
                 variable=var,
-                bg=bg_color,
-                selectcolor='light blue',
-                anchor='w'
-            ).pack(fill=tk.X, padx=10, pady=5)
+                bg=chk_bg,
+                fg='black',
+                font=('Arial', 12, 'bold') if was_prior else ('Arial', 12),
+                selectcolor=indicator_fill,
+                anchor='w',
+                justify=tk.LEFT,
+                wraplength=540,
+                activebackground=chk_bg,
+                activeforeground='black',
+                highlightthickness=0,
+                bd=0
+            )
+            chk.pack(fill=tk.X, padx=10, pady=5)
             self.match_vars.append((var, match))
 
         matches_content.update_idletasks()
         matches_canvas.config(scrollregion=matches_canvas.bbox("all"))
-
         # ---------------------------
         # Bottom Button Frame: Submit and Back
         # ---------------------------
