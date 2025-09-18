@@ -8102,8 +8102,11 @@ class GrammarApp:
         button_frame = tk.Frame(self.match_window, bg='light gray')
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
 
+        button_row = tk.Frame(button_frame, bg='light gray')
+        button_row.pack(expand=True)
+
         tk.Button(
-            button_frame,
+            button_row,
             text="Submit",
             command=self.submit_matches_reanalysis,
             font=('Arial', 12, 'bold'), bg='navy', fg='white',
@@ -8111,7 +8114,7 @@ class GrammarApp:
         ).pack(side=tk.LEFT, padx=5)
 
         tk.Button(
-            button_frame,
+            button_row,
             text="Back",
             command=lambda: self.back_to_user_input_reanalysis(pankti, index),
             font=('Arial', 12, 'bold'), bg='navy', fg='white',
@@ -9933,10 +9936,14 @@ class GrammarApp:
         bottom_gap = BOTTOM_PAD
         button_frame = tk.Frame(self.match_window, bg='light gray')
         button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(PAD_TOP, bottom_gap))
-        tk.Button(button_frame, text="Submit", command=self.submit_matches,
+
+        button_row = tk.Frame(button_frame, bg='light gray')
+        button_row.pack(expand=True)
+
+        tk.Button(button_row, text="Submit", command=self.submit_matches,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white', padx=20, pady=10
                 ).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Back", command=lambda: self.back_to_user_input_with_pankti(pankti),
+        tk.Button(button_row, text="Back", command=lambda: self.back_to_user_input_with_pankti(pankti),
                 font=('Arial', 12, 'bold'), bg='navy', fg='white', padx=20, pady=10
                 ).pack(side=tk.LEFT, padx=5)
 
