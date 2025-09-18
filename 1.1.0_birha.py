@@ -7945,19 +7945,19 @@ class GrammarApp:
         split_pane.add(right_pane, stretch="always")
         self.setup_options(
             right_pane,
-            "Do you know the Number of the word?",
+            f"Do you know the Number of the word: "{word}"?",
             [("Singular", "Singular / ਇਕ"), ("Plural", "Plural / ਬਹੁ"), ("Not Applicable", "NA")],
             self.number_var
         )
         self.setup_options(
             right_pane,
-            "Do you know the Gender of the word?",
+            f"Do you know the Gender of the word: "{word}"?",
             [("Masculine", "Masculine / ਪੁਲਿੰਗ"), ("Feminine", "Feminine / ਇਸਤਰੀ"), ("Neutral", "Trans / ਨਪੁਂਸਕ")],
             self.gender_var
         )
         self.setup_options(
             right_pane,
-            "Do you know the Part of Speech for the word?",
+            f"Do you know the Part of Speech for the word: "{word}"?",
             [("Noun", "Noun / ਨਾਂਵ"), ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
             ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"), ("Verb", "Verb / ਕਿਰਿਆ"),
             ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"), ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
@@ -9459,19 +9459,19 @@ class GrammarApp:
         split_pane.add(right_pane, stretch="always")
         self.setup_options(
             right_pane,
-            "Do you know the Number of the word?",
+            f"Do you know the Number of the word: "{word}"?",
             [("Singular", "Singular / ਇਕ"), ("Plural", "Plural / ਬਹੁ"), ("Not Applicable", "NA")],
             self.number_var
         )
         self.setup_options(
             right_pane,
-            "Do you know the Gender of the word?",
+            f"Do you know the Gender of the word: "{word}"?",
             [("Masculine", "Masculine / ਪੁਲਿੰਗ"), ("Feminine", "Feminine / ਇਸਤਰੀ"), ("Neutral", "Trans / ਨਪੁਂਸਕ")],
             self.gender_var
         )
         self.setup_options(
             right_pane,
-            "Do you know the Part of Speech for the word?",
+            f"Do you know the Part of Speech for the word: "{word}"?",
             [("Noun", "Noun / ਨਾਂਵ"), ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
             ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"), ("Verb", "Verb / ਕਿਰਿਆ"),
             ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"), ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
