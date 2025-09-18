@@ -9719,10 +9719,17 @@ class GrammarApp:
         # ---------------------------
         # Display the complete Pankti at the top
         # ---------------------------
-        pankti_frame = tk.Frame(self.match_window, bg='light gray')
-        pankti_frame.pack(fill=tk.BOTH, padx=30, pady=20)
+        pankti_group = tk.LabelFrame(
+            self.match_window,
+            text="Selected Verse",
+            bg='light gray', fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=10, pady=10,
+            labelanchor='n'
+        )
+        pankti_group.pack(fill=tk.BOTH, padx=30, pady=20)
 
-        pankti_display = tk.Text(pankti_frame, wrap=tk.WORD, bg='light gray',
+        pankti_display = tk.Text(pankti_group, wrap=tk.WORD, bg='light gray',
                                 font=('Arial', 32), height=2, padx=5, pady=5)
         pankti_display.pack(fill=tk.BOTH, expand=False)
         pankti_display.insert(tk.END, f"{pankti}")
@@ -9826,11 +9833,15 @@ class GrammarApp:
         # ---------------------------
         # Left Pane: Display Meanings as Checkboxes
         # ---------------------------
-        meanings_frame = tk.Frame(main_frame, bg='light gray')
+        meanings_frame = tk.LabelFrame(
+            main_frame,
+            text=f"Select Meanings for {self.pankti_words[self.current_word_index]}:",
+            bg='light gray', fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=10, pady=10,
+            labelanchor='n'
+        )
         meanings_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
-
-        tk.Label(meanings_frame, text=f"Select Meanings for {self.pankti_words[self.current_word_index]}:",
-                bg='light gray', font=('Arial', 14, 'bold')).pack(pady=10)
         # NEW: Add a toggle checkbutton to select/deselect all meanings
         self.select_all_meanings_var = tk.BooleanVar(value=True)
         tk.Checkbutton(meanings_frame, text="Select/Deselect All Meanings",
@@ -9916,11 +9927,15 @@ class GrammarApp:
         # ---------------------------
         # Right Pane: Display Matching Rules as Checkboxes
         # ---------------------------
-        matches_frame = tk.Frame(main_frame, bg='light gray')
+        matches_frame = tk.LabelFrame(
+            main_frame,
+            text="Select the matching rules:",
+            bg='light gray', fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=10, pady=10,
+            labelanchor='n'
+        )
         matches_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
-
-        tk.Label(matches_frame, text="Select the matching rules:",
-                bg='light gray', font=('Arial', 14, 'bold')).pack(pady=10)
 
         matches_canvas = tk.Canvas(matches_frame, bg='light gray', borderwidth=0)
         matches_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
