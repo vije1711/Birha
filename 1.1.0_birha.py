@@ -7624,6 +7624,17 @@ class GrammarApp:
         for i, (_, row) in enumerate(rows.iterrows()):
             row_id = f"row{i}"
             # Your existing 'values' building
+            # Preserve 0-based indices; the first word stores 0 and must not fall back to -1
+            raw_index = self._norm_get(row, "Word Index")
+            if isinstance(raw_index, float) and math.isnan(raw_index):
+                normalized_index = -1
+            elif raw_index in (None, ""):
+                normalized_index = -1
+            else:
+                try:
+                    normalized_index = int(raw_index)
+                except (TypeError, ValueError):
+                    normalized_index = -1
             values = [
                 "",  # checkbox
                 safe(self._norm_get(row, "Word")),
@@ -7633,7 +7644,7 @@ class GrammarApp:
                 safe(self._norm_get(row, "Gender / ਲਿੰਗ")),
                 safe(self._norm_get(row, "Word Root")),
                 safe(self._norm_get(row, "Type")),
-                int(self._norm_get(row, "Word Index") or -1)
+                normalized_index
             ]
 
             # Determine odd/even row coloring
