@@ -9365,11 +9365,20 @@ class GrammarApp:
         # ---------------------------
         # Display the Pankti on top
         # ---------------------------
-        pankti_frame = tk.Frame(self.input_window, bg='light gray')
-        pankti_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
+        pankti_group = tk.LabelFrame(
+            self.input_window,
+            text="Selected Verse",
+            bg='light gray',
+            fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=8,
+            pady=8,
+            labelanchor='n'
+        )
+        pankti_group.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
 
         pankti_display = tk.Text(
-            pankti_frame, wrap=tk.WORD, bg='light gray', font=('Arial', 32),
+            pankti_group, wrap=tk.WORD, bg='light gray', font=('Arial', 32),
             height=2, padx=5, pady=5
         )
         pankti_display.pack(fill=tk.X, expand=False)
@@ -9399,10 +9408,17 @@ class GrammarApp:
         split_pane.grid(row=1, column=0, sticky="nsew", padx=20)
 
         # Left pane: Meanings
-        self.left_pane = tk.Frame(split_pane, bg='light gray')
+        self.left_pane = tk.LabelFrame(
+            split_pane,
+            text=f"Meanings for {word}:",
+            bg='light gray',
+            fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=8,
+            pady=8,
+            labelanchor='n'
+        )
         split_pane.add(self.left_pane, stretch="always")
-        tk.Label(self.left_pane, text=f"Meanings for {word}:", bg='light gray',
-                font=('Arial', 14, 'bold')).pack(anchor='center', pady=(0, 10))
         self.meanings_scrollbar = tk.Scrollbar(self.left_pane, orient=tk.VERTICAL)
         self.meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.meanings_canvas = tk.Canvas(self.left_pane, bg='light gray', borderwidth=0,
@@ -9413,10 +9429,17 @@ class GrammarApp:
         self.meanings_canvas.create_window((0, 0), window=self.meanings_inner_frame, anchor='nw')
 
         # Right pane: Grammar Options
-        right_pane = tk.Frame(split_pane, bg='light gray')
+        right_pane = tk.LabelFrame(
+            split_pane,
+            text="Grammar Options",
+            bg='light gray',
+            fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=8,
+            pady=8,
+            labelanchor='n'
+        )
         split_pane.add(right_pane, stretch="always")
-        tk.Label(right_pane, text="Select Grammar Options:", bg='light gray',
-                font=('Arial', 14, 'bold')).pack(pady=10)
         self.setup_options(
             right_pane,
             "Do you know the Number of the word?",
@@ -11407,6 +11430,7 @@ class GrammarApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save assessment data: {e}")
 
+
     def setup_options(self, parent_frame, label_text, options, variable):
         """
         Sets up radio button options in the specified parent frame.
@@ -11417,21 +11441,41 @@ class GrammarApp:
         options (list of tuple): A list of tuples where each tuple contains the option text and the value to set in the variable.
         variable (tk.StringVar): The control variable for the group of radio buttons.
         """
-        # Create a label for the option group with styling
-        tk.Label(parent_frame, text=label_text, bg='light gray', font=('Arial', 12)).pack(pady=(10, 5))
+        tk.Label(parent_frame, text=label_text, bg='light gray', font=('Arial', 12)).pack(pady=(6, 4))
 
-        # Create radio buttons for each option
-        for opt_text, opt_value in options:
-            tk.Radiobutton(
-                parent_frame,
-                text=opt_text,
-                variable=variable,
-                value=opt_value,
-                bg='light gray',
-                selectcolor='light blue',
-                anchor='w',
-                font=('Arial', 11)
-            ).pack(anchor='w', padx=20, pady=2)
+        btn_container = tk.Frame(parent_frame, bg='light gray')
+        btn_container.pack(fill=tk.X, padx=8, pady=(0, 8))
+
+        if len(options) > 4:
+            cols = 2 if len(options) <= 8 else 3
+            rows = -(-len(options) // cols)
+            for idx, (opt_text, opt_value) in enumerate(options):
+                row = idx % rows
+                col = idx // rows
+                tk.Radiobutton(
+                    btn_container,
+                    text=opt_text,
+                    variable=variable,
+                    value=opt_value,
+                    bg='light gray',
+                    selectcolor='light blue',
+                    anchor='w',
+                    font=('Arial', 11)
+                ).grid(row=row, column=col, sticky='w', padx=16, pady=2)
+            for col in range(cols):
+                btn_container.grid_columnconfigure(col, weight=1)
+        else:
+            for opt_text, opt_value in options:
+                tk.Radiobutton(
+                    btn_container,
+                    text=opt_text,
+                    variable=variable,
+                    value=opt_value,
+                    bg='light gray',
+                    selectcolor='light blue',
+                    anchor='w',
+                    font=('Arial', 11)
+                ).pack(anchor='w', padx=16, pady=2)
 
     def navigation_controls(self, parent_frame):
         """
