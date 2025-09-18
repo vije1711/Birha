@@ -7857,8 +7857,9 @@ class GrammarApp:
         self.current_word_index = index
         self.user_input_reanalysis(word, pankti, index)
 
-        if hasattr(self, 'input_window') and self.input_window.winfo_exists():
-            self.root.wait_window(self.input_window)
+        window = getattr(self, 'input_window', None)
+        if window is not None and window.winfo_exists():
+            self.root.wait_window(window)
         else:
             return
 
@@ -7987,7 +7988,7 @@ class GrammarApp:
         tk.Button(btns, text="Submit", command=self.submit_input_reanalysis,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=1, padx=15, pady=0)
-        tk.Button(btns, text="Skip", command=self.skip_input,
+        tk.Button(btns, text="Skip", command=self.skip_reanalysis_input,
                 font=('Arial', 12, 'bold'), bg='navy', fg='white',
                 padx=30, pady=15).grid(row=0, column=2, padx=15, pady=0)
 
@@ -8010,6 +8011,28 @@ class GrammarApp:
         self.input_window.grab_set()
         self.root.wait_window(self.input_window)
         print(f"[Reanalysis] Closed input window for {word}")
+
+    def skip_reanalysis_input(self):
+        """Handle skipping the current word during re-analysis without switching modules."""
+        try:
+            confirm_skip = messagebox.askyesno("Confirm Skip", "Are you sure you want to skip re-analysis for this word?")
+            if not confirm_skip:
+                return
+
+            self.input_submitted = False
+
+            window = getattr(self, "input_window", None)
+            if window is not None and window.winfo_exists():
+                window.destroy()
+            self.input_window = None
+
+            # If a lookup/thread was still running, close the progress indicator before advancing.
+            self.stop_progress()
+
+            # Advance to the next queued word after the current event cycle finishes.
+            self.root.after(0, self.process_next_selected_word)
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while skipping: {e}")
 
     def submit_input_reanalysis(self):
         self.input_submitted = True
@@ -12357,8 +12380,24 @@ class GrammarApp:
         self.root.update_idletasks()
 
     def stop_progress(self):
-        self.progress_bar.stop()
-        self.progress_window.destroy()
+        bar = getattr(self, 'progress_bar', None)
+        if bar is not None:
+            try:
+                if bar.winfo_exists():
+                    bar.stop()
+            except Exception:
+                pass
+
+        window = getattr(self, 'progress_window', None)
+        if window is not None:
+            try:
+                if window.winfo_exists():
+                    window.destroy()
+            except Exception:
+                pass
+
+        self.progress_bar = None
+        self.progress_window = None
 
     def handle_submitted_input(self, word):
         # Implement your logic for handling the submitted input here
