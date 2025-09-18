@@ -9833,45 +9833,63 @@ class GrammarApp:
         # ---------------------------
         # Left Pane: Display Meanings as Checkboxes
         # ---------------------------
-        panel_bg = main_frame.cget('bg') or 'light gray'
-        meaning_highlight_bg = '#fdf1b5'
-        rule_highlight_bg = '#f2e7ff'
+        panel_bg = 'light gray'
+        main_frame.configure(bg=panel_bg)
+        card_bg = 'light gray'
+        border_color = "#000000"
+        heading_fg = "#000000"
+        meaning_highlight_bg = "#f2d544"
+        rule_highlight_bg = "#f2d544"
         indicator_fill = '#dbe9ff'
 
-        meanings_section = tk.Frame(main_frame, bg=panel_bg)
-        meanings_section.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        meanings_wrapper = tk.Frame(main_frame, bg=panel_bg)
+        meanings_wrapper.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 5), pady=6)
 
         tk.Label(
-            meanings_section,
+            meanings_wrapper,
             text=f"Select Meanings for {self.pankti_words[self.current_word_index]}:",
             bg=panel_bg,
-            fg='black',
+            fg=heading_fg,
             font=('Arial', 14, 'bold')
-        ).pack(pady=(0, 8))
+        ).pack(anchor='w', padx=6, pady=(0, 6))
+
+        meanings_card = tk.Frame(meanings_wrapper, bg=border_color, bd=0, highlightthickness=0)
+        meanings_card.pack(fill=tk.BOTH, expand=True)
+
+        meanings_body = tk.Frame(meanings_card, bg=card_bg, bd=0, highlightthickness=0)
+        meanings_body.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
         self.select_all_meanings_var = tk.BooleanVar(value=True)
         tk.Checkbutton(
-            meanings_section,
+            meanings_body,
             text="Select/Deselect All Meanings",
             variable=self.select_all_meanings_var,
-            bg=panel_bg,
+            bg=card_bg,
             fg='black',
             font=('Arial', 12),
             command=self.toggle_all_meanings,
-            activebackground=panel_bg,
+            activebackground=card_bg,
             activeforeground='black',
             highlightthickness=0,
             bd=0,
             selectcolor=indicator_fill
-        ).pack(pady=5)
+        ).pack(anchor='w', pady=(0, 6))
 
-        meanings_canvas = tk.Canvas(meanings_section, bg=panel_bg, borderwidth=0, highlightthickness=0)
+        meanings_scroller = tk.Frame(meanings_body, bg=card_bg)
+        meanings_scroller.pack(fill=tk.BOTH, expand=True)
+
+        meanings_canvas = tk.Canvas(
+            meanings_scroller,
+            bg=card_bg,
+            borderwidth=0,
+            highlightthickness=0
+        )
         meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        meanings_scrollbar = tk.Scrollbar(meanings_section, orient=tk.VERTICAL, command=meanings_canvas.yview)
+        meanings_scrollbar = tk.Scrollbar(meanings_scroller, orient=tk.VERTICAL, command=meanings_canvas.yview)
         meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set)
 
-        meanings_content = tk.Frame(meanings_canvas, bg=panel_bg)
+        meanings_content = tk.Frame(meanings_canvas, bg=card_bg)
         meanings_window = meanings_canvas.create_window((0, 0), window=meanings_content, anchor='nw')
 
         meanings_canvas.bind(
@@ -9910,7 +9928,7 @@ class GrammarApp:
         split_meanings = self.split_meanings_for_display(ordered_meanings)
         self.meaning_vars = []
         for i, column in enumerate(split_meanings.values()):
-            column_frame = tk.Frame(meanings_content, bg=panel_bg)
+            column_frame = tk.Frame(meanings_content, bg=card_bg)
             column_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
             for meaning in column:
                 was_prior = meaning in prior_meanings
@@ -9918,7 +9936,7 @@ class GrammarApp:
                     preselect = True
                 else:
                     preselect = was_prior
-                chk_bg = meaning_highlight_bg if was_prior else panel_bg
+                chk_bg = meaning_highlight_bg if was_prior else card_bg
                 var = tk.BooleanVar(value=preselect)
                 chk = tk.Checkbutton(
                     column_frame,
@@ -9945,24 +9963,38 @@ class GrammarApp:
         # ---------------------------
         # Right Pane: Display Matching Rules as Checkboxes
         # ---------------------------
-        matches_section = tk.Frame(main_frame, bg=panel_bg)
-        matches_section.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10)
+        matches_wrapper = tk.Frame(main_frame, bg=panel_bg)
+        matches_wrapper.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 10), pady=6)
 
         tk.Label(
-            matches_section,
+            matches_wrapper,
             text="Select the matching rules:",
             bg=panel_bg,
-            fg='black',
+            fg=heading_fg,
             font=('Arial', 14, 'bold')
-        ).pack(pady=(0, 8))
+        ).pack(anchor='w', padx=6, pady=(0, 6))
 
-        matches_canvas = tk.Canvas(matches_section, bg=panel_bg, borderwidth=0, highlightthickness=0)
+        matches_card = tk.Frame(matches_wrapper, bg=border_color, bd=0, highlightthickness=0)
+        matches_card.pack(fill=tk.BOTH, expand=True)
+
+        matches_body = tk.Frame(matches_card, bg=card_bg, bd=0, highlightthickness=0)
+        matches_body.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+
+        matches_scroller = tk.Frame(matches_body, bg=card_bg)
+        matches_scroller.pack(fill=tk.BOTH, expand=True)
+
+        matches_canvas = tk.Canvas(
+            matches_scroller,
+            bg=card_bg,
+            borderwidth=0,
+            highlightthickness=0
+        )
         matches_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        matches_scrollbar = tk.Scrollbar(matches_section, orient=tk.VERTICAL, command=matches_canvas.yview)
+        matches_scrollbar = tk.Scrollbar(matches_scroller, orient=tk.VERTICAL, command=matches_canvas.yview)
         matches_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         matches_canvas.configure(yscrollcommand=matches_scrollbar.set)
 
-        matches_content = tk.Frame(matches_canvas, bg=panel_bg)
+        matches_content = tk.Frame(matches_canvas, bg=card_bg)
         matches_window = matches_canvas.create_window((0, 0), window=matches_content, anchor='nw')
 
         matches_canvas.bind(
@@ -9991,7 +10023,7 @@ class GrammarApp:
                 preselect = False
             else:
                 preselect = was_prior
-            chk_bg = rule_highlight_bg if was_prior else panel_bg
+            chk_bg = rule_highlight_bg if was_prior else card_bg
             var = tk.BooleanVar(value=preselect)
             text_str = display_str if " (Matching Characters:" in display_str else f"{display_str} (Matching Characters: {match[1]})"
             chk = tk.Checkbutton(
