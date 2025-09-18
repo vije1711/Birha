@@ -7879,11 +7879,18 @@ class GrammarApp:
         self.input_window.grid_columnconfigure(0, weight=1)
 
         # Display the Pankti with word highlight
-        pankti_frame = tk.Frame(self.input_window, bg='light gray')
-        pankti_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
+        pankti_group = tk.LabelFrame(
+            self.input_window,
+            text="Selected Verse",
+            bg='light gray', fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=8, pady=8,
+            labelanchor='n'
+        )
+        pankti_group.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 10))
 
         pankti_display = tk.Text(
-            pankti_frame, wrap=tk.WORD, bg='light gray', font=('Arial', 32),
+            pankti_group, wrap=tk.WORD, bg='light gray', font=('Arial', 32),
             height=2, padx=5, pady=5
         )
         pankti_display.pack(fill=tk.X, expand=False)
@@ -7908,10 +7915,15 @@ class GrammarApp:
         split_pane.grid(row=1, column=0, sticky="nsew", padx=20)
 
         # Left: Meanings
-        self.left_pane = tk.Frame(split_pane, bg='light gray')
+        self.left_pane = tk.LabelFrame(
+            split_pane,
+            text=f"Re-analyze Meanings for {word}:",
+            bg='light gray', fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=8, pady=8,
+            labelanchor='n'
+        )
         split_pane.add(self.left_pane, stretch="always")
-        tk.Label(self.left_pane, text=f"Re-analyze Meanings for {word}:", bg='light gray',
-                font=('Arial', 14, 'bold')).pack(anchor='center', pady=(0, 10))
         self.meanings_scrollbar = tk.Scrollbar(self.left_pane, orient=tk.VERTICAL)
         self.meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.meanings_canvas = tk.Canvas(self.left_pane, bg='light gray', borderwidth=0,
@@ -7922,10 +7934,15 @@ class GrammarApp:
         self.meanings_canvas.create_window((0, 0), window=self.meanings_inner_frame, anchor='nw')
 
         # Right: Grammar Options
-        right_pane = tk.Frame(split_pane, bg='light gray')
+        right_pane = tk.LabelFrame(
+            split_pane,
+            text="Adjust Grammar Options",
+            bg='light gray', fg='black',
+            font=('Arial', 14, 'bold'),
+            padx=8, pady=8,
+            labelanchor='n'
+        )
         split_pane.add(right_pane, stretch="always")
-        tk.Label(right_pane, text="Adjust Grammar Options:", bg='light gray',
-                font=('Arial', 14, 'bold')).pack(pady=10)
         self.setup_options(
             right_pane,
             "Do you know the Number of the word?",
