@@ -7718,6 +7718,7 @@ class GrammarApp:
             self.accumulated_meanings = [{} for _ in self.pankti_words]
             self.accumulated_finalized_matches = [[] for _ in self.pankti_words]
             self.all_new_entries = []
+            self.reanalysis_selected_entries = []
             self.current_reanalysis_index = []
 
             # Step 2: Load Excel and pre-fill all words from verse
@@ -7841,7 +7842,7 @@ class GrammarApp:
             if hasattr(self, 'save_results_btn') and self.save_results_btn.winfo_exists():
                 self.save_results_btn.config(state=tk.NORMAL)
             
-            self.prompt_save_results_reanalysis(self.all_new_entries, skip_copy=False)  # Skip clipboard step for reanalysis
+            self.prompt_save_results_reanalysis(self.reanalysis_selected_entries, skip_copy=False)  # Skip clipboard step for reanalysis
             return
 
         # Process the next word from queue
@@ -8707,9 +8708,31 @@ class GrammarApp:
         if not any_selection:
             messagebox.showwarning("No Selection", "No matches were selected. Please select at least one match.")
         else:
+            self._register_reanalysis_selected_entries(current_entries)
             self.match_window.destroy()
             self.all_new_entries.extend(current_entries)
             self.process_next_selected_word()
+
+    def _register_reanalysis_selected_entries(self, entries):
+        """Record current-session grammar selections for reanalysis saving."""
+        if not entries:
+            return
+        existing = getattr(self, 'reanalysis_selected_entries', [])
+        # Remove any prior picks for the same verse/index so the latest choice wins.
+        replacement_keys = {(entry.get("Verse"), entry.get("Word Index")) for entry in entries}
+        filtered = [item for item in existing if (item.get("Verse"), item.get("Word Index")) not in replacement_keys]
+        filtered.extend(entries)
+        self.reanalysis_selected_entries = filtered
+
+    def _refresh_reanalysis_dashboard_view(self):
+        """Refresh the dashboard word list after reanalysis completes."""
+        if not hasattr(self, 'root') or self.root is None:
+            return
+        target_verse = getattr(self, 'finalized_verse', None)
+        if target_verse:
+            self.root.after_idle(self.launch_edit_saved_literal_translation)
+        else:
+            self.root.after_idle(self.setup_verse_analysis_dashboard)
 
     def prompt_save_results_reanalysis(self, new_entries, skip_copy=False):
         file_path = "1.2.1 assessment_data.xlsx"
@@ -8848,6 +8871,9 @@ class GrammarApp:
                     messagebox.showinfo("Saved", "Assessment data saved successfully for verse:\n" + verse)
 
         self.accumulated_pankti = original_accumulated_pankti
+        self.reanalysis_selected_entries = []
+
+        self._refresh_reanalysis_dashboard_view()
 
         if hasattr(self, 'copy_button') and self.copy_button.winfo_exists():
             self.copy_button.config(state=tk.NORMAL)
