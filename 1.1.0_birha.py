@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import os
 from tkinter import messagebox, scrolledtext
 import pandas as pd
@@ -7936,14 +7936,45 @@ class GrammarApp:
             labelanchor='n'
         )
         split_pane.add(self.left_pane, stretch="always")
-        self.meanings_scrollbar = tk.Scrollbar(self.left_pane, orient=tk.VERTICAL)
+        meanings_canvas_frame = tk.Frame(self.left_pane, bg='light gray')
+        meanings_canvas_frame.pack(fill=tk.BOTH, expand=True)
+        self.meanings_scrollbar = tk.Scrollbar(meanings_canvas_frame, orient=tk.VERTICAL)
         self.meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.meanings_canvas = tk.Canvas(self.left_pane, bg='light gray', borderwidth=0,
-                                        yscrollcommand=self.meanings_scrollbar.set)
+        self.meanings_canvas = tk.Canvas(
+            meanings_canvas_frame,
+            bg='light gray',
+            borderwidth=0,
+            highlightthickness=0,
+            yscrollcommand=self.meanings_scrollbar.set
+        )
         self.meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.meanings_scrollbar.config(command=self.meanings_canvas.yview)
+        self.meanings_hscrollbar = tk.Scrollbar(self.left_pane, orient=tk.HORIZONTAL, command=self.meanings_canvas.xview)
+        self.meanings_hscrollbar.pack(side=tk.BOTTOM, fill=tk.X, pady=(2, 0))
+        self.meanings_canvas.configure(xscrollcommand=self.meanings_hscrollbar.set)
         self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
-        self.meanings_canvas.create_window((0, 0), window=self.meanings_inner_frame, anchor='nw')
+        self.meanings_window_id = self.meanings_canvas.create_window((0, 0), window=self.meanings_inner_frame, anchor='nw')
+
+        def _update_canvas_extents(event=None, canvas=self.meanings_canvas, frame=self.meanings_inner_frame, window_id=self.meanings_window_id):
+            if not canvas.winfo_exists():
+                return
+            try:
+                canvas.update_idletasks()
+            except tk.TclError:
+                return
+            viewport_width = canvas.winfo_width()
+            if viewport_width <= 1:
+                return
+            content_width = frame.winfo_reqwidth()
+            target_width = viewport_width if content_width <= viewport_width else content_width
+            canvas.itemconfigure(window_id, width=target_width)
+            bbox = canvas.bbox('all')
+            if bbox:
+                canvas.configure(scrollregion=bbox)
+
+        self.meanings_canvas.bind('<Configure>', _update_canvas_extents)
+        self.meanings_inner_frame.bind('<Configure>', _update_canvas_extents)
+        self._current_meanings_extent_updater = _update_canvas_extents
 
         # Right: Grammar Options
         right_pane = tk.LabelFrame(
@@ -8268,19 +8299,32 @@ class GrammarApp:
         meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         meanings_scrollbar = tk.Scrollbar(scroller, orient=tk.VERTICAL, command=meanings_canvas.yview)
         meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set)
+        meanings_hscrollbar = tk.Scrollbar(card_body, orient=tk.HORIZONTAL, command=meanings_canvas.xview)
+        meanings_hscrollbar.pack(fill=tk.X, pady=(2, 0))
+        meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set, xscrollcommand=meanings_hscrollbar.set)
 
         meanings_content = tk.Frame(meanings_canvas, bg=card_bg)
         meanings_window = meanings_canvas.create_window((0, 0), window=meanings_content, anchor='nw')
 
-        meanings_canvas.bind(
-            "<Configure>",
-            lambda e, canvas=meanings_canvas, window=meanings_window: canvas.itemconfigure(window, width=e.width)
-        )
-        meanings_content.bind(
-            "<Configure>",
-            lambda e, canvas=meanings_canvas: canvas.configure(scrollregion=canvas.bbox('all'))
-        )
+        def _update_canvas_extents(event=None):
+            if not meanings_canvas.winfo_exists():
+                return
+            try:
+                meanings_canvas.update_idletasks()
+            except tk.TclError:
+                return
+            viewport_width = meanings_canvas.winfo_width()
+            if viewport_width <= 1:
+                return
+            content_width = meanings_content.winfo_reqwidth()
+            target_width = viewport_width if content_width <= viewport_width else content_width
+            meanings_canvas.itemconfigure(meanings_window, width=target_width)
+            bbox = meanings_canvas.bbox("all")
+            if bbox:
+                meanings_canvas.configure(scrollregion=bbox)
+
+        meanings_canvas.bind("<Configure>", _update_canvas_extents)
+        meanings_content.bind("<Configure>", _update_canvas_extents)
 
         first_index = next((i for i, w in enumerate(self.pankti_words) if w == word), index)
         merged_meanings = []
@@ -8303,12 +8347,19 @@ class GrammarApp:
         reordered_others = [m for m in current_meanings if m not in prior_meanings and m not in assessment_meanings]
         reordered = reordered_assessment + reordered_prior + reordered_others
 
+        meanings_content.grid_rowconfigure(0, weight=1)
+
         split = self.split_meanings_for_display(reordered)
         self.meaning_vars = []
 
-        for i, column in enumerate(split.values()):
+        columns = list(split.values())
+        wrap_callbacks = []
+        for i, column in enumerate(columns):
+            is_last_column = (i == len(columns) - 1)
+            meanings_content.grid_columnconfigure(i, weight=1, uniform='meaning_cols')
             column_frame = tk.Frame(meanings_content, bg=card_bg)
-            column_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
+            column_frame.grid(row=0, column=i, padx=(10, 28) if is_last_column else (10, 10), pady=10, sticky='nsew')
+            column_widgets = []
             for meaning in column:
                 highlight = (meaning in assessment_meanings)
                 if index != first_index:
@@ -8326,7 +8377,6 @@ class GrammarApp:
                     bg=bg_color,
                     fg='black',
                     font=('Arial', 12),
-                    wraplength=325,
                     anchor='w',
                     justify=tk.LEFT,
                     selectcolor=indicator_fill,
@@ -8335,10 +8385,33 @@ class GrammarApp:
                     highlightthickness=0,
                     bd=0
                 )
-                chk.pack(anchor='w', padx=15, pady=5)
+                chk.pack(fill=tk.X, expand=True, anchor='w', padx=(15, 32) if is_last_column else (15, 15), pady=(4, 6))
+                column_widgets.append(chk)
                 self.meaning_vars.append((var, meaning))
 
+            def _resize_meaning_wrap(event=None, frame=column_frame, widgets=tuple(column_widgets), spacer=(30 if is_last_column else 22)):
+                target_width = event.width if (event and event.width > 1) else frame.winfo_width()
+                if target_width <= 1:
+                    return
+                available = target_width - spacer
+                if available <= 48:
+                    wrap_width = max(target_width - 12, 48)
+                else:
+                    wrap_width = max(150, available)
+                wrap_width = min(wrap_width, max(target_width - 8, 48))
+                for widget in widgets:
+                    widget.configure(wraplength=wrap_width)
+                _update_canvas_extents()
+
+            column_frame.bind("<Configure>", _resize_meaning_wrap)
+            wrap_callbacks.append(_resize_meaning_wrap)
+            column_frame.after_idle(_resize_meaning_wrap)
+
         meanings_content.update_idletasks()
+        for callback in wrap_callbacks:
+            callback()
+        meanings_canvas.after_idle(_update_canvas_extents)
+
         meanings_canvas.config(scrollregion=meanings_canvas.bbox("all"))
 
     def display_matches_section_reanalysis(self, parent_frame, unique_matches, index, max_display=30, palette=None):
@@ -9541,14 +9614,45 @@ class GrammarApp:
             labelanchor='n'
         )
         split_pane.add(self.left_pane, stretch="always")
-        self.meanings_scrollbar = tk.Scrollbar(self.left_pane, orient=tk.VERTICAL)
+        meanings_canvas_frame = tk.Frame(self.left_pane, bg='light gray')
+        meanings_canvas_frame.pack(fill=tk.BOTH, expand=True)
+        self.meanings_scrollbar = tk.Scrollbar(meanings_canvas_frame, orient=tk.VERTICAL)
         self.meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.meanings_canvas = tk.Canvas(self.left_pane, bg='light gray', borderwidth=0,
-                                        yscrollcommand=self.meanings_scrollbar.set)
+        self.meanings_canvas = tk.Canvas(
+            meanings_canvas_frame,
+            bg='light gray',
+            borderwidth=0,
+            highlightthickness=0,
+            yscrollcommand=self.meanings_scrollbar.set
+        )
         self.meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.meanings_scrollbar.config(command=self.meanings_canvas.yview)
+        self.meanings_hscrollbar = tk.Scrollbar(self.left_pane, orient=tk.HORIZONTAL, command=self.meanings_canvas.xview)
+        self.meanings_hscrollbar.pack(side=tk.BOTTOM, fill=tk.X, pady=(2, 0))
+        self.meanings_canvas.configure(xscrollcommand=self.meanings_hscrollbar.set)
         self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
-        self.meanings_canvas.create_window((0, 0), window=self.meanings_inner_frame, anchor='nw')
+        self.meanings_window_id = self.meanings_canvas.create_window((0, 0), window=self.meanings_inner_frame, anchor='nw')
+
+        def _update_canvas_extents(event=None, canvas=self.meanings_canvas, frame=self.meanings_inner_frame, window_id=self.meanings_window_id):
+            if not canvas.winfo_exists():
+                return
+            try:
+                canvas.update_idletasks()
+            except tk.TclError:
+                return
+            viewport_width = canvas.winfo_width()
+            if viewport_width <= 1:
+                return
+            content_width = frame.winfo_reqwidth()
+            target_width = viewport_width if content_width <= viewport_width else content_width
+            canvas.itemconfigure(window_id, width=target_width)
+            bbox = canvas.bbox('all')
+            if bbox:
+                canvas.configure(scrollregion=bbox)
+
+        self.meanings_canvas.bind('<Configure>', _update_canvas_extents)
+        self.meanings_inner_frame.bind('<Configure>', _update_canvas_extents)
+        self._current_meanings_extent_updater = _update_canvas_extents
 
         # Right pane: Grammar Options
         right_pane = tk.LabelFrame(
@@ -9640,18 +9744,64 @@ class GrammarApp:
         self.stop_progress()  # Stop the progress window now that lookup is complete
         self.accumulate_meanings_data(meanings)
         split_meanings = self.split_meanings_for_display(meanings)
-        # Clear any existing widgets in the meanings inner frame
-        for widget in self.meanings_inner_frame.winfo_children():
+
+        container = self.meanings_inner_frame
+        for widget in container.winfo_children():
             widget.destroy()
-        # Repopulate the meanings UI
-        for i, column in enumerate(split_meanings.values()):
-            column_frame = tk.Frame(self.meanings_inner_frame, bg='light gray')
-            column_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
+
+        container.grid_rowconfigure(0, weight=1)
+        columns = list(split_meanings.values())
+        wrap_callbacks = []
+        for i, column in enumerate(columns):
+            is_last_column = (i == len(columns) - 1)
+            container.grid_columnconfigure(i, weight=1, uniform='meaning_cols')
+            column_frame = tk.Frame(container, bg='light gray')
+            column_frame.grid(row=0, column=i, padx=(10, 28) if is_last_column else (10, 10), pady=10, sticky='nsew')
+            column_widgets = []
             for meaning in column:
-                tk.Label(column_frame, text=f"- {meaning}", bg='light gray',
-                        font=('Arial', 12), wraplength=400, justify=tk.LEFT).pack(anchor='w', padx=15, pady=5)
-        self.meanings_inner_frame.update_idletasks()
-        self.meanings_canvas.config(scrollregion=self.meanings_inner_frame.bbox("all"))
+                lbl = tk.Label(
+                    column_frame,
+                    text=f'- {meaning}',
+                    bg='light gray',
+                    fg='black',
+                    font=('Arial', 12),
+                    anchor='w',
+                    justify=tk.LEFT
+                )
+                lbl.pack(fill=tk.X, expand=True, anchor='w', padx=(15, 32) if is_last_column else (15, 15), pady=(4, 6))
+                column_widgets.append(lbl)
+
+            def _resize_column(event=None, frame=column_frame, widgets=tuple(column_widgets), spacer=(30 if is_last_column else 22)):
+                target_width = event.width if (event and event.width > 1) else frame.winfo_width()
+                if target_width <= 1:
+                    return
+                available = target_width - spacer
+                if available <= 48:
+                    wrap_width = max(target_width - 12, 48)
+                else:
+                    wrap_width = max(150, available)
+                wrap_width = min(wrap_width, max(target_width - 8, 48))
+                for widget in widgets:
+                    widget.configure(wraplength=wrap_width)
+                updater = getattr(self, '_current_meanings_extent_updater', None)
+                if updater:
+                    updater()
+
+            column_frame.bind('<Configure>', _resize_column)
+            wrap_callbacks.append(_resize_column)
+            column_frame.after_idle(_resize_column)
+
+        container.update_idletasks()
+        for callback in wrap_callbacks:
+            callback()
+        updater = getattr(self, '_current_meanings_extent_updater', None)
+        if updater:
+            updater()
+            try:
+                self.meanings_canvas.after_idle(updater)
+            except Exception:
+                pass
+
 
     def split_meanings_for_display(self, meanings): # Helper function to split meanings into two columns
         # Determine if 'meanings' is a dict or list.
@@ -9992,19 +10142,32 @@ class GrammarApp:
         meanings_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         meanings_scrollbar = tk.Scrollbar(meanings_scroller, orient=tk.VERTICAL, command=meanings_canvas.yview)
         meanings_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set)
+        meanings_hscrollbar = tk.Scrollbar(meanings_body, orient=tk.HORIZONTAL, command=meanings_canvas.xview)
+        meanings_hscrollbar.pack(fill=tk.X, pady=(2, 0))
+        meanings_canvas.configure(yscrollcommand=meanings_scrollbar.set, xscrollcommand=meanings_hscrollbar.set)
 
         meanings_content = tk.Frame(meanings_canvas, bg=card_bg)
         meanings_window = meanings_canvas.create_window((0, 0), window=meanings_content, anchor='nw')
 
-        meanings_canvas.bind(
-            "<Configure>",
-            lambda e, canvas=meanings_canvas, window=meanings_window: canvas.itemconfigure(window, width=e.width)
-        )
-        meanings_content.bind(
-            "<Configure>",
-            lambda e, canvas=meanings_canvas: canvas.configure(scrollregion=canvas.bbox('all'))
-        )
+        def _update_canvas_extents(event=None):
+            if not meanings_canvas.winfo_exists():
+                return
+            try:
+                meanings_canvas.update_idletasks()
+            except tk.TclError:
+                return
+            viewport_width = meanings_canvas.winfo_width()
+            if viewport_width <= 1:
+                return
+            content_width = meanings_content.winfo_reqwidth()
+            target_width = viewport_width if content_width <= viewport_width else content_width
+            meanings_canvas.itemconfigure(meanings_window, width=target_width)
+            bbox = meanings_canvas.bbox("all")
+            if bbox:
+                meanings_canvas.configure(scrollregion=bbox)
+
+        meanings_canvas.bind("<Configure>", _update_canvas_extents)
+        meanings_content.bind("<Configure>", _update_canvas_extents)
 
         current_word = self.pankti_words[self.current_word_index]
         first_index = next((i for i, w in enumerate(self.pankti_words) if w == current_word), self.current_word_index)
@@ -10030,11 +10193,18 @@ class GrammarApp:
         else:
             ordered_meanings = current_meanings
 
+        meanings_content.grid_rowconfigure(0, weight=1)
+
         split_meanings = self.split_meanings_for_display(ordered_meanings)
         self.meaning_vars = []
-        for i, column in enumerate(split_meanings.values()):
+        columns = list(split_meanings.values())
+        wrap_callbacks = []
+        for i, column in enumerate(columns):
+            is_last_column = (i == len(columns) - 1)
+            meanings_content.grid_columnconfigure(i, weight=1, uniform='meaning_cols')
             column_frame = tk.Frame(meanings_content, bg=card_bg)
-            column_frame.grid(row=0, column=i, padx=10, pady=10, sticky='nw')
+            column_frame.grid(row=0, column=i, padx=(10, 28) if is_last_column else (10, 10), pady=10, sticky='nsew')
+            column_widgets = []
             for meaning in column:
                 was_prior = meaning in prior_meanings
                 if self.current_word_index == first_index:
@@ -10050,7 +10220,6 @@ class GrammarApp:
                     bg=chk_bg,
                     fg='black',
                     font=('Arial', 12, 'bold') if was_prior else ('Arial', 12),
-                    wraplength=325,
                     anchor='w',
                     justify=tk.LEFT,
                     selectcolor=indicator_fill,
@@ -10059,8 +10228,32 @@ class GrammarApp:
                     highlightthickness=0,
                     bd=0
                 )
-                chk.pack(anchor='w', padx=15, pady=5)
+                chk.pack(fill=tk.X, expand=True, anchor='w', padx=(15, 32) if is_last_column else (15, 15), pady=(4, 6))
+                column_widgets.append(chk)
                 self.meaning_vars.append((var, meaning))
+
+            def _resize_meaning_wrap(event=None, frame=column_frame, widgets=tuple(column_widgets), spacer=(30 if is_last_column else 22)):
+                target_width = event.width if (event and event.width > 1) else frame.winfo_width()
+                if target_width <= 1:
+                    return
+                available = target_width - spacer
+                if available <= 48:
+                    wrap_width = max(target_width - 12, 48)
+                else:
+                    wrap_width = max(150, available)
+                wrap_width = min(wrap_width, max(target_width - 8, 48))
+                for widget in widgets:
+                    widget.configure(wraplength=wrap_width)
+                _update_canvas_extents()
+
+            column_frame.bind("<Configure>", _resize_meaning_wrap)
+            wrap_callbacks.append(_resize_meaning_wrap)
+            column_frame.after_idle(_resize_meaning_wrap)
+
+        meanings_content.update_idletasks()
+        for callback in wrap_callbacks:
+            callback()
+        meanings_canvas.after_idle(_update_canvas_extents)
 
         if self.meaning_vars:
             all_selected = all(var.get() for var, _ in self.meaning_vars)
