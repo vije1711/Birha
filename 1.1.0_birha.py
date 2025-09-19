@@ -8414,6 +8414,24 @@ class GrammarApp:
 
         meanings_canvas.config(scrollregion=meanings_canvas.bbox("all"))
 
+
+    def _normalize_reanalysis_field_key(self, key):
+        """Normalize grammar field keys for reanalysis highlight comparisons."""
+        if not isinstance(key, str):
+            return key
+        return key.replace("﻿", "").strip()
+
+    def _reanalysis_allowed_highlight_fields(self):
+        """Fields eligible for reanalysis highlight comparisons."""
+        return (
+            "Word",
+            "Number / ਵਚਨ",
+            "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ",
+            "Word Root",
+            "Type",
+        )
+
     def display_matches_section_reanalysis(self, parent_frame, unique_matches, index, max_display=30, palette=None):
         """Display matching rule checkboxes in the reanalysis pane."""
         palette = palette or {}
@@ -8469,27 +8487,48 @@ class GrammarApp:
 
         self.match_vars = []
 
-        grammar_assessment = self.past_word_details.get(index, {})
+        allowed_fields = tuple(
+            self._normalize_reanalysis_field_key(name)
+            for name in self._reanalysis_allowed_highlight_fields()
+        )
+        allowed_field_set = set(allowed_fields)
+
+        grammar_assessment = self.past_word_details.get(index, {}) or {}
         assessment_fields = self.extract_grammar_fields(grammar_assessment)
         reordered_matches = unique_matches[:max_display]
 
         for match in reordered_matches:
-            field_label, match_value = match[0], match[1]
+            field_label = match[0]
+            match_value = match[1]
+            highlight = False
 
             if " | " in field_label:
                 parsed = self.parse_composite(field_label)
-                highlight = True
-                for key, expected in assessment_fields.items():
-                    if key in parsed:
-                        if not self.safe_equal_matches_reanalysis(parsed[key], expected):
-                            highlight = False
-                            break
-                bg_color = assessment_highlight_bg if highlight else card_bg
+                normalized_parsed = {
+                    self._normalize_reanalysis_field_key(k): v
+                    for k, v in parsed.items()
+                }
+                overlapping = [
+                    field for field in allowed_fields
+                    if field in normalized_parsed and field in assessment_fields
+                ]
+                if overlapping:
+                    highlight = all(
+                        self.safe_equal_matches_reanalysis(
+                            normalized_parsed[field],
+                            assessment_fields.get(field)
+                        )
+                        for field in overlapping
+                    )
             else:
-                if field_label in assessment_fields and assessment_fields[field_label] == match_value:
-                    bg_color = assessment_highlight_bg
-                else:
-                    bg_color = card_bg
+                normalized_field = self._normalize_reanalysis_field_key(field_label)
+                if normalized_field in allowed_field_set and normalized_field in assessment_fields:
+                    highlight = self.safe_equal_matches_reanalysis(
+                        match_value,
+                        assessment_fields.get(normalized_field)
+                    )
+
+            bg_color = assessment_highlight_bg if highlight else card_bg
 
             var = tk.BooleanVar()
             chk = tk.Checkbutton(
@@ -8519,38 +8558,49 @@ class GrammarApp:
             # Convert real NaN to empty
             if pd.isna(v):
                 return ""
-            # Turn into string, strip whitespace, and treat "NA" (any case) as empty
-            s = str(v).strip()
+            # Turn into string, strip whitespace, remove BOM, and treat "NA" (any case) as empty
+            s = str(v).replace("﻿", "").strip()
             return "" if s.upper() == "NA" else s
         return normalize(val1) == normalize(val2)
 
     def extract_grammar_fields(self, grammar_assessment):
         """
-        Extract only the fields we wish to highlight from grammar_assessment.
-        Returns a dict with keys:
-        - "Vowel Ending"
-        - "Number / ਵਚਨ"
-        - "Grammar / ਵਯਾਕਰਣ"
-        - "Gender / ਲਿੰਗ"
-        - "Word Root"
-        - "Word Type"
+        Extract the fields that participate in reanalysis highlighting.
+
+        Returns a dict keyed by normalized field names for: Word, Number / ਵਚਨ,
+        Grammar / ਵਿਆਕਰਨ, Gender / ਲਿੰਗ, Word Root, and Type.
         """
-        target_keys = ["\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-                    "Gender / ਲਿੰਗ", "Word Root", "Type"]
-        return {key: grammar_assessment.get(key) for key in target_keys}
+        normalized_assessment = {}
+        for raw_key, value in (grammar_assessment or {}).items():
+            normalized_key = self._normalize_reanalysis_field_key(raw_key)
+            if isinstance(normalized_key, str) and normalized_key:
+                normalized_assessment[normalized_key] = value
+
+        fields = tuple(
+            self._normalize_reanalysis_field_key(name)
+            for name in self._reanalysis_allowed_highlight_fields()
+        )
+        return {field: normalized_assessment.get(field) for field in fields}
 
     def parse_composite(self, label):
         """
-        Assume a composite label is built by joining fields with " | ".
-        This function splits the composite string into its individual parts
-        and returns a dictionary mapping (in order) the following keys:
-        "Word", "Vowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-        "Gender / ਲਿੰਗ", "Word Root", "Type"
+        Split a composite grammar label into its component fields using normalized keys.
         """
-        parts = label.split(" | ")
-        keys = ["Word", "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-                "Gender / ਲਿੰਗ", "Word Root", "Type"]
-        return dict(zip(keys, parts))
+        parts = [part.strip() for part in str(label).split(" | ")]
+        keys = (
+            "Word",
+            "Vowel Ending",
+            "Number / ਵਚਨ",
+            "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ",
+            "Word Root",
+            "Type",
+        )
+        normalized_keys = [self._normalize_reanalysis_field_key(key) for key in keys]
+        parsed = {}
+        for key, value in zip(normalized_keys, parts):
+            parsed[key] = value
+        return parsed
 
     def back_to_user_input_reanalysis(self, pankti, index):
         """
@@ -9202,13 +9252,31 @@ class GrammarApp:
             'Gender / ਲਿੰਗ', 'Word Root', 'Type'
         ]
 
+        verse_value = new_entry.get("Verse")
+        if verse_value is None or str(verse_value).strip() == "":
+            fallback_verse = getattr(self, 'accumulated_pankti', "") or getattr(self, 'current_pankti', "")
+            if fallback_verse:
+                verse_value = str(fallback_verse).strip()
+                new_entry["Verse"] = verse_value
+            else:
+                print(f"Skipping save for entry without verse: {new_entry!r}")
+                return
+        else:
+            verse_value = str(verse_value).strip()
+            new_entry["Verse"] = verse_value
+
+        translation_value = new_entry.get("Translation")
+        if translation_value is None:
+            translation_value = getattr(self, 'accumulated_translation', "") or ""
+        new_entry["Translation"] = str(translation_value).strip()
+
         # Update translation for all entries of the same verse
-        df_existing.loc[df_existing["Verse"] == new_entry["Verse"], "Translation"] = new_entry["Translation"]
+        df_existing.loc[df_existing["Verse"] == verse_value, "Translation"] = new_entry["Translation"]
 
         # Locate matching entries
         matching_rows = df_existing[
             (df_existing["Word"] == new_entry["Word"]) &
-            (df_existing["Verse"] == new_entry["Verse"]) &
+            (df_existing["Verse"] == verse_value) &
             (df_existing["Word Index"] == new_entry["Word Index"])
         ]
 
@@ -9242,14 +9310,14 @@ class GrammarApp:
                         df_existing.at[idx, "Selected Darpan Meaning"] = selected_meaning
 
                 # Update Translation Revision
-                verse_mask = df_existing["Verse"] == new_entry["Verse"]
+                verse_mask = df_existing["Verse"] == verse_value
                 latest_revision = df_existing.loc[verse_mask, "Grammar Revision"].max()
                 df_existing.loc[verse_mask, "Translation Revision"] = latest_revision
             else:
                 return  # No changes, skip saving
         else:
             new_entry["Grammar Revision"] = 1
-            current_revision = df_existing[df_existing["Verse"] == new_entry["Verse"]]["Translation Revision"].max()
+            current_revision = df_existing[df_existing["Verse"] == verse_value]["Translation Revision"].max()
             new_entry["Translation Revision"] = (current_revision + 1) if not pd.isna(current_revision) else 1
 
             # Set Selected Darpan Meaning

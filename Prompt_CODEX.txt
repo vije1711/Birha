@@ -1,0 +1,36 @@
+Problem:
+In the reanalysis dialogs, the MistyRose highlight for grammar options currently compares all overlapping fields between the prior assessment and each displayed rule (including “Vowel Ending”). We want to restrict highlighting to a specific subset of fields only and explicitly exclude “Vowel Ending” from value comparisons (including its BOM-variant “\ufeffVowel Ending”).
+
+Objective:
+Update the highlight logic so that, when evaluating overlapping fields, it only compares these fields:
+  ["Word", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Gender / ਲਿੰਗ", "Word Root", "Type"]
+and never compares “Vowel Ending” (nor “\ufeffVowel Ending”) for highlight decisions. If a rule is composite and includes “Vowel Ending”, that field must be ignored during the comparison pass.
+
+Scope / Where to change:
+- Reanalysis grammar UI:
+  - `display_matches_section_reanalysis(...)` (highlight decision branch for composite vs single-field rules)
+  - Any helper used in that path like `parse_composite(...)`, `extract_grammar_fields(...)`, and `safe_equal_matches_reanalysis(...)`.
+- Normalize keys before intersecting:
+  - Map “\ufeffVowel Ending” → “Vowel Ending” to avoid silent mismatches, but then skip “Vowel Ending” entirely in comparisons.
+- Single-field rules:
+  - If the single field is “Vowel Ending” (or BOM variant), do not highlight based on it.
+- Composite rules:
+  - When iterating overlapping fields, filter to the allowed comparison set only (see list above). All of those present must match; “Vowel Ending” must be ignored even if present.
+
+Acceptance Criteria:
+- Only the allowed fields participate in highlight decisions: Word, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ, Word Root, Type.
+- “Vowel Ending” (and “\ufeffVowel Ending”) never influences highlight (neither to trigger nor to prevent it).
+- Composite labels that match the prior assessment on the allowed fields highlight MistyRose; differences in “Vowel Ending” alone do not affect highlighting.
+- Single-field “Vowel Ending” rules never highlight based on equality.
+- BOM/whitespace normalization prevents false negatives on the allowed fields.
+- No regressions to scrolling, selection, or the display of meanings/rules.
+
+Branch: fix/reanalysis-highlight-allowed-fields-only
+
+PR Title:
+Restrict reanalysis highlight to specific overlapping fields; exclude Vowel Ending
+
+PR Description:
+- Problem: The current highlight logic considers all overlapping fields, causing “Vowel Ending” to affect MistyRose highlighting and leading to noisy or misleading highlights.
+- Change: Limit highlight comparisons to the allowed field set (Word, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ, Word Root, Type), normalize keys (handle BOM on Vowel Ending), and ignore Vowel Ending entirely in both single-field and composite rules.
+- Outcome: Highlighting reflects only the core grammatical choices we care about; differences in Vowel Ending no longer toggle highlight, improving clarity and consistency in reanalysis.
