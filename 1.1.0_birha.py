@@ -10539,7 +10539,7 @@ class GrammarApp:
                     ])
                     match_count, match_percentage = (1, 100.0)
                     matches.append((result, match_count, match_percentage))
-                elif not include_mukta and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                elif not include_mukta and rule['\ufeffVowel Ending'] != "ਮੁਕਤਾ" and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
                     # Regular inflection matching
                     inflections = rule['\ufeffVowel Ending'].split()
                     for inflection in inflections:
@@ -10589,7 +10589,7 @@ class GrammarApp:
                     ])
                     match_count, match_percentage = (1, 100.0)
                     matches.append((result, match_count, match_percentage))
-                elif not include_mukta and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                elif not include_mukta and rule['\ufeffVowel Ending'] != "ਮੁਕਤਾ" and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
                     inflections = rule['\ufeffVowel Ending'].split()
                     for inflection in inflections:
                         match_count, match_percentage = self.calculate_match_metrics(word, inflection)
