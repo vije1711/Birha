@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Problem:
 In the reanalysis dialogs, the MistyRose highlight for grammar options currently compares all overlapping fields between the prior assessment and each displayed rule (including “Vowel Ending”). We want to restrict highlighting to a specific subset of fields only and explicitly exclude “Vowel Ending” from value comparisons (including its BOM-variant “\ufeffVowel Ending”).
 
@@ -34,3 +35,25 @@ PR Description:
 - Problem: The current highlight logic considers all overlapping fields, causing “Vowel Ending” to affect MistyRose highlighting and leading to noisy or misleading highlights.
 - Change: Limit highlight comparisons to the allowed field set (Word, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ, Word Root, Type), normalize keys (handle BOM on Vowel Ending), and ignore Vowel Ending entirely in both single-field and composite rules.
 - Outcome: Highlighting reflects only the core grammatical choices we care about; differences in Vowel Ending no longer toggle highlight, improving clarity and consistency in reanalysis.
+=======
+Study '0.1.3.2 Assess by Word Engineering contract.docx', and implement Task 1 from Section 11: create launch_word_assessment_dashboard() as a root-rendered UI with three buttons (UI only, no business logic yet). Wire the Back button to self._go_back_to_dashboard (no 'win' arg). If the helper is not present yet, add a minimal stub _go_back_to_dashboard(win=None): self.show_dashboard(). After implementing, please push the branch and draft the PR description.
+
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 2 from Section 11: tracker helpers (create, load, append) with ensure_word_tracker using pandas+openpyxl. Enforce: single ExcelWriter per save (no nested writers), always close pd.ExcelFile via context manager before writing, and preserve/rewrite non-spec sheets in original order. After implementing, please push the branch and draft the PR description.
+
+
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 3 from Section 11: build the lexicon index from 1.1.3 sggs_extracted_with_page_numbers.xlsx (tokenize, normalize, aggregate counts) and add the word-search modal UI with fuzzy matching via RapidFuzz. Ensure normalization mirrors existing helpers (_norm_tok style), return deduplicated closest matches with counts, and show results in a tick-list modal with multi-select. After implementing, push the branch and draft a liberal, detailed PR describing the lexicon build, search UI, and validation steps.
+
+
+Open 1.1.0_birha.py and refactor the entry point for **Word Search (Lexicon)**: REMOVE any button/menu wiring under the Verse Analysis UI and ADD the launcher under **Assess by Word → New assessment** inside launch_word_assessment_dashboard() (the button should open the existing word-search modal). Keep Back wired via _go_back_to_dashboard (Toplevel: lambda: self._go_back_to_dashboard(win); root: self._go_back_to_dashboard), guard win.state('zoomed') with try/except tk.TclError, and ensure no duplicate buttons remain. Quick checks: from Home → Grammar DB Update → Assess by Word → New assessment → Word Search opens; Verse Analysis shows no Word Search button; py_compile passes. Push the branch and draft a liberal PR explaining the relocation, wiring, and tests.
+
+
+Study 0.1.3.2 Assess by Word Engineering contract.docx and implement Task 4: build the verse-hit list for a chosen word with a scrollable checkbox UI (include Select All / Clear All that update the Next/Add button), show page numbers, and on Add Selected append rows to Progress via the tracker helpers (fields: word, word_key_norm, verse, page_number, selected_for_analysis=True, selected_at=now, status="not started"); reuse the plan’s normalization/tokenization (exact token match, no partials), guard Toplevel back-nav with _go_back_to_dashboard(win), and paginate if the result set is large; then push the branch and draft a detailed PR (include rationale, UI notes, and quick checks).
+
+
+
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 5 from Section 11: add the driver that sequentially opens each selected verse in the existing Assess-by-Verse analyzer, writes results to 1.1.1_birha.csv, and updates the tracker (1.1.6 XXXX.xlsx → Progress: status/completed_at; Words: analysis_started/analysis_completed flags with timestamps); include Next Verse navigation and pause/resume flow; then push the branch and draft a detailed PR description.
+
+
+
+Study '0.1.3.2 Assess by Word Engineering contract.docx' and implement Task 6 from Section 11: wire the 'Continue' and 'Completed' views with their filters and actions (loading Words/Progress, applying completion status filters, enabling resume/re-analyze actions, and wiring navigation). After implementing, push the branch and draft the PR description.
+>>>>>>> cbf279e885cbe5393a47a3934f0216135200064d

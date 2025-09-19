@@ -1,6 +1,6 @@
 import csv
 import os
-from tkinter import messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext, simpledialog
 import pandas as pd
 import ast
 import re
@@ -9239,6 +9239,54 @@ class GrammarApp:
         self.root.wait_window(final_win)
         return final_choice
 
+
+    def _ensure_translation_for_reanalysis(self, new_entry):
+        '''Ensure a Translation value exists on new_entry, prompting the user if missing.'''
+        existing = new_entry.get("Translation")
+        if existing is not None:
+            normalized = str(existing).strip()
+            if normalized:
+                new_entry["Translation"] = normalized
+                return normalized
+
+        verse_text = (
+            new_entry.get("Verse")
+            or getattr(self, "accumulated_pankti", "")
+            or getattr(self, "current_pankti", "")
+        ).strip()
+        new_entry["Verse"] = verse_text
+        verse_display = verse_text or "this verse"
+
+        while True:
+            response = simpledialog.askstring(
+                "Translation Required",
+                f"No translation was supplied for {verse_display}.\n\nEnter the translation now (Cancel to leave it blank).",
+                parent=self.root
+            )
+
+            if response is None:
+                if messagebox.askyesno(
+                    "Leave Translation Empty?",
+                    "You did not enter a translation. Do you want to leave it blank?",
+                    parent=self.root
+                ):
+                    new_entry["Translation"] = ""
+                    return ""
+                continue
+
+            stripped = response.strip()
+            if stripped:
+                new_entry["Translation"] = stripped
+                return stripped
+
+            if messagebox.askyesno(
+                "Leave Translation Empty?",
+                "The translation is empty. Do you want to save it as blank?",
+                parent=self.root
+            ):
+                new_entry["Translation"] = ""
+                return ""
+
     def save_assessment_data_reanalysis(self, new_entry):
         """
         Saves a new re-analysis entry to the Excel file.
@@ -9246,6 +9294,7 @@ class GrammarApp:
         """
         file_path = "1.2.1 assessment_data.xlsx"
         df_existing = self.load_existing_assessment_data(file_path)
+        self._ensure_translation_for_reanalysis(new_entry)
 
         grammar_keys = [
             '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
