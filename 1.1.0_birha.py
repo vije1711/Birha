@@ -8423,7 +8423,10 @@ class GrammarApp:
 
     def _reanalysis_allowed_highlight_fields(self):
         """Fields eligible for reanalysis highlight comparisons."""
-        return (
+        cached = getattr(self, '_cached_reanalysis_highlight_fields', None)
+        if cached is not None:
+            return cached
+        fields = (
             "Word",
             "Number / ਵਚਨ",
             "Grammar / ਵਯਾਕਰਣ",
@@ -8431,6 +8434,9 @@ class GrammarApp:
             "Word Root",
             "Type",
         )
+        normalized = tuple(self._normalize_reanalysis_field_key(name) for name in fields)
+        self._cached_reanalysis_highlight_fields = normalized
+        return normalized
 
     def display_matches_section_reanalysis(self, parent_frame, unique_matches, index, max_display=30, palette=None):
         """Display matching rule checkboxes in the reanalysis pane."""
@@ -8487,10 +8493,7 @@ class GrammarApp:
 
         self.match_vars = []
 
-        allowed_fields = tuple(
-            self._normalize_reanalysis_field_key(name)
-            for name in self._reanalysis_allowed_highlight_fields()
-        )
+        allowed_fields = self._reanalysis_allowed_highlight_fields()
         allowed_field_set = set(allowed_fields)
 
         grammar_assessment = self.past_word_details.get(index, {}) or {}
@@ -8576,10 +8579,7 @@ class GrammarApp:
             if isinstance(normalized_key, str) and normalized_key:
                 normalized_assessment[normalized_key] = value
 
-        fields = tuple(
-            self._normalize_reanalysis_field_key(name)
-            for name in self._reanalysis_allowed_highlight_fields()
-        )
+        fields = self._reanalysis_allowed_highlight_fields()
         return {field: normalized_assessment.get(field) for field in fields}
 
     def parse_composite(self, label):
@@ -9324,9 +9324,9 @@ class GrammarApp:
 
         # Locate matching entries
         matching_rows = df_existing[
-            (df_existing["Word"] == new_entry["Word"]) &
+            (df_existing.get("Word", pd.Series(dtype=object)) == new_entry.get("Word", "")) &
             (df_existing["Verse"] == verse_value) &
-            (df_existing["Word Index"] == new_entry["Word Index"])
+            (df_existing.get("Word Index", pd.Series(dtype=object)) == new_entry.get("Word Index", ""))
         ]
 
         if not matching_rows.empty:
