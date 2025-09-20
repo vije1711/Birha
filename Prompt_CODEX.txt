@@ -24,4 +24,4 @@ Acceptance:
 Branch: feat/derived-preselect-by-vowel-ending
 PR Title: Preselect grammar fields from CSV frequencies filtered by Vowel Ending and Evaluation=Derived
 PR Description:
-Implements smart defaults in `_build_user_input_grammar` by counting ["Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Type"] from `1.1.1_birha.csv` rows where Vowel Ending exactly equals the current word (BOM-safe) and Evaluation="Derived".
+Implements smart defaults in `_build_user_input_grammar` by counting ["Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Type"] from `1.1.1_birha.csv` rows where Vowel Ending exactly equals the current word (BOM-safe) and Evaluation="Derived". No multisense/raag context used (CSV lacks it).
