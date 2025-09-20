@@ -1958,7 +1958,16 @@ class GrammarApp:
                     page_str = str(page_val)
                 hits.append({
                     'verse': str(verse_txt),
+                    'Verse': str(verse_txt),
                     'page_number': page_str,
+                    'Page Number': page_str,
+                    'Raag (Fixed)': row.get('Raag (Fixed)'),
+                    'Writer (Fixed)': row.get('Writer (Fixed)'),
+                    'Bani Name': row.get('Bani Name'),
+                    'Text Set No.': row.get('Text Set No.'),
+                    'Stanza No.': row.get('Stanza No.'),
+                    'Type': row.get('Type'),
+                    'S. No.': row.get('S. No.'),
                 })
         return hits
 
@@ -2015,6 +2024,91 @@ class GrammarApp:
         page_label_var = tk.StringVar(value=f"Page 1 / {_page_count()}")
         tk.Label(nav, textvariable=page_label_var, bg='light gray').pack(side=tk.RIGHT, padx=(6,0))
 
+        # Maintain selection state across re-renders
+        if getattr(self, '_hits_selected_word', None) != word:
+            self._hits_selected_ids = set()
+        else:
+            selected_ids = getattr(self, '_hits_selected_ids', set())
+            try:
+                selected_ids = {int(idx) for idx in selected_ids if 0 <= int(idx) < len(hits)}
+            except Exception:
+                selected_ids = set()
+            self._hits_selected_ids = selected_ids
+        self._hits_selected_word = word
+        self._hits_active_page_vars = {}
+
+        # Prepare dynamic add button label (used by selection bar)
+        add_btn_text = tk.StringVar(value="Add Selected (0)")
+
+        # Selection bar above the results list (keeps toggles visible)
+        selbar = tk.Frame(body, bg='light gray')
+        selbar.pack(fill=tk.X, pady=(6, 0))
+
+        # Scrollable cards area (populated via _populate_cards_multiselect)
+        cards_area = tk.Frame(body, bg='light gray')
+        cards_area.pack(fill=tk.BOTH, expand=True)
+
+        # Bottom action bar - compute bottom gap from body's external bottom padding (12)
+        btns = tk.Frame(body, bg='light gray')
+        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 12)))
+        add_btn_bottom = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'), state=tk.DISABLED)
+        add_btn_bottom.pack(side=tk.LEFT)
+        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
+                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
+        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
+
+        def _update_add_button():
+            total = len(getattr(self, '_hits_selected_ids', set()))
+            add_btn_text.set(f"Add Selected ({total})")
+            try:
+                add_btn_bottom.configure(state=tk.NORMAL if total > 0 else tk.DISABLED)
+            except Exception:
+                pass
+
+        def _handle_card_toggle(hit_id, var):
+            try:
+                if var.get():
+                    self._hits_selected_ids.add(hit_id)
+                else:
+                    self._hits_selected_ids.discard(hit_id)
+            except Exception:
+                pass
+            _update_add_button()
+
+        self._hits_multiselect_toggle_callback = _handle_card_toggle
+
+        def _select_all_page(val: bool):
+            current = getattr(self, '_hits_active_page_vars', {})
+            if not isinstance(current, dict):
+                current = {}
+            for hid, var in current.items():
+                try:
+                    var.set(val)
+                    if val:
+                        self._hits_selected_ids.add(hid)
+                    else:
+                        self._hits_selected_ids.discard(hid)
+                except Exception:
+                    continue
+            _update_add_button()
+
+        tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
+        tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
+        # Note: action buttons are moved to a bottom bar for consistent spacing
+
+        def _render_rows():
+            ps = max(1, int(page_size_var.get() or 50))
+            p = max(1, int(cur_page_var.get() or 1))
+            start = (p - 1) * ps
+            end = min(len(hits), start + ps)
+            subset = [(idx, hits[idx]) for idx in range(start, end)]
+            page_vars = self._populate_cards_multiselect(cards_area, subset)
+            if not isinstance(page_vars, dict):
+                page_vars = {}
+            self._hits_active_page_vars = page_vars
+            page_label_var.set(f"Page {p} / {_page_count()}")
+            _update_add_button()
+
         def _change_page(delta):
             newp = cur_page_var.get() + delta
             newp = max(1, min(_page_count(), newp))
@@ -2024,89 +2118,6 @@ class GrammarApp:
 
         tk.Button(nav, text="Prev", command=lambda: _change_page(-1), bg='gray', fg='white').pack(side=tk.RIGHT, padx=(4,2))
         tk.Button(nav, text="Next", command=lambda: _change_page(1),  bg='gray', fg='white').pack(side=tk.RIGHT, padx=(2,4))
-
-        # Prepare dynamic add button label (used by selection bar)
-        add_btn_text = tk.StringVar(value="Add Selected (0)")
-
-        # Selection bar above the results list (keeps toggles visible)
-        selbar = tk.Frame(body, bg='light gray')
-        selbar.pack(fill=tk.X, pady=(6, 0))
-        def _select_all_page(val: bool):
-            ps = max(1, int(page_size_var.get() or 50))
-            p  = max(1, int(cur_page_var.get() or 1))
-            start = (p-1)*ps
-            end   = min(len(hits), start+ps)
-            for bv, idx in hit_vars[start:end]:
-                bv.set(val)
-            _update_add_button()
-        tk.Button(selbar, text="Select All", bg='teal', fg='white', command=lambda: _select_all_page(True)).pack(side=tk.LEFT)
-        tk.Button(selbar, text="Clear All", bg='gray', fg='white', command=lambda: _select_all_page(False)).pack(side=tk.LEFT, padx=(6,0))
-        # Note: action buttons are moved to a bottom bar for consistent spacing
-
-        # Scrollable area
-        list_frame = tk.Frame(body, bg='light gray')
-        list_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Bottom action bar - compute bottom gap from body's external bottom padding (12)
-        btns = tk.Frame(body, bg='light gray')
-        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, max(0, BOTTOM_PAD - 12)))
-        add_btn_bottom = tk.Button(btns, textvariable=add_btn_text, bg='navy', fg='white', font=("Arial", 12, 'bold'))
-        add_btn_bottom.pack(side=tk.LEFT)
-        tk.Button(btns, text="Back to Dashboard", bg='#2f4f4f', fg='white', font=("Arial", 11),
-                  command=lambda: self._go_back_to_dashboard(win)).pack(side=tk.RIGHT, padx=(8,0))
-        tk.Button(btns, text="Close", bg='gray', fg='white', font=("Arial", 11), command=win.destroy).pack(side=tk.RIGHT)
-        canvas = tk.Canvas(list_frame, bg='light gray', highlightthickness=0)
-        vsb = tk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
-        inner = tk.Frame(canvas, bg='light gray')
-        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-        canvas.create_window((0,0), window=inner, anchor='nw')
-        canvas.configure(yscrollcommand=vsb.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Selection state across pages (local to this modal)
-        hit_vars = []  # list[(BooleanVar, index)] parallel to hits
-        for i in range(len(hits)):
-            hit_vars.append((tk.BooleanVar(value=False), i))
-
-        # Row rendering
-        def _update_add_button():
-            total = sum(1 for bv, _ in hit_vars if bv.get())
-            add_btn_text.set(f"Add Selected ({total})")
-            try:
-                add_btn_bottom.configure(state=tk.NORMAL if total > 0 else tk.DISABLED)
-            except Exception:
-                pass
-
-        def _render_rows():
-            for wdg in list(inner.winfo_children()):
-                wdg.destroy()
-            ps = max(1, int(page_size_var.get() or 50))
-            p  = max(1, int(cur_page_var.get() or 1))
-            start = (p-1)*ps
-            end   = min(len(hits), start+ps)
-            # header
-            hdr = tk.Frame(inner, bg='light gray')
-            hdr.grid(row=0, column=0, sticky='ew', padx=2, pady=(0, 6))
-            tk.Label(hdr, text="Select", font=("Arial", 11, 'bold'), width=8, anchor='w', bg='light gray').pack(side=tk.LEFT)
-            tk.Label(hdr, text="Verse", font=("Arial", 11, 'bold'), width=64, anchor='w', bg='light gray').pack(side=tk.LEFT)
-            tk.Label(hdr, text="Page", font=("Arial", 11, 'bold'), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
-
-            for i, idx in enumerate(range(start, end), start=1):
-                row = hits[idx]
-                rf = tk.Frame(inner, bg='light gray')
-                rf.grid(row=i, column=0, sticky='ew', padx=2, pady=2)
-                bv, _ = hit_vars[idx]
-                def _mk_toggle(var):
-                    return lambda: (_update_add_button())
-                tk.Checkbutton(rf, variable=bv, bg='light gray', command=_mk_toggle(bv)).pack(side=tk.LEFT, padx=(0, 8))
-                tk.Label(rf, text=row['verse'], font=("Arial", 12), width=64, anchor='w', bg='light gray', justify='left', wraplength=900).pack(side=tk.LEFT)
-                tk.Label(rf, text=str(row['page_number']), font=("Arial", 12), width=8, anchor='e', bg='light gray').pack(side=tk.LEFT)
-
-            page_label_var.set(f"Page {p} / {_page_count()}")
-            list_frame.update_idletasks()
-            canvas.configure(scrollregion=canvas.bbox('all'))
-            _update_add_button()
 
         def _on_page_size_change(event=None):
             cur_page_var.set(1)
@@ -2118,18 +2129,23 @@ class GrammarApp:
             pass
 
         def _do_add_selected():
+            selected = sorted(getattr(self, '_hits_selected_ids', set()))
+            rows = []
             now = datetime.now()
             norm = self._norm_tok(word)
-            rows = []
-            for bv, idx in hit_vars:
-                if not bv.get():
+            for idx in selected:
+                try:
+                    idx = int(idx)
+                except Exception:
+                    continue
+                if idx < 0 or idx >= len(hits):
                     continue
                 rec = hits[idx]
                 rows.append({
                     'word': word,
                     'word_key_norm': norm,
-                    'verse': rec.get('verse', ''),
-                    'page_number': rec.get('page_number', ''),
+                    'verse': rec.get('verse', rec.get('Verse', '')),
+                    'page_number': rec.get('page_number', rec.get('Page Number', '')),
                     'selected_for_analysis': True,
                     'selected_at': now,
                     'status': 'not started',
@@ -2172,27 +2188,29 @@ class GrammarApp:
                     messagebox.showerror("Tracker Error", str(e))
                 except Exception:
                     pass
-            # Offer to start driver immediately
             try:
                 start_now = messagebox.askyesno("Start Analysis", "Start analyzing selected verses for this word now?")
             except Exception:
                 start_now = True
             if start_now:
                 try:
-                    # Just close this modal; do NOT set suppression here.
-                    # Suppression is only used around ABW translation submit.
                     win.destroy()
                 except Exception:
                     pass
                 self.start_word_driver_for(word)
 
-        # Wire the bottom 'Add Selected' button now that it's defined
         try:
             add_btn_bottom.configure(command=_do_add_selected)
         except Exception:
             pass
-        _render_rows()
 
+        def _cleanup_multiselect(_event=None):
+            if getattr(self, '_hits_multiselect_toggle_callback', None) is _handle_card_toggle:
+                self._hits_multiselect_toggle_callback = None
+            self._hits_active_page_vars = {}
+        win.bind("<Destroy>", _cleanup_multiselect, add="+")
+
+        _render_rows()
     # ---------------------------
     # Assess-by-Word: Driver (sequential verse opener)
     # ---------------------------
@@ -4135,6 +4153,236 @@ class GrammarApp:
             scrollregion=self._cards_frame.master.bbox("all")
         )
 
+    def _populate_cards_multiselect(self, parent, hits, palette=None):
+        """Render verse hits as two-column checkbox cards with preserved centering."""
+        if parent is None:
+            return {}
+
+        palette = palette or {}
+        body_bg = palette.get('body_bg', 'light gray')
+        card_bg = palette.get('card_bg', 'white')
+        border_color = palette.get('card_border', '#c8c8c8')
+        select_color = palette.get('select_color', 'light blue')
+
+        try:
+            children = list(parent.winfo_children())
+        except Exception:
+            children = []
+        for child in children:
+            try:
+                child.destroy()
+            except Exception:
+                pass
+
+        selected_ids = getattr(self, '_hits_selected_ids', None)
+        if not isinstance(selected_ids, set):
+            try:
+                selected_ids = set(selected_ids or [])
+            except Exception:
+                selected_ids = set()
+            self._hits_selected_ids = selected_ids
+
+        container = tk.Frame(parent, bg=body_bg)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(container, bg=body_bg, highlightthickness=0)
+        vsb = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        cards_frame = tk.Frame(canvas, bg=body_bg)
+        cards_window = canvas.create_window((0, 0), window=cards_frame, anchor="n")
+
+        try:
+            cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
+            cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
+        except Exception:
+            cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
+            cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
+
+        def _on_cards_configure(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        cards_frame.bind("<Configure>", _on_cards_configure)
+
+        def _on_canvas_resize(event):
+            canvas.coords(cards_window, event.width // 2, 0)
+            try:
+                canvas.itemconfigure(cards_window, width=event.width)
+            except Exception:
+                pass
+        canvas.bind("<Configure>", _on_canvas_resize)
+
+        canvas.update_idletasks()
+        try:
+            canvas.coords(cards_window, canvas.winfo_width() // 2, 0)
+            canvas.itemconfigure(cards_window, width=canvas.winfo_width())
+        except Exception:
+            pass
+
+        toggle_cb = getattr(self, '_hits_multiselect_toggle_callback', None)
+
+        def _clean_value(val):
+            if val is None:
+                return None
+            if isinstance(val, float):
+                try:
+                    if math.isnan(val):
+                        return None
+                except Exception:
+                    pass
+            text = str(val).strip()
+            if not text or text.lower() == 'nan':
+                return None
+            return text
+
+        def _pick(record, keys):
+            for key in keys:
+                if not key:
+                    continue
+                if isinstance(record, dict) and key in record:
+                    cleaned = _clean_value(record.get(key))
+                    if cleaned is not None:
+                        return cleaned
+            return None
+
+        vars_by_id = {}
+        total_cards = len(hits)
+
+        for visible_idx, item in enumerate(hits):
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                hit_id, record = item[0], item[1]
+            else:
+                record = item if isinstance(item, dict) else {}
+                hit_id = record.get('__id__', visible_idx)
+            try:
+                hit_id = int(hit_id)
+            except Exception:
+                hit_id = visible_idx
+
+            row, col = divmod(visible_idx, 2)
+            card = tk.Frame(
+                cards_frame,
+                bd=1,
+                relief="solid",
+                bg=card_bg,
+                padx=8,
+                pady=8,
+            )
+            try:
+                card.configure(highlightbackground=border_color, highlightcolor=border_color, highlightthickness=1)
+            except Exception:
+                pass
+
+            if (total_cards % 2 == 1) and (visible_idx == total_cards - 1):
+                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="n")
+            else:
+                card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+            verse_text = _pick(record, ("Verse", "verse")) or ""
+            verse_label = tk.Label(
+                card,
+                text=verse_text,
+                font=("Arial", 14, "bold"),
+                wraplength=10,
+                justify="center",
+                bg=card_bg,
+            )
+            verse_label.pack(pady=(14, 8), padx=(28, 8))
+
+            raag_val = _pick(record, ("Raag (Fixed)", "Raag", "raag_fixed", "raag"))
+            writer_val = _pick(record, ("Writer (Fixed)", "Writer", "writer_fixed", "writer"))
+            bani_val = _pick(record, ("Bani Name", "Bani", "bani_name", "bani"))
+            page_val = _pick(record, ("Page Number", "page_number", "Page", "page"))
+
+            meta_parts = []
+            if raag_val:
+                meta_parts.append(f"Raag: {raag_val}")
+            if writer_val:
+                meta_parts.append(f"Writer: {writer_val}")
+            if bani_val:
+                meta_parts.append(f"Bani: {bani_val}")
+            if page_val:
+                meta_parts.append(f"Page: {page_val}")
+            if not meta_parts:
+                meta_parts.append("Page: -")
+
+            meta_label = tk.Label(
+                card,
+                text="   |   ".join(meta_parts),
+                font=("Arial", 12),
+                bg=card_bg,
+                justify="center",
+                wraplength=10,
+            )
+            meta_label.pack(padx=12)
+
+            def _on_card_resize(event, v_label=verse_label, m_label=meta_label):
+                try:
+                    wrap_main = max(260, event.width - 56)
+                except Exception:
+                    wrap_main = 260
+                try:
+                    wrap_meta = max(220, event.width - 40)
+                except Exception:
+                    wrap_meta = 220
+                try:
+                    v_label.configure(wraplength=wrap_main)
+                    m_label.configure(wraplength=wrap_meta)
+                except Exception:
+                    pass
+            card.bind("<Configure>", _on_card_resize, add="+")
+
+            var = tk.BooleanVar(value=(hit_id in selected_ids))
+            vars_by_id[hit_id] = var
+
+            def _toggle(hid=hit_id, _var=var):
+                selected = getattr(self, '_hits_selected_ids', set())
+                if _var.get():
+                    selected.add(hid)
+                else:
+                    selected.discard(hid)
+                self._hits_selected_ids = selected
+                if callable(toggle_cb):
+                    try:
+                        toggle_cb(hid, _var)
+                    except Exception:
+                        pass
+
+            chk = tk.Checkbutton(
+                card,
+                variable=var,
+                bg=card_bg,
+                activebackground=card_bg,
+                selectcolor=select_color,
+                command=_toggle,
+                highlightthickness=0,
+                bd=0,
+                takefocus=1,
+            )
+            chk.place(x=6, y=6)
+            try:
+                chk.lift()
+            except Exception:
+                pass
+
+            def _invoke_toggle(_event=None, cb=chk):
+                try:
+                    cb.invoke()
+                except Exception:
+                    pass
+
+            verse_label.bind("<Button-1>", _invoke_toggle, add="+")
+            meta_label.bind("<Button-1>", _invoke_toggle, add="+")
+
+        cards_frame.update_idletasks()
+        try:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        except Exception:
+            pass
+
+        return vars_by_id
+
     def show_translation_input(self):
         win = tk.Toplevel(self.root)
         win.title("Paste Darpan Translation")
@@ -4556,11 +4804,55 @@ class GrammarApp:
         word_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
 
         self._word_selection_vars = []
+        self._word_selection_locked_vars = []
+
         verse_text = (self.selected_verse_text or '').split('\u0965', 1)[0].strip()
         words = verse_text.split()
+
+        default_word = getattr(self, '_word_driver_word', None)
+        default_norm = None
+        if default_word:
+            try:
+                default_norm = _normalize_simple(str(default_word))
+            except Exception:
+                try:
+                    default_norm = str(default_word).strip()
+                except Exception:
+                    default_norm = None
+        default_assigned = False
+
         for i, w in enumerate(words):
             var = tk.BooleanVar(value=False)
             chk = tk.Checkbutton(word_frame, text=w, variable=var, bg='light gray', font=('Arial', 12), anchor='w', justify='left')
+
+            is_default = False
+            if default_norm and not default_assigned:
+                try:
+                    candidate_norm = _normalize_simple(str(w))
+                except Exception:
+                    candidate_norm = str(w).strip()
+                if candidate_norm == default_norm:
+                    is_default = True
+                    default_assigned = True
+
+            if is_default:
+                var.set(True)
+                self._word_selection_locked_vars.append(var)
+                try:
+                    chk.configure(bg='LightYellow', activebackground='LightYellow', selectcolor='LightYellow')
+                except Exception:
+                    pass
+                try:
+                    chk.configure(highlightbackground='#d6c97a', highlightcolor='#d6c97a')
+                except Exception:
+                    pass
+
+                def _keep_default_selected(v=var):
+                    if not v.get():
+                        v.set(True)
+
+                chk.configure(command=_keep_default_selected)
+
             chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
             self._word_selection_vars.append((var, w))
 
@@ -4744,7 +5036,11 @@ class GrammarApp:
     def _toggle_all_word_selection(self):
         """Called by the top ‘Select/Deselect All Words’ checkbox."""
         val = self._select_all_words_var.get()
-        for var, _ in getattr(self, "_word_selection_vars", []):
+        locked = set(getattr(self, '_word_selection_locked_vars', []))
+        for var, _ in getattr(self, '_word_selection_vars', []):
+            if var in locked:
+                var.set(True)
+                continue
             var.set(val)
     def _build_user_input_grammar(self, win, *, word, translation, index, mode):
         """Shared builder for the per-word Grammar UI. Does not start a mainloop.
