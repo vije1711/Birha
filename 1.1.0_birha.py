@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import os
 import logging
 from tkinter import messagebox, scrolledtext, simpledialog
