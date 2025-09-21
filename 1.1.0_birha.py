@@ -1,5 +1,6 @@
 import csv
 import os
+import logging
 from tkinter import messagebox, scrolledtext, simpledialog
 import pandas as pd
 import ast
@@ -693,6 +694,9 @@ _PROGRESS_COLUMNS = [
 _TRACKER_QUEUE_INDEX_KEY = "_tracker_row_index"
 
 
+_TRACKER_LOGGER = logging.getLogger("birha.tracker")
+
+
 _KNOWN_PROGRESS_STATUSES = {"pending", "completed", "reanalysis_queued", "removed", "archived"}
 
 _PROGRESS_STATUS_ALIASES = {
@@ -754,6 +758,260 @@ def _empty_tracker_frames():
     words_df = pd.DataFrame(columns=_WORDS_COLUMNS)
     progress_df = pd.DataFrame(columns=_PROGRESS_COLUMNS)
     return words_df, progress_df
+
+
+def _eligible_tracker_records(records, prog_df, skip_statuses):
+    """Return (eligible_records, indices) filtered against skip_statuses."""
+    if not records or prog_df is None or prog_df.empty:
+        return [], []
+
+    skip = set(skip_statuses or [])
+    eligible: list[dict] = []
+    indices: list[int] = []
+    seen: set[int] = set()
+    has_status_col = 'status' in prog_df.columns
+
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        row_idx = rec.get('row_index')
+        if row_idx in seen or row_idx is None:
+            continue
+        if row_idx not in prog_df.index:
+            continue
+        seen.add(row_idx)
+
+        status_value = None
+        if has_status_col:
+            try:
+                status_value = prog_df.at[row_idx, 'status']
+            except Exception:
+                status_value = None
+        if status_value is None:
+            status_value = rec.get('status')
+
+        status_norm = _normalize_progress_status(status_value)
+        if status_norm in skip:
+            continue
+        eligible.append(rec)
+        indices.append(row_idx)
+
+    return eligible, indices
+
+
+def _format_tracker_selection_summary(records, snippet_limit=3):
+    if not records:
+        return ""
+
+    try:
+        limit = int(snippet_limit)
+    except Exception:
+        limit = 3
+    if limit < 1:
+        limit = len(records)
+
+    lines: list[str] = []
+    for rec in records[:limit]:
+        snippet = rec.get('verse_snippet') or rec.get('verse') or ""
+        snippet_text = str(snippet).strip() or "[No verse text]"
+        page = rec.get('page')
+        page_text = ""
+        if page not in (None, ""):
+            page_text = str(page).strip()
+        if page_text:
+            lines.append(f"\u2022 {snippet_text} (p. {page_text})")
+        else:
+            lines.append(f"\u2022 {snippet_text}")
+
+    if len(records) > limit:
+        lines.append(f"\u2022 …and {len(records) - limit} more")
+
+    return "\n".join(lines)
+
+
+def _build_tracker_confirmation_message(action_label, subject_label, records, detail_body=None, snippet_limit=3):
+    count = len(records)
+    subject = str(subject_label or "entry")
+    suffix = "" if count == 1 else "s"
+    parts = [f"{action_label} {count} {subject}{suffix}?"]
+    if detail_body:
+        parts.append(str(detail_body))
+    details = _format_tracker_selection_summary(records, snippet_limit=snippet_limit)
+    if details:
+        parts.append(details)
+    return "\n\n".join(parts)
+
+
+def _execute_tracker_status_update(
+    *,
+    tracker_path,
+    records,
+    skip_statuses,
+    status_value,
+    timestamp_column=None,
+    extra_updates=None,
+    message_title="",
+    action_label="",
+    subject_label="entry",
+    detail_body=None,
+    loader=None,
+    saver=None,
+    messagebox_module=None,
+    info_title=None,
+    info_message=None,
+    default_choice="cancel",
+    now_factory=None,
+    parent=None,
+    logger=None,
+    summary_limit=3,
+):
+    """Centralize the destructive tracker update flow with confirmation."""
+    if not records:
+        return False, []
+
+    loader = loader or load_word_tracker
+    saver = saver or _save_tracker
+    messagebox_module = messagebox_module or messagebox
+    now_factory = now_factory or datetime.now
+    log = logger if logger is not None else _TRACKER_LOGGER
+
+    try:
+        words_df, prog_df, others = loader(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+    except Exception:
+        return False, []
+
+    if prog_df is None or prog_df.empty:
+        return False, []
+
+    eligible_records, eligible_indices = _eligible_tracker_records(records, prog_df, skip_statuses)
+    if not eligible_records:
+        if info_title and info_message:
+            try:
+                messagebox_module.showinfo(info_title, info_message, parent=parent)
+            except Exception:
+                pass
+        return False, []
+
+    message_text = _build_tracker_confirmation_message(
+        action_label or "Confirm",
+        subject_label,
+        eligible_records,
+        detail_body=detail_body,
+        snippet_limit=summary_limit,
+    )
+
+    try:
+        proceed = bool(
+            messagebox_module.askokcancel(
+                message_title or "Confirm Action",
+                message_text,
+                default=default_choice,
+                parent=parent,
+            )
+        )
+    except Exception:
+        proceed = False
+
+    count = len(eligible_records)
+    suffix = "" if count == 1 else "s"
+    if not proceed:
+        try:
+            log.info("%s cancelled for %d %s%s", action_label, count, subject_label, suffix)
+        except Exception:
+            pass
+        return False, []
+
+    prog_copy = prog_df.copy()
+    mask = prog_copy.index.isin(eligible_indices)
+
+    if status_value and 'status' in prog_copy.columns:
+        prog_copy.loc[mask, 'status'] = status_value
+
+    if timestamp_column and timestamp_column in prog_copy.columns:
+        timestamp_value = now_factory()
+        prog_copy.loc[mask, timestamp_column] = timestamp_value
+
+    if extra_updates:
+        for col, value in extra_updates.items():
+            if col in prog_copy.columns:
+                prog_copy.loc[mask, col] = value
+
+    saver(tracker_path, words_df, prog_copy, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+
+    try:
+        log.info("%s confirmed for %d %s%s", action_label, count, subject_label, suffix)
+    except Exception:
+        pass
+
+    return True, eligible_records
+
+
+def _confirm_remove_pending_records(
+    tracker_path,
+    records,
+    *,
+    loader=None,
+    saver=None,
+    messagebox_module=None,
+    now_factory=None,
+    parent=None,
+    logger=None,
+):
+    return _execute_tracker_status_update(
+        tracker_path=tracker_path,
+        records=records,
+        skip_statuses=_REMOVED_STATUSES | _ARCHIVED_STATUSES,
+        status_value="removed",
+        timestamp_column="removed_at",
+        extra_updates={"selected_for_analysis": False},
+        message_title="Remove Pending Verses",
+        action_label="Remove",
+        subject_label="pending verse",
+        detail_body="This hides the verse from Pending and clears its selection flag.",
+        loader=loader,
+        saver=saver,
+        messagebox_module=messagebox_module,
+        info_title="Remove Pending",
+        info_message="Selected pending verses have already been removed or archived.",
+        default_choice="cancel",
+        now_factory=now_factory,
+        parent=parent,
+        logger=logger,
+    )
+
+
+def _confirm_archive_completed_records(
+    tracker_path,
+    records,
+    *,
+    loader=None,
+    saver=None,
+    messagebox_module=None,
+    now_factory=None,
+    parent=None,
+    logger=None,
+):
+    return _execute_tracker_status_update(
+        tracker_path=tracker_path,
+        records=records,
+        skip_statuses=_ARCHIVED_STATUSES | _REMOVED_STATUSES,
+        status_value="archived",
+        timestamp_column="archived_at",
+        extra_updates=None,
+        message_title="Archive Completed Verses",
+        action_label="Archive",
+        subject_label="completed verse",
+        detail_body="This removes them from the progress board and updates the CSV audit trail.",
+        loader=loader,
+        saver=saver,
+        messagebox_module=messagebox_module,
+        info_title="Archive Completed",
+        info_message="Selected completed verses are already archived.",
+        default_choice="cancel",
+        now_factory=now_factory,
+        parent=parent,
+        logger=logger,
+    )
 
 
 def _coerce_dt(val):
@@ -3297,44 +3555,24 @@ class GrammarApp:
 
         def _remove_pending():
             records = _selected_pending_records()
-            if not records:
-                return
-            try:
-                words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            except Exception:
-                return
-            if prog_df is None or prog_df.empty:
-                return
-            prog_copy = prog_df.copy()
-            indices = prog_copy.index.isin([r['row_index'] for r in records])
-            if 'status' in prog_copy.columns:
-                prog_copy.loc[indices, 'status'] = 'removed'
-            if 'removed_at' in prog_copy.columns:
-                prog_copy.loc[indices, 'removed_at'] = datetime.now()
-            if 'selected_for_analysis' in prog_copy.columns:
-                prog_copy.loc[indices, 'selected_for_analysis'] = False
-            _save_tracker(tracker_path, words_df, prog_copy, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            _after_tracker_update()
+            updated, _ = _confirm_remove_pending_records(
+                tracker_path,
+                records,
+                parent=win,
+            )
+            if updated:
+                _after_tracker_update()
 
         def _delete_completed():
             records = _selected_completed_records()
-            if not records:
+            updated, processed = _confirm_archive_completed_records(
+                tracker_path,
+                records,
+                parent=win,
+            )
+            if not updated:
                 return
-            try:
-                words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            except Exception:
-                return
-            if prog_df is None or prog_df.empty:
-                return
-            prog_copy = prog_df.copy()
-            now = datetime.now()
-            indices = prog_copy.index.isin([r['row_index'] for r in records])
-            if 'status' in prog_copy.columns:
-                prog_copy.loc[indices, 'status'] = 'archived'
-            if 'archived_at' in prog_copy.columns:
-                prog_copy.loc[indices, 'archived_at'] = now
-            _save_tracker(tracker_path, words_df, prog_copy, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            for rec in records:
+            for rec in processed:
                 _update_birha_row_state(word, rec.get('verse', ''), rec.get('word_index_key'), 'Deleted')
             _after_tracker_update()
 
