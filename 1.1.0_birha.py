@@ -313,9 +313,31 @@ class WindowManager:
         if os.name != 'nt' or ctypes is None:
             return
 
+        def _schedule_retry():
+            try:
+                attempts = getattr(self, "_safe_maximize_attempts", 0)
+            except Exception:
+                attempts = 0
+            if attempts >= 10:
+                return
+            try:
+                setattr(self, "_safe_maximize_attempts", attempts + 1)
+            except Exception:
+                pass
+            try:
+                self.win.after(80, lambda: self.enable_safe_maximize(bottom_margin_px))
+            except Exception:
+                pass
+
+        try:
+            self.win.update_idletasks()
+        except Exception:
+            pass
+
         try:
             hwnd = int(self.win.winfo_id())
         except Exception:
+            _schedule_retry()
             return
 
         user32 = ctypes.windll.user32
@@ -347,6 +369,10 @@ class WindowManager:
             pass
 
         if getattr(self, "_safe_maximize_hook", False):
+            try:
+                setattr(self, "_safe_maximize_attempts", 0)
+            except Exception:
+                pass
             return
 
         try:
@@ -380,6 +406,7 @@ class WindowManager:
 
             orig_proc = _get_wndproc(hwnd)
             if not getattr(orig_proc, "value", None):
+                _schedule_retry()
                 return
 
             self._orig_wndproc = orig_proc
@@ -439,6 +466,10 @@ class WindowManager:
             self._wndproc = _proc
             _set_wndproc(hwnd, self._wndproc)
             self._safe_maximize_hook = True
+            try:
+                setattr(self, "_safe_maximize_attempts", 0)
+            except Exception:
+                pass
 
             def _cleanup(_event=None):
                 try:
