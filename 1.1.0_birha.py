@@ -2399,7 +2399,9 @@ class GrammarApp:
             pass
         # Attach WindowManager and defer exact maximize (no margin) after layout
         # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
 
         header = tk.Label(
             win,
@@ -2595,7 +2597,9 @@ class GrammarApp:
             pass
         # Attach WindowManager and defer exact maximize (no margin) after layout
         # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
 
         header = tk.Label(
             win,
@@ -2928,6 +2932,12 @@ class GrammarApp:
         except Exception:
             pass
         win.configure(bg='light gray')
+        try:
+            mgr = self._wm_for(win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
+        except Exception:
+            pass
         frm = tk.Frame(win, bg='light gray')
         frm.pack(padx=12, pady=10)
         self._driver_lbl = tk.Label(frm, text="", font=('Arial', 12), bg='light gray')
@@ -3250,7 +3260,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
-            self._wm_for(win)
+            mgr = self._wm_for(win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -3422,7 +3434,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
-            self._wm_for(win)
+            mgr = self._wm_for(win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -3746,7 +3760,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
-            self._wm_for(win)
+            mgr = self._wm_for(win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -3857,7 +3873,9 @@ class GrammarApp:
             win.title(f"Re-Analyze Verses - {word}")
             win.configure(bg='light gray')
             try:
-                self._wm_for(win)
+                mgr = self._wm_for(win)
+                if mgr:
+                    mgr.enable_safe_maximize(0)
             except Exception:
                 pass
             tk.Label(win, text=f"Select completed verses to re-analyze for '{word}':", font=('Arial', 12, 'bold'), bg='light gray').pack(padx=12, pady=(10,6), anchor='w')
@@ -4120,7 +4138,9 @@ class GrammarApp:
             top.transient(self.root)
             top.grab_set()
             try:
-                self._wm_for(top)
+                mgr = self._wm_for(top)
+                if mgr:
+                    mgr.enable_safe_maximize(0)
             except Exception:
                 pass
 
@@ -4282,7 +4302,9 @@ class GrammarApp:
         except Exception:
             pass
         try:
-            self._wm_for(win)
+            mgr = self._wm_for(win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -4407,6 +4429,7 @@ class GrammarApp:
             try:
                 mgr = self._wm_for(win)
                 if mgr:
+                    mgr.enable_safe_maximize(0)
                     mgr.maximize()
             except Exception:
                 # Some platforms/window managers may not support maximize; ignore silently
@@ -4668,7 +4691,9 @@ class GrammarApp:
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
         # Taskbar-safe sizing
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
 
         # — Header Bar —
         header = tk.Frame(win, bg='#2f4f4f', height=60)
@@ -4744,7 +4769,9 @@ class GrammarApp:
         win.title("Assess by Verse")
         win.configure(bg='light gray')
         # Taskbar-safe sizing
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
     
         # — Optional page‐wide heading —
         tk.Label(
@@ -5193,7 +5220,9 @@ class GrammarApp:
         win.title("Paste Darpan Translation")
         win.configure(bg='light gray')
         # Taskbar-safe sizing: exact work-area maximize (no extra bottom gap)
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
         win.transient(self.root)
         win.grab_set()
 
@@ -5467,7 +5496,9 @@ class GrammarApp:
         win.title("Assess by Word - Translation & Selection")
         win.configure(bg='light gray')
         # Taskbar-safe exact work-area maximize (deferred) and F11 toggle
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
         win.transient(self.root)
         try:
             win.grab_set()
@@ -6285,7 +6316,9 @@ class GrammarApp:
         """Verse entry: build shared UI and run modally (unchanged behavior)."""
         win = tk.Toplevel(self.root)
         win.title(f"Assess Grammar: {word}")
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
         try:
             self.current_translation = translation
         except Exception:
@@ -6308,7 +6341,9 @@ class GrammarApp:
         """
         win = tk.Toplevel(self.root)
         win.title(f"Assess by Word – Grammar: {word}")
-        self._wm_apply(win, margin_px=0, defer=True)
+        mgr = self._wm_apply(win, margin_px=0, defer=True)
+        if mgr:
+            mgr.enable_safe_maximize(0)
         try:
             self.current_translation = translation
         except Exception:
@@ -6616,7 +6651,9 @@ class GrammarApp:
         win.configure(bg="light gray")
         # Exact per-monitor work-area maximize, deferred to avoid 1x1 restores
         try:
-            self._wm_apply(win, margin_px=0, defer=True)
+            mgr = self._wm_apply(win, margin_px=0, defer=True)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -8279,7 +8316,9 @@ class GrammarApp:
             win.grab_set()
             try:
                 # Bind F11 toggle and enable user maximize/restore
-                self._wm_for(win)
+                mgr = self._wm_for(win)
+                if mgr:
+                    mgr.enable_safe_maximize(0)
             except Exception:
                 pass
             title = tk.Label(win, text="A matching entry exists. Review changes:",
@@ -8444,7 +8483,10 @@ class GrammarApp:
         select_win.geometry("800x600")
         try:
             try:
-                self._wm_for(select_win).maximize()
+                mgr = self._wm_for(select_win)
+                if mgr:
+                    mgr.enable_safe_maximize(0)
+                    mgr.maximize()
             except Exception:
                 pass
         except tk.TclError:
@@ -9339,7 +9381,10 @@ class GrammarApp:
         self.match_window.title("Re-analysis: Select Matches and Meanings")
         self.match_window.configure(bg='light gray')
         try:
-            self._wm_for(self.match_window).maximize()
+            mgr = self._wm_for(self.match_window)
+            if mgr:
+                mgr.enable_safe_maximize(0)
+                mgr.maximize()
         except Exception:
             pass
 
@@ -10300,7 +10345,9 @@ class GrammarApp:
         assessment_win.title(f"Re-Assessment: '{self.accumulated_pankti}'")
         assessment_win.configure(bg='light gray')
         try:
-            self._wm_for(assessment_win)
+            mgr = self._wm_for(assessment_win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -10367,7 +10414,9 @@ class GrammarApp:
         final_win.title(f"Reanalysis: Finalize Grammar for '{word_entries[0]['Word']}'")
         final_win.configure(bg='light gray')
         try:
-            self._wm_for(final_win)
+            mgr = self._wm_for(final_win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -11306,7 +11355,10 @@ class GrammarApp:
         self.match_window.title("Select Matches and Meanings")
         self.match_window.configure(bg='light gray')
         try:
-            self._wm_for(self.match_window).maximize()
+            mgr = self._wm_for(self.match_window)
+            if mgr:
+                mgr.enable_safe_maximize(0)
+                mgr.maximize()
         except Exception:
             pass
         # New window ⇒ allow a fresh one-time resize binding
@@ -12485,7 +12537,10 @@ class GrammarApp:
         self.sggs_option_window.title("Select One Matching Verse")
         self.sggs_option_window.configure(bg='light gray')
         try:
-            self._wm_for(self.sggs_option_window).maximize()
+            mgr = self._wm_for(self.sggs_option_window)
+            if mgr:
+                mgr.enable_safe_maximize(0)
+                mgr.maximize()
         except Exception:
             pass
 
@@ -12706,7 +12761,10 @@ class GrammarApp:
         self.consecutive_window.title("Select Consecutive Verses")
         self.consecutive_window.configure(bg='light gray')
         try:
-            self._wm_for(self.consecutive_window).maximize()
+            mgr = self._wm_for(self.consecutive_window)
+            if mgr:
+                mgr.enable_safe_maximize(0)
+                mgr.maximize()
         except Exception:
             pass
 
@@ -12970,7 +13028,9 @@ class GrammarApp:
         assessment_win.title("Enter Translation Assessment")
         assessment_win.configure(bg='light gray')
         try:
-            self._wm_for(assessment_win)
+            mgr = self._wm_for(assessment_win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -13456,7 +13516,9 @@ class GrammarApp:
         final_win.title(f"Finalize Grammar for '{word_entries[0]['Word']}'")
         final_win.configure(bg='light gray')
         try:
-            self._wm_for(final_win)
+            mgr = self._wm_for(final_win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -13793,7 +13855,9 @@ class GrammarApp:
         assessment_win.title(f"Enter Translation Assessment for: '{self.accumulated_pankti}'")
         assessment_win.configure(bg='light gray')
         try:
-            self._wm_for(assessment_win)
+            mgr = self._wm_for(assessment_win)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
@@ -13891,7 +13955,9 @@ class GrammarApp:
         self.progress_window.attributes('-alpha', 0.0)  # Start fully transparent
         try:
             # Bind F11 toggle; do not auto-maximize progress window
-            self._wm_for(self.progress_window)
+            mgr = self._wm_for(self.progress_window)
+            if mgr:
+                mgr.enable_safe_maximize(0)
         except Exception:
             pass
 
