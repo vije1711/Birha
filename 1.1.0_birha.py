@@ -2399,14 +2399,7 @@ class GrammarApp:
             pass
         # Attach WindowManager and defer exact maximize (no margin) after layout
         # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
 
         header = tk.Label(
             win,
@@ -2602,14 +2595,7 @@ class GrammarApp:
             pass
         # Attach WindowManager and defer exact maximize (no margin) after layout
         # Windows: move to work-area origin + state('zoomed'); else: per-monitor work area
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
 
         header = tk.Label(
             win,
@@ -4621,6 +4607,33 @@ class GrammarApp:
             pass
         return mgr
 
+    def _wm_attach_safe_maximize(
+        self,
+        win,
+        *,
+        margin_px: int | None = 0,
+        defer: bool = True,
+    ):
+        """Attach the window manager to ``win`` and enable safe maximize.
+
+        If ``_wm_apply`` fails (returns ``None`` or raises), retry with ``_wm_for``
+        before enabling safe maximize. Returns the attached ``WindowManager`` or
+        ``None`` when the hookup fails entirely.
+        """
+        mgr = None
+        try:
+            mgr = self._wm_apply(win, margin_px=margin_px, defer=defer)
+        except Exception:
+            mgr = None
+        if not mgr:
+            mgr = self._wm_for(win)
+        if mgr:
+            try:
+                mgr.enable_safe_maximize(0)
+            except Exception:
+                pass
+        return mgr
+
     def _do_prompt_whats_new(self, state: dict):
         try:
             if messagebox.askyesno(
@@ -4710,14 +4723,7 @@ class GrammarApp:
         win.title("Grammar Database Update")
         win.configure(bg='#e0e0e0')  # light neutral background
         # Taskbar-safe sizing
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
 
         # — Header Bar —
         header = tk.Frame(win, bg='#2f4f4f', height=60)
@@ -4793,14 +4799,7 @@ class GrammarApp:
         win.title("Assess by Verse")
         win.configure(bg='light gray')
         # Taskbar-safe sizing
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
     
         # — Optional page‐wide heading —
         tk.Label(
@@ -5249,14 +5248,7 @@ class GrammarApp:
         win.title("Paste Darpan Translation")
         win.configure(bg='light gray')
         # Taskbar-safe sizing: exact work-area maximize (no extra bottom gap)
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
         win.transient(self.root)
         win.grab_set()
 
@@ -5530,14 +5522,7 @@ class GrammarApp:
         win.title("Assess by Word - Translation & Selection")
         win.configure(bg='light gray')
         # Taskbar-safe exact work-area maximize (deferred) and F11 toggle
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
         win.transient(self.root)
         try:
             win.grab_set()
@@ -6355,14 +6340,7 @@ class GrammarApp:
         """Verse entry: build shared UI and run modally (unchanged behavior)."""
         win = tk.Toplevel(self.root)
         win.title(f"Assess Grammar: {word}")
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
         try:
             self.current_translation = translation
         except Exception:
@@ -6385,14 +6363,7 @@ class GrammarApp:
         """
         win = tk.Toplevel(self.root)
         win.title(f"Assess by Word – Grammar: {word}")
-        mgr = self._wm_apply(win, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
         try:
             self.current_translation = translation
         except Exception:
@@ -6699,18 +6670,7 @@ class GrammarApp:
         win.title(f"Detail Grammar for ‘{word}’")
         win.configure(bg="light gray")
         # Exact per-monitor work-area maximize, deferred to avoid 1x1 restores
-        mgr = None
-        try:
-            mgr = self._wm_apply(win, margin_px=0, defer=True)
-        except Exception:
-            mgr = None
-        if not mgr:
-            mgr = self._wm_for(win)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(win, margin_px=0, defer=True)
 
         frm = tk.LabelFrame(
             win, text="Finalize Detailed Grammar",
@@ -9198,14 +9158,7 @@ class GrammarApp:
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
         # Align with other dialogs: request native maximize without taskbar margin.
-        mgr = self._wm_apply(self.input_window, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(self.input_window)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(self.input_window, margin_px=0, defer=True)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
@@ -11019,14 +10972,7 @@ class GrammarApp:
         self.input_window.resizable(True, True)
         # Attach WindowManager and defer maximize so the window realizes before sizing.
         # Align with other dialogs: request native maximize without taskbar margin.
-        mgr = self._wm_apply(self.input_window, margin_px=0, defer=True)
-        if not mgr:
-            mgr = self._wm_for(self.input_window)
-        if mgr:
-            try:
-                mgr.enable_safe_maximize(0)
-            except Exception:
-                pass
+        self._wm_attach_safe_maximize(self.input_window, margin_px=0, defer=True)
 
         PAD_TOP = 6
         self.input_window.grid_rowconfigure(1, weight=1)
