@@ -1663,6 +1663,51 @@ def build_noun_map(csv_path="1.1.1_birha.csv"):
     return by_end
 
 
+def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, path: str = "1.1.1_birha.csv") -> bool:
+    """Update the Row State column for matching entries in 1.1.1_birha.csv."""
+    if not new_state:
+        return False
+    if not os.path.exists(path):
+        return False
+    try:
+        df = pd.read_csv(path, encoding='utf-8-sig')
+    except Exception:
+        return False
+    if df.empty:
+        return False
+
+    state_col = _resolve_col(df, "Row State", "row_state")
+    if not state_col:
+        state_col = "Row State"
+        df[state_col] = ""
+
+    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
+    ref_col = _resolve_col(df, "Reference Verse", "Verse")
+    idx_col = _resolve_col(df, "Word Index", "word_index")
+
+    norm_word = _normalize_simple(word)
+    key_idx = _word_index_key(word_index)
+    key_verse = _normalize_verse_key(verse)
+
+    mask = pd.Series([True] * len(df))
+    if ve_col:
+        mask = mask & (df[ve_col].map(_normalize_simple) == norm_word)
+    if key_idx and idx_col:
+        mask = mask & (df[idx_col].map(_word_index_key) == key_idx)
+    if key_verse and ref_col:
+        mask = mask & (df[ref_col].map(_normalize_verse_key) == key_verse)
+
+    if not mask.any():
+        return False
+
+    df.loc[mask, state_col] = new_state
+    try:
+        df.to_csv(path, index=False, encoding='utf-8-sig')
+    except Exception:
+        return False
+    return True
+
+
 class GrammarApp:
     def __init__(self, root):
         """
@@ -7825,50 +7870,6 @@ class GrammarApp:
                 print(f"[Save] new row #{row_no}")
                 self._invalidate_derived_cache()
                 return True, row_no, 'append'
-
-def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, path: str = "1.1.1_birha.csv") -> bool:
-    """Update the Row State column for matching entries in 1.1.1_birha.csv."""
-    if not new_state:
-        return False
-    if not os.path.exists(path):
-        return False
-    try:
-        df = pd.read_csv(path, encoding='utf-8-sig')
-    except Exception:
-        return False
-    if df.empty:
-        return False
-
-    state_col = _resolve_col(df, "Row State", "row_state")
-    if not state_col:
-        state_col = "Row State"
-        df[state_col] = ""
-
-    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
-    ref_col = _resolve_col(df, "Reference Verse", "Verse")
-    idx_col = _resolve_col(df, "Word Index", "word_index")
-
-    norm_word = _normalize_simple(word)
-    key_idx = _word_index_key(word_index)
-    key_verse = _normalize_verse_key(verse)
-
-    mask = pd.Series([True] * len(df))
-    if ve_col:
-        mask = mask & (df[ve_col].map(_normalize_simple) == norm_word)
-    if key_idx and idx_col:
-        mask = mask & (df[idx_col].map(_word_index_key) == key_idx)
-    if key_verse and ref_col:
-        mask = mask & (df[ref_col].map(_normalize_verse_key) == key_verse)
-
-    if not mask.any():
-        return False
-
-    df.loc[mask, state_col] = new_state
-    try:
-        df.to_csv(path, index=False, encoding='utf-8-sig')
-    except Exception:
-        return False
-    return True
 
 
 
