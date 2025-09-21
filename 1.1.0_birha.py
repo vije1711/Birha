@@ -1592,6 +1592,11 @@ class GrammarApp:
         # Lexicon index cache (built lazily from 1.1.3 Excel)
         self._lexicon_index = None
         self._lexicon_index_path = "1.1.3_lexicon_index.json"
+        # Derived suggestions cache for Number/Gender/Type
+        self._derived_cache_path = "1.1.1_birha.csv"
+        self._derived_cache = None
+        self._derived_cache_mtime = None
+        self._derived_highlight_callbacks = []
 
         # word‑by‑word navigation
         self.current_word_index = 0
@@ -1649,6 +1654,96 @@ class GrammarApp:
         cleaned = re.sub(r"[।॥]", "", verse_text).strip()
         cleaned = re.sub(r"\s+", " ", cleaned)
         return unicodedata.normalize("NFC", cleaned)
+
+    def _invalidate_derived_cache(self):
+        """Clear cached derived suggestions so the next lookup reloads from disk."""
+        self._derived_cache = None
+        self._derived_cache_mtime = None
+
+    def get_derived_suggestions_by_vowel_ending(self, vowel_ending):
+        """Return dominant derived suggestions for Number/Gender/Type based on recent CSV data."""
+        suggestions = {
+            "Number / ਵਚਨ": None,
+            "Gender / ਲਿੰਗ": None,
+            "Type": None,
+        }
+        path = getattr(self, "_derived_cache_path", "1.1.1_birha.csv")
+        try:
+            raw_target = str(vowel_ending or "")
+        except Exception:
+            raw_target = "" if vowel_ending is None else f"{vowel_ending}"
+        target = raw_target.strip()
+        if not target:
+            return suggestions
+        try:
+            target = unicodedata.normalize("NFC", target)
+        except Exception:
+            pass
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            return suggestions
+        cache_df = getattr(self, "_derived_cache", None)
+        cache_mtime = getattr(self, "_derived_cache_mtime", None)
+        if cache_df is None or cache_mtime != mtime:
+            try:
+                df = pd.read_csv(path, encoding="utf-8-sig")
+            except Exception:
+                self._derived_cache = None
+                self._derived_cache_mtime = None
+                return suggestions
+            df.columns = [str(c).lstrip("﻿") for c in df.columns]
+            self._derived_cache = df
+            self._derived_cache_mtime = mtime
+        else:
+            df = cache_df
+        if df is None or getattr(df, "empty", True):
+            return suggestions
+        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("﻿Vowel Ending" if "﻿Vowel Ending" in df.columns else None)
+        ecol = "Evaluation" if "Evaluation" in df.columns else None
+        if not vcol or not ecol:
+            return suggestions
+        try:
+            ve_series = df[vcol].fillna("").astype(str).str.strip()
+        except Exception:
+            ve_series = df[vcol].fillna("").map(lambda v: str(v).strip())
+        try:
+            ve_series = ve_series.map(lambda v: unicodedata.normalize("NFC", v) if v else v)
+        except Exception:
+            pass
+        try:
+            eval_series = df[ecol].fillna("").astype(str).str.strip()
+        except Exception:
+            eval_series = df[ecol].fillna("").map(lambda v: str(v).strip())
+        mask = (ve_series == target) & (eval_series.str.casefold() == "derived")
+        filtered = df.loc[mask]
+        if getattr(filtered, "empty", True):
+            return suggestions
+        column_aliases = {
+            "Number / ਵਚਨ": ("Number / ਵਚਨ",),
+            "Gender / ਲਿੰਗ": ("Gender / ਲਿੰਗ",),
+            "Type": ("Type", "Word Type"),
+        }
+        for label, candidates in column_aliases.items():
+            actual_col = next((c for c in candidates if c in filtered.columns), None)
+            if not actual_col:
+                continue
+            series = filtered[actual_col].dropna()
+            if series.empty:
+                continue
+            series = series.astype(str).str.strip()
+            series = series[series != ""]
+            if series.empty:
+                continue
+            counts = series.value_counts()
+            if counts.empty:
+                continue
+            top_value = counts.index[0]
+            support = int(counts.iloc[0])
+            ratio = float(support) / float(series.size or 1)
+            if support >= 3 and ratio >= 0.60:
+                suggestions[label] = (top_value, support, ratio)
+        return suggestions
 
     # ------------------------------------------------------------------
     # Lexicon index: build from 1.1.3 Excel (tokenize, normalize, aggregate counts)
@@ -5151,6 +5246,14 @@ class GrammarApp:
         trans.pack(fill=tk.BOTH, expand=True)
 
         # Prepare vars for grammar options
+        if hasattr(self, '_derived_highlight_callbacks'):
+            for var, trace_id in getattr(self, '_derived_highlight_callbacks', []):
+                try:
+                    if isinstance(var, tk.Variable):
+                        var.trace_remove('write', trace_id)
+                except Exception:
+                    pass
+        self._derived_highlight_callbacks = []
         self.number_var = tk.StringVar(value="NA")
         self.gender_var = tk.StringVar(value="NA")
         self.pos_var    = tk.StringVar(value="NA")
@@ -5193,10 +5296,18 @@ class GrammarApp:
         for c in range(3):
             grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
 
+        radio_groups = {
+            "Number / ਵਚਨ": {},
+            "Gender / ਲਿੰਗ": {},
+            "Type": {},
+        }
+        radio_base_bg = {}
+        highlight_base_color = "light gray"
+
         # Number (2×2 grid)
         num_frame = tk.LabelFrame(grp_row, text="Number",
                                   font=("Arial", 14, "bold"),
-                                  bg="light gray", padx=8, pady=8)
+                                  bg=highlight_base_color, padx=8, pady=8)
         num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
         nums = [
             ("Singular", "Singular / ਇਕ"),
@@ -5206,17 +5317,27 @@ class GrammarApp:
         for i, (txt, val) in enumerate(nums):
             r = 0 if i < 2 else 1
             c = i if i < 2 else 0
-            tk.Radiobutton(
-                num_frame, text=txt, variable=self.number_var, value=val,
-                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            rb = tk.Radiobutton(
+                num_frame,
+                text=txt,
+                variable=self.number_var,
+                value=val,
+                bg=highlight_base_color,
+                activebackground=highlight_base_color,
+                font=("Arial", 12),
+                anchor="w",
+                justify="left"
+            )
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            radio_groups["Number / ਵਚਨ"][val] = rb
+            radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
         num_frame.grid_columnconfigure(0, weight=1)
         num_frame.grid_columnconfigure(1, weight=1)
 
         # Gender (two columns using grid)
         gend_frame = tk.LabelFrame(grp_row, text="Gender",
                                    font=("Arial", 14, "bold"),
-                                   bg="light gray", padx=8, pady=8)
+                                   bg=highlight_base_color, padx=8, pady=8)
         gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
         gends = [
             ("Masculine", "Masculine / ਪੁਲਿੰਗ"),
@@ -5228,17 +5349,27 @@ class GrammarApp:
         for i, (txt, val) in enumerate(gends):
             c = 0 if i < half else 1
             r = i if i < half else i - half
-            tk.Radiobutton(
-                gend_frame, text=txt, variable=self.gender_var, value=val,
-                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            rb = tk.Radiobutton(
+                gend_frame,
+                text=txt,
+                variable=self.gender_var,
+                value=val,
+                bg=highlight_base_color,
+                activebackground=highlight_base_color,
+                font=("Arial", 12),
+                anchor="w",
+                justify="left"
+            )
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            radio_groups["Gender / ਲਿੰਗ"][val] = rb
+            radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
         for c in range(2):
             gend_frame.grid_columnconfigure(c, weight=1)
 
         # POS
         pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
                                   font=("Arial", 14, "bold"),
-                                  bg="light gray", padx=8, pady=8)
+                                  bg=highlight_base_color, padx=8, pady=8)
         pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
         pos_choices = [
             ("Noun", "Noun / ਨਾਂਵ"),
@@ -5256,12 +5387,77 @@ class GrammarApp:
         for i, (txt, val) in enumerate(pos_choices):
             r = i % pos_rows
             c = i // pos_rows
-            tk.Radiobutton(
-                pos_frame, text=txt, variable=self.pos_var, value=val,
-                bg="light gray", font=("Arial", 12), anchor="w", justify="left"
-            ).grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            rb = tk.Radiobutton(
+                pos_frame,
+                text=txt,
+                variable=self.pos_var,
+                value=val,
+                bg=highlight_base_color,
+                activebackground=highlight_base_color,
+                font=("Arial", 12),
+                anchor="w",
+                justify="left"
+            )
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            radio_groups["Type"][val] = rb
+            radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
         for c in range(pos_cols):
             pos_frame.grid_columnconfigure(c, weight=1)
+
+        highlight_bg = "#fff8c6"
+        suggestions = self.get_derived_suggestions_by_vowel_ending(word)
+        derived_fields = [
+            ("Number / ਵਚਨ", self.number_var),
+            ("Gender / ਲਿੰਗ", self.gender_var),
+            ("Type", self.pos_var),
+        ]
+        for column, var in derived_fields:
+            radios = radio_groups.get(column, {})
+            if not radios:
+                continue
+            suggestion = suggestions.get(column)
+            suggested_value = None
+            if suggestion:
+                suggested_value = suggestion[0]
+                if suggested_value in radios:
+                    try:
+                        var.set(suggested_value)
+                    except Exception:
+                        pass
+                else:
+                    suggested_value = None
+            if suggested_value:
+                def _make_highlight_callback(v=var, radio_map=radios, target_value=suggested_value):
+                    def _apply(*_):
+                        current = v.get()
+                        for value, widget in radio_map.items():
+                            base = radio_base_bg.get(widget, highlight_base_color)
+                            color = highlight_bg if (value == current and current == target_value) else base
+                            try:
+                                widget.configure(bg=color, activebackground=color)
+                            except Exception:
+                                try:
+                                    widget.configure(bg=color)
+                                except Exception:
+                                    pass
+                    return _apply
+                callback = _make_highlight_callback()
+                callback()
+                try:
+                    trace_id = var.trace_add("write", callback)
+                    self._derived_highlight_callbacks.append((var, trace_id))
+                except Exception:
+                    callback()
+            else:
+                for widget in radios.values():
+                    base = radio_base_bg.get(widget, highlight_base_color)
+                    try:
+                        widget.configure(bg=base, activebackground=base)
+                    except Exception:
+                        try:
+                            widget.configure(bg=base)
+                        except Exception:
+                            pass
 
         # Rebalance translation/meanings heights after layout
         def _rebalance_heights():
@@ -7251,6 +7447,7 @@ class GrammarApp:
                 except Exception:
                     pass
                 print(f"[Save] overwrite row #{row_no}")
+                self._invalidate_derived_cache()
                 return True, row_no, 'overwrite'
         else:
             # Create file with header if missing, then append
@@ -7320,6 +7517,7 @@ class GrammarApp:
             except Exception:
                 pass
             print(f"[Save] new row #{row_no}")
+            self._invalidate_derived_cache()
             return True, row_no, 'append'
 
 
