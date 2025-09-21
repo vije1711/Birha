@@ -345,13 +345,28 @@ class WindowManager:
         # Ensure the caption has Maximize/Minimize buttons and a sizable frame.
         try:
             GWL_STYLE = -16
+            GWL_EXSTYLE = -20
             WS_MAXIMIZEBOX = 0x00010000
             WS_MINIMIZEBOX = 0x00020000
             WS_THICKFRAME = 0x00040000
+            WS_SYSMENU = 0x00080000
+            WS_CAPTION = 0x00C00000
+            WS_EX_TOOLWINDOW = 0x00000080
+            WS_EX_APPWINDOW = 0x00040000
             style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-            desired = style | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME
+            desired = style | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_CAPTION
+            changed = False
             if desired != style:
                 user32.SetWindowLongW(hwnd, GWL_STYLE, desired)
+                changed = True
+
+            exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            desired_ex = (exstyle | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
+            if desired_ex != exstyle:
+                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, desired_ex)
+                changed = True
+
+            if changed:
                 SWP_NOSIZE = 0x0001
                 SWP_NOMOVE = 0x0002
                 SWP_NOZORDER = 0x0004
