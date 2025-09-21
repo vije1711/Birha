@@ -693,6 +693,7 @@ _PROGRESS_COLUMNS = [
 
 _TRACKER_QUEUE_INDEX_KEY = "_tracker_row_index"
 
+
 _TRACKER_LOGGER = logging.getLogger("birha.tracker")
 
 
