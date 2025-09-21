@@ -1,5 +1,6 @@
 import csv
 import os
+import logging
 from tkinter import messagebox, scrolledtext, simpledialog
 import pandas as pd
 import ast
@@ -690,6 +691,10 @@ _PROGRESS_COLUMNS = [
     "verse_key_norm",
 ]
 
+_TRACKER_QUEUE_INDEX_KEY = "_tracker_row_index"
+
+_TRACKER_LOGGER = logging.getLogger("birha.tracker")
+
 
 _KNOWN_PROGRESS_STATUSES = {"pending", "completed", "reanalysis_queued", "removed", "archived"}
 
@@ -752,6 +757,260 @@ def _empty_tracker_frames():
     words_df = pd.DataFrame(columns=_WORDS_COLUMNS)
     progress_df = pd.DataFrame(columns=_PROGRESS_COLUMNS)
     return words_df, progress_df
+
+
+def _eligible_tracker_records(records, prog_df, skip_statuses):
+    """Return (eligible_records, indices) filtered against skip_statuses."""
+    if not records or prog_df is None or prog_df.empty:
+        return [], []
+
+    skip = set(skip_statuses or [])
+    eligible: list[dict] = []
+    indices: list[int] = []
+    seen: set[int] = set()
+    has_status_col = 'status' in prog_df.columns
+
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        row_idx = rec.get('row_index')
+        if row_idx in seen or row_idx is None:
+            continue
+        if row_idx not in prog_df.index:
+            continue
+        seen.add(row_idx)
+
+        status_value = None
+        if has_status_col:
+            try:
+                status_value = prog_df.at[row_idx, 'status']
+            except Exception:
+                status_value = None
+        if status_value is None:
+            status_value = rec.get('status')
+
+        status_norm = _normalize_progress_status(status_value)
+        if status_norm in skip:
+            continue
+        eligible.append(rec)
+        indices.append(row_idx)
+
+    return eligible, indices
+
+
+def _format_tracker_selection_summary(records, snippet_limit=3):
+    if not records:
+        return ""
+
+    try:
+        limit = int(snippet_limit)
+    except Exception:
+        limit = 3
+    if limit < 1:
+        limit = len(records)
+
+    lines: list[str] = []
+    for rec in records[:limit]:
+        snippet = rec.get('verse_snippet') or rec.get('verse') or ""
+        snippet_text = str(snippet).strip() or "[No verse text]"
+        page = rec.get('page')
+        page_text = ""
+        if page not in (None, ""):
+            page_text = str(page).strip()
+        if page_text:
+            lines.append(f"\u2022 {snippet_text} (p. {page_text})")
+        else:
+            lines.append(f"\u2022 {snippet_text}")
+
+    if len(records) > limit:
+        lines.append(f"\u2022 …and {len(records) - limit} more")
+
+    return "\n".join(lines)
+
+
+def _build_tracker_confirmation_message(action_label, subject_label, records, detail_body=None, snippet_limit=3):
+    count = len(records)
+    subject = str(subject_label or "entry")
+    suffix = "" if count == 1 else "s"
+    parts = [f"{action_label} {count} {subject}{suffix}?"]
+    if detail_body:
+        parts.append(str(detail_body))
+    details = _format_tracker_selection_summary(records, snippet_limit=snippet_limit)
+    if details:
+        parts.append(details)
+    return "\n\n".join(parts)
+
+
+def _execute_tracker_status_update(
+    *,
+    tracker_path,
+    records,
+    skip_statuses,
+    status_value,
+    timestamp_column=None,
+    extra_updates=None,
+    message_title="",
+    action_label="",
+    subject_label="entry",
+    detail_body=None,
+    loader=None,
+    saver=None,
+    messagebox_module=None,
+    info_title=None,
+    info_message=None,
+    default_choice="cancel",
+    now_factory=None,
+    parent=None,
+    logger=None,
+    summary_limit=3,
+):
+    """Centralize the destructive tracker update flow with confirmation."""
+    if not records:
+        return False, []
+
+    loader = loader or load_word_tracker
+    saver = saver or _save_tracker
+    messagebox_module = messagebox_module or messagebox
+    now_factory = now_factory or datetime.now
+    log = logger if logger is not None else _TRACKER_LOGGER
+
+    try:
+        words_df, prog_df, others = loader(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+    except Exception:
+        return False, []
+
+    if prog_df is None or prog_df.empty:
+        return False, []
+
+    eligible_records, eligible_indices = _eligible_tracker_records(records, prog_df, skip_statuses)
+    if not eligible_records:
+        if info_title and info_message:
+            try:
+                messagebox_module.showinfo(info_title, info_message, parent=parent)
+            except Exception:
+                pass
+        return False, []
+
+    message_text = _build_tracker_confirmation_message(
+        action_label or "Confirm",
+        subject_label,
+        eligible_records,
+        detail_body=detail_body,
+        snippet_limit=summary_limit,
+    )
+
+    try:
+        proceed = bool(
+            messagebox_module.askokcancel(
+                message_title or "Confirm Action",
+                message_text,
+                default=default_choice,
+                parent=parent,
+            )
+        )
+    except Exception:
+        proceed = False
+
+    count = len(eligible_records)
+    suffix = "" if count == 1 else "s"
+    if not proceed:
+        try:
+            log.info("%s cancelled for %d %s%s", action_label, count, subject_label, suffix)
+        except Exception:
+            pass
+        return False, []
+
+    prog_copy = prog_df.copy()
+    mask = prog_copy.index.isin(eligible_indices)
+
+    if status_value and 'status' in prog_copy.columns:
+        prog_copy.loc[mask, 'status'] = status_value
+
+    if timestamp_column and timestamp_column in prog_copy.columns:
+        timestamp_value = now_factory()
+        prog_copy.loc[mask, timestamp_column] = timestamp_value
+
+    if extra_updates:
+        for col, value in extra_updates.items():
+            if col in prog_copy.columns:
+                prog_copy.loc[mask, col] = value
+
+    saver(tracker_path, words_df, prog_copy, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+
+    try:
+        log.info("%s confirmed for %d %s%s", action_label, count, subject_label, suffix)
+    except Exception:
+        pass
+
+    return True, eligible_records
+
+
+def _confirm_remove_pending_records(
+    tracker_path,
+    records,
+    *,
+    loader=None,
+    saver=None,
+    messagebox_module=None,
+    now_factory=None,
+    parent=None,
+    logger=None,
+):
+    return _execute_tracker_status_update(
+        tracker_path=tracker_path,
+        records=records,
+        skip_statuses=_REMOVED_STATUSES | _ARCHIVED_STATUSES,
+        status_value="removed",
+        timestamp_column="removed_at",
+        extra_updates={"selected_for_analysis": False},
+        message_title="Remove Pending Verses",
+        action_label="Remove",
+        subject_label="pending verse",
+        detail_body="This hides the verse from Pending and clears its selection flag.",
+        loader=loader,
+        saver=saver,
+        messagebox_module=messagebox_module,
+        info_title="Remove Pending",
+        info_message="Selected pending verses have already been removed or archived.",
+        default_choice="cancel",
+        now_factory=now_factory,
+        parent=parent,
+        logger=logger,
+    )
+
+
+def _confirm_archive_completed_records(
+    tracker_path,
+    records,
+    *,
+    loader=None,
+    saver=None,
+    messagebox_module=None,
+    now_factory=None,
+    parent=None,
+    logger=None,
+):
+    return _execute_tracker_status_update(
+        tracker_path=tracker_path,
+        records=records,
+        skip_statuses=_ARCHIVED_STATUSES | _REMOVED_STATUSES,
+        status_value="archived",
+        timestamp_column="archived_at",
+        extra_updates=None,
+        message_title="Archive Completed Verses",
+        action_label="Archive",
+        subject_label="completed verse",
+        detail_body="This removes them from the progress board and updates the CSV audit trail.",
+        loader=loader,
+        saver=saver,
+        messagebox_module=messagebox_module,
+        info_title="Archive Completed",
+        info_message="Selected completed verses are already archived.",
+        default_choice="cancel",
+        now_factory=now_factory,
+        parent=parent,
+        logger=logger,
+    )
 
 
 def _coerce_dt(val):
@@ -1233,6 +1492,102 @@ def _word_index_key(value) -> str:
         except Exception:
             return ""
 
+
+def _dt_match_key(value) -> str:
+    """Create a comparable string key for datetime-like values."""
+    if value is None or value == "":
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    if isinstance(value, pd.Timestamp):
+        try:
+            if value.tz is not None:
+                value = value.tz_convert('UTC').tz_localize(None)
+        except Exception:
+            try:
+                value = value.tz_localize(None)
+            except Exception:
+                pass
+        value = value.to_pydatetime()
+    if isinstance(value, datetime):
+        try:
+            return value.replace(microsecond=value.microsecond).isoformat()
+        except Exception:
+            return value.isoformat()
+    try:
+        return str(value).strip()
+    except Exception:
+        return ""
+
+
+def _progress_target_mask(prog_df: pd.DataFrame, base_mask: pd.Series, queue_record: dict) -> pd.Series:
+    """Return a boolean mask narrowed to the progress row being finalized."""
+    if prog_df is None or prog_df.empty or base_mask is None:
+        return base_mask
+
+    try:
+        candidates = prog_df.loc[base_mask].copy()
+    except Exception:
+        candidates = prog_df.loc[base_mask.fillna(False)] if hasattr(base_mask, 'fillna') else prog_df.iloc[0:0]
+
+    if candidates.empty:
+        return base_mask
+
+    row_idx = queue_record.get(_TRACKER_QUEUE_INDEX_KEY)
+    if row_idx in candidates.index:
+        return prog_df.index == row_idx
+
+    status_norm = _normalize_progress_status(queue_record.get('status')) if queue_record else None
+    if status_norm and 'status' in candidates.columns:
+        try:
+            status_mask = candidates['status'].map(_normalize_progress_status) == status_norm
+            if status_mask.any():
+                candidates = candidates.loc[status_mask]
+        except Exception:
+            pass
+
+    created_key = _dt_match_key(queue_record.get('created_at')) if queue_record else ""
+    if created_key and 'created_at' in candidates.columns:
+        try:
+            created_mask = candidates['created_at'].map(_dt_match_key) == created_key
+            if created_mask.any():
+                candidates = candidates.loc[created_mask]
+        except Exception:
+            pass
+
+    if candidates.shape[0] > 1 and 'selected_at' in candidates.columns:
+        selected_key = _dt_match_key(queue_record.get('selected_at')) if queue_record else ""
+        if selected_key:
+            try:
+                selected_mask = candidates['selected_at'].map(_dt_match_key) == selected_key
+                if selected_mask.any():
+                    candidates = candidates.loc[selected_mask]
+            except Exception:
+                pass
+
+    if candidates.empty:
+        candidates = prog_df.loc[base_mask]
+
+    if candidates.shape[0] > 1:
+        if 'created_at' in candidates.columns:
+            try:
+                created_series = pd.to_datetime(candidates['created_at'], errors='coerce')
+                if not created_series.isna().all():
+                    latest_idx = created_series.idxmax()
+                    return prog_df.index == latest_idx
+            except Exception:
+                pass
+        try:
+            return prog_df.index == candidates.index.max()
+        except Exception:
+            pass
+
+    return prog_df.index.isin(candidates.index)
+
+
 def _parse_page_value(val):
     try:
         if val is None:
@@ -1661,6 +2016,51 @@ def build_noun_map(csv_path="1.1.1_birha.csv"):
             g_dict[gender] = n_dict
         by_end[ending] = g_dict
     return by_end
+
+
+def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, path: str = "1.1.1_birha.csv") -> bool:
+    """Update the Row State column for matching entries in 1.1.1_birha.csv."""
+    if not new_state:
+        return False
+    if not os.path.exists(path):
+        return False
+    try:
+        df = pd.read_csv(path, encoding='utf-8-sig')
+    except Exception:
+        return False
+    if df.empty:
+        return False
+
+    state_col = _resolve_col(df, "Row State", "row_state")
+    if not state_col:
+        state_col = "Row State"
+        df[state_col] = ""
+
+    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
+    ref_col = _resolve_col(df, "Reference Verse", "Verse")
+    idx_col = _resolve_col(df, "Word Index", "word_index")
+
+    norm_word = _normalize_simple(word)
+    key_idx = _word_index_key(word_index)
+    key_verse = _normalize_verse_key(verse)
+
+    mask = pd.Series([True] * len(df))
+    if ve_col:
+        mask = mask & (df[ve_col].map(_normalize_simple) == norm_word)
+    if key_idx and idx_col:
+        mask = mask & (df[idx_col].map(_word_index_key) == key_idx)
+    if key_verse and ref_col:
+        mask = mask & (df[ref_col].map(_normalize_verse_key) == key_verse)
+
+    if not mask.any():
+        return False
+
+    df.loc[mask, state_col] = new_state
+    try:
+        df.to_csv(path, index=False, encoding='utf-8-sig')
+    except Exception:
+        return False
+    return True
 
 
 class GrammarApp:
@@ -2459,6 +2859,10 @@ class GrammarApp:
                         except Exception:
                             df['_sel'] = pd.Series([None]*len(df))
                         df = df.sort_values(by=['_sel']).drop(columns=['_sel'])
+                    try:
+                        df[_TRACKER_QUEUE_INDEX_KEY] = df.index
+                    except Exception:
+                        df[_TRACKER_QUEUE_INDEX_KEY] = list(df.index)
                     self._word_driver_queue = df.to_dict('records')
                 except Exception:
                     self._word_driver_queue = []
@@ -2496,6 +2900,7 @@ class GrammarApp:
             self._word_driver_norm = norm
             self._word_driver_index = 0
             self._word_driver_current_verse = None
+            self._word_driver_current_record = None
 
             # Integrated driver controls are part of the ABW windows; no floating controller.
             # Open first verse immediately
@@ -2601,11 +3006,13 @@ class GrammarApp:
                 return
             queue = getattr(self, '_word_driver_queue', []) or []
             idx = getattr(self, '_word_driver_index', 0)
+            self._word_driver_current_record = None
             if idx >= len(queue):
                 # done
                 self._word_driver_complete_word_if_done()
                 return
             rec = queue[idx]
+            self._word_driver_current_record = rec
             verse = str(rec.get('verse', ''))
             if not verse.strip():
                 # Skip invalid
@@ -2648,6 +3055,7 @@ class GrammarApp:
             if idx < total:
                 self._word_driver_index = idx + 1
             self._word_driver_current_verse = None
+            self._word_driver_current_record = None
             # refresh controller UI
             self._word_driver_update_ui()
         except Exception:
@@ -2667,35 +3075,64 @@ class GrammarApp:
                     mask_verse = (prog_df.get('verse', pd.Series(dtype=str)).astype(str)
                                   .map(lambda s: _normalize_simple(s)) == _normalize_simple(verse))
                     mask = mask_word & mask_verse
+                    current_record = getattr(self, '_word_driver_current_record', {}) or {}
                     if mask.any():
-                        prev_status = prog_df.loc[mask, 'status'].map(_normalize_progress_status) if 'status' in prog_df.columns else pd.Series([], dtype=str)
-                        now = datetime.now()
-                        if 'status' in prog_df.columns:
-                            prog_df.loc[mask, 'status'] = 'completed'
-                        if 'completed_at' in prog_df.columns:
-                            prog_df.loc[mask, 'completed_at'] = now
-                        if 'reanalyzed_count' in prog_df.columns and not prev_status.empty:
-                            try:
-                                counts = prog_df.loc[mask, 'reanalyzed_count'].fillna(0).astype(int)
-                                requeue_flags = prev_status.eq('reanalysis_queued').astype(int)
-                                prog_df.loc[mask, 'reanalyzed_count'] = counts.add(requeue_flags, fill_value=0).astype(int)
-                            except Exception:
-                                pass
-                        if 'last_reanalyzed_at' in prog_df.columns and not prev_status.empty:
-                            try:
-                                needs_ts = prev_status.eq('reanalysis_queued')
-                                if needs_ts.any():
-                                    prog_df.loc[prev_status.index[needs_ts], 'last_reanalyzed_at'] = now
-                            except Exception:
-                                pass
-                        if 'superseded_at' in prog_df.columns:
-                            try:
-                                prog_df.loc[mask, 'superseded_at'] = None
-                            except Exception:
-                                pass
-                        _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                        target_mask = _progress_target_mask(prog_df, mask, current_record)
+                        if isinstance(target_mask, pd.Series):
+                            target_mask = target_mask.reindex(prog_df.index, fill_value=False)
+                        else:
+                            target_mask = pd.Series(target_mask, index=prog_df.index)
+                        target_mask = target_mask & mask
+                        if target_mask.any():
+                            prev_status = (
+                                prog_df.loc[target_mask, 'status'].map(_normalize_progress_status)
+                                if 'status' in prog_df.columns else pd.Series([], dtype=str)
+                            )
+                            now = datetime.now()
+                            others_mask = mask & ~target_mask
+                            others_superseded_count = None
+                            others_superseded_snapshot = None
+                            if 'superseded_at' in prog_df.columns and others_mask.any():
+                                try:
+                                    others_superseded_snapshot = prog_df.loc[others_mask, 'superseded_at'].copy()
+                                    others_superseded_count = prog_df.loc[others_mask, 'superseded_at'].notna().sum()
+                                except Exception:
+                                    others_superseded_snapshot = None
+                                    others_superseded_count = None
+                            if 'status' in prog_df.columns:
+                                prog_df.loc[target_mask, 'status'] = 'completed'
+                            if 'completed_at' in prog_df.columns:
+                                prog_df.loc[target_mask, 'completed_at'] = now
+                            if 'reanalyzed_count' in prog_df.columns and not prev_status.empty:
+                                try:
+                                    counts = prog_df.loc[target_mask, 'reanalyzed_count'].fillna(0).astype(int)
+                                    requeue_flags = prev_status.eq('reanalysis_queued').astype(int)
+                                    prog_df.loc[target_mask, 'reanalyzed_count'] = counts.add(requeue_flags, fill_value=0).astype(int)
+                                except Exception:
+                                    pass
+                            if 'last_reanalyzed_at' in prog_df.columns and not prev_status.empty:
+                                try:
+                                    needs_ts = prev_status.eq('reanalysis_queued')
+                                    if needs_ts.any():
+                                        prog_df.loc[prev_status.index[needs_ts], 'last_reanalyzed_at'] = now
+                                except Exception:
+                                    pass
+                            if 'superseded_at' in prog_df.columns:
+                                try:
+                                    prog_df.loc[target_mask, 'superseded_at'] = None
+                                except Exception:
+                                    pass
+                                if others_superseded_snapshot is not None:
+                                    try:
+                                        after_count = prog_df.loc[others_mask, 'superseded_at'].notna().sum()
+                                        if others_superseded_count is not None and after_count != others_superseded_count:
+                                            prog_df.loc[others_mask, 'superseded_at'] = others_superseded_snapshot
+                                    except Exception:
+                                        prog_df.loc[others_mask, 'superseded_at'] = others_superseded_snapshot
+                            _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
                 except Exception:
                     pass
+            self._word_driver_current_record = None
             # advance index
             self._word_driver_in_progress = False
             self._word_driver_index += 1
@@ -3117,44 +3554,24 @@ class GrammarApp:
 
         def _remove_pending():
             records = _selected_pending_records()
-            if not records:
-                return
-            try:
-                words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            except Exception:
-                return
-            if prog_df is None or prog_df.empty:
-                return
-            prog_copy = prog_df.copy()
-            indices = prog_copy.index.isin([r['row_index'] for r in records])
-            if 'status' in prog_copy.columns:
-                prog_copy.loc[indices, 'status'] = 'removed'
-            if 'removed_at' in prog_copy.columns:
-                prog_copy.loc[indices, 'removed_at'] = datetime.now()
-            if 'selected_for_analysis' in prog_copy.columns:
-                prog_copy.loc[indices, 'selected_for_analysis'] = False
-            _save_tracker(tracker_path, words_df, prog_copy, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            _after_tracker_update()
+            updated, _ = _confirm_remove_pending_records(
+                tracker_path,
+                records,
+                parent=win,
+            )
+            if updated:
+                _after_tracker_update()
 
         def _delete_completed():
             records = _selected_completed_records()
-            if not records:
+            updated, processed = _confirm_archive_completed_records(
+                tracker_path,
+                records,
+                parent=win,
+            )
+            if not updated:
                 return
-            try:
-                words_df, prog_df, others = load_word_tracker(tracker_path, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            except Exception:
-                return
-            if prog_df is None or prog_df.empty:
-                return
-            prog_copy = prog_df.copy()
-            now = datetime.now()
-            indices = prog_copy.index.isin([r['row_index'] for r in records])
-            if 'status' in prog_copy.columns:
-                prog_copy.loc[indices, 'status'] = 'archived'
-            if 'archived_at' in prog_copy.columns:
-                prog_copy.loc[indices, 'archived_at'] = now
-            _save_tracker(tracker_path, words_df, prog_copy, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
-            for rec in records:
+            for rec in processed:
                 _update_birha_row_state(word, rec.get('verse', ''), rec.get('word_index_key'), 'Deleted')
             _after_tracker_update()
 
@@ -7825,50 +8242,6 @@ class GrammarApp:
                 print(f"[Save] new row #{row_no}")
                 self._invalidate_derived_cache()
                 return True, row_no, 'append'
-
-def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, path: str = "1.1.1_birha.csv") -> bool:
-    """Update the Row State column for matching entries in 1.1.1_birha.csv."""
-    if not new_state:
-        return False
-    if not os.path.exists(path):
-        return False
-    try:
-        df = pd.read_csv(path, encoding='utf-8-sig')
-    except Exception:
-        return False
-    if df.empty:
-        return False
-
-    state_col = _resolve_col(df, "Row State", "row_state")
-    if not state_col:
-        state_col = "Row State"
-        df[state_col] = ""
-
-    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
-    ref_col = _resolve_col(df, "Reference Verse", "Verse")
-    idx_col = _resolve_col(df, "Word Index", "word_index")
-
-    norm_word = _normalize_simple(word)
-    key_idx = _word_index_key(word_index)
-    key_verse = _normalize_verse_key(verse)
-
-    mask = pd.Series([True] * len(df))
-    if ve_col:
-        mask = mask & (df[ve_col].map(_normalize_simple) == norm_word)
-    if key_idx and idx_col:
-        mask = mask & (df[idx_col].map(_word_index_key) == key_idx)
-    if key_verse and ref_col:
-        mask = mask & (df[ref_col].map(_normalize_verse_key) == key_verse)
-
-    if not mask.any():
-        return False
-
-    df.loc[mask, state_col] = new_state
-    try:
-        df.to_csv(path, index=False, encoding='utf-8-sig')
-    except Exception:
-        return False
-    return True
 
 
 
