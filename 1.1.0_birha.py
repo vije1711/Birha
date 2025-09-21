@@ -3260,6 +3260,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
+        except Exception:
+            pass
+        try:
             mgr = self._wm_for(win)
             if mgr:
                 mgr.enable_safe_maximize(0)
@@ -3434,6 +3437,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
+        except Exception:
+            pass
+        try:
             mgr = self._wm_for(win)
             if mgr:
                 mgr.enable_safe_maximize(0)
@@ -3760,6 +3766,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
+        except Exception:
+            pass
+        try:
             mgr = self._wm_for(win)
             if mgr:
                 mgr.enable_safe_maximize(0)
