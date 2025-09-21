@@ -313,19 +313,31 @@ class WindowManager:
         if os.name != 'nt' or ctypes is None:
             return
 
-        def _schedule_retry():
+        def _window_exists() -> bool:
+            try:
+                return bool(self.win.winfo_exists())
+            except Exception:
+                return False
+
+        def _schedule_retry(delay_ms: int = 120):
             try:
                 attempts = getattr(self, "_safe_maximize_attempts", 0)
             except Exception:
                 attempts = 0
-            if attempts >= 10:
+            if attempts >= 10 or not _window_exists():
                 return
             try:
                 setattr(self, "_safe_maximize_attempts", attempts + 1)
             except Exception:
                 pass
             try:
-                self.win.after(80, lambda: self.enable_safe_maximize(bottom_margin_px))
+                self.win.after(delay_ms, lambda: self.enable_safe_maximize(bottom_margin_px))
+            except Exception:
+                pass
+
+        def _reset_attempts():
+            try:
+                setattr(self, "_safe_maximize_attempts", 0)
             except Exception:
                 pass
 
@@ -342,52 +354,72 @@ class WindowManager:
 
         user32 = ctypes.windll.user32
 
-        # Ensure the caption has Maximize/Minimize buttons and a sizable frame.
-        try:
-            GWL_STYLE = -16
-            GWL_EXSTYLE = -20
-            WS_MAXIMIZEBOX = 0x00010000
-            WS_MINIMIZEBOX = 0x00020000
-            WS_THICKFRAME = 0x00040000
-            WS_SYSMENU = 0x00080000
-            WS_CAPTION = 0x00C00000
-            WS_EX_TOOLWINDOW = 0x00000080
-            WS_EX_APPWINDOW = 0x00040000
-            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-            desired = style | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_CAPTION
-            changed = False
-            if desired != style:
-                user32.SetWindowLongW(hwnd, GWL_STYLE, desired)
-                changed = True
+        GWL_STYLE = -16
+        GWL_EXSTYLE = -20
+        WS_MAXIMIZEBOX = 0x00010000
+        WS_MINIMIZEBOX = 0x00020000
+        WS_THICKFRAME = 0x00040000
+        WS_SYSMENU = 0x00080000
+        WS_CAPTION = 0x00C00000
+        WS_EX_TOOLWINDOW = 0x00000080
 
-            exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            desired_ex = (exstyle | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
-            if desired_ex != exstyle:
-                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, desired_ex)
-                changed = True
-
-            if changed:
-                SWP_NOSIZE = 0x0001
-                SWP_NOMOVE = 0x0002
-                SWP_NOZORDER = 0x0004
-                SWP_FRAMECHANGED = 0x0020
-                user32.SetWindowPos(
-                    hwnd,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED,
-                )
-        except Exception:
-            pass
-
-        if getattr(self, "_safe_maximize_hook", False):
+        def _styles_ready(handle) -> bool:
             try:
-                setattr(self, "_safe_maximize_attempts", 0)
+                style_bits = user32.GetWindowLongW(handle, GWL_STYLE)
+                exstyle_bits = user32.GetWindowLongW(handle, GWL_EXSTYLE)
+            except Exception:
+                return False
+            required = WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_CAPTION
+            if (style_bits & required) != required:
+                return False
+            if exstyle_bits & WS_EX_TOOLWINDOW:
+                return False
+            return True
+
+        def _ensure_frame_styles(handle) -> bool:
+            changed = False
+            try:
+                style_bits = user32.GetWindowLongW(handle, GWL_STYLE)
+                desired = style_bits | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_SYSMENU | WS_CAPTION
+                if desired != style_bits:
+                    user32.SetWindowLongW(handle, GWL_STYLE, desired)
+                    changed = True
             except Exception:
                 pass
+            try:
+                exstyle_bits = user32.GetWindowLongW(handle, GWL_EXSTYLE)
+                desired_ex = exstyle_bits & ~WS_EX_TOOLWINDOW
+                if desired_ex != exstyle_bits:
+                    user32.SetWindowLongW(handle, GWL_EXSTYLE, desired_ex)
+                    changed = True
+            except Exception:
+                pass
+            if changed:
+                try:
+                    SWP_NOSIZE = 0x0001
+                    SWP_NOMOVE = 0x0002
+                    SWP_NOZORDER = 0x0004
+                    SWP_FRAMECHANGED = 0x0020
+                    user32.SetWindowPos(
+                        handle,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED,
+                    )
+                except Exception:
+                    pass
+            return _styles_ready(handle)
+
+        styles_ok = _ensure_frame_styles(hwnd)
+        if styles_ok:
+            _reset_attempts()
+        else:
+            _schedule_retry()
+
+        if getattr(self, "_safe_maximize_hook", False):
             return
 
         try:
@@ -481,10 +513,10 @@ class WindowManager:
             self._wndproc = _proc
             _set_wndproc(hwnd, self._wndproc)
             self._safe_maximize_hook = True
-            try:
-                setattr(self, "_safe_maximize_attempts", 0)
-            except Exception:
-                pass
+            _reset_attempts()
+
+            if not styles_ok:
+                _schedule_retry()
 
             def _cleanup(_event=None):
                 try:
