@@ -4185,2360 +4185,2421 @@ class GrammarApp:
             top.geometry(f"{w}x{h}+{x}+{y}")
             top.wait_window()
 
-        def show_dashboard(self):
-            """Creates the dashboard interface directly in the main root window."""
-            # Clear any existing widgets from the root
-            for widget in self.root.winfo_children():
-                widget.destroy()
+    def show_dashboard(self):
+        """Creates the dashboard interface directly in the main root window."""
+        # Clear any existing widgets from the root
+        for widget in self.root.winfo_children():
+            widget.destroy()
 
-            # Set up the dashboard appearance in the root window
-            self.root.title("Dashboard")
+        # Set up the dashboard appearance in the root window
+        self.root.title("Dashboard")
+        self.root.configure(bg='light gray')
+        try:
+            self._wm_for(self.root).maximize()
+        except Exception:
+            pass
+
+        # Dashboard header label
+        header = tk.Label(
+            self.root,
+            text="Welcome to Gurbani Software Dashboard",
+            font=('Arial', 18, 'bold'),
+            bg='dark slate gray',
+            fg='white'
+        )
+        header.pack(fill=tk.X, pady=20)
+
+        # Create a frame to hold dashboard buttons
+        button_frame = tk.Frame(self.root, bg='light gray')
+        button_frame.pack(expand=True)
+
+        # New Button to open the Verse Analysis Dashboard
+        verse_analysis_btn = tk.Button(
+            button_frame,
+            text="Verse Analysis Dashboard",
+            font=('Arial', 14, 'bold'),
+            bg='dark cyan',
+            fg='white',
+            padx=20,
+            pady=10,
+            command=self.launch_verse_analysis_dashboard
+        )
+        verse_analysis_btn.pack(pady=10)
+
+        # Button to open the Grammar‑DB Update window
+        grammar_update_btn = tk.Button(
+            button_frame,
+            text="Grammar DB Update",
+            font=('Arial', 14, 'bold'),
+            bg='teal',
+            fg='white',
+            padx=20,
+            pady=10,
+            command=self.launch_grammar_update_dashboard
+        )
+        grammar_update_btn.pack(pady=10)
+
+        # Placeholder for future features (e.g., Grammar Correction)
+        future_btn = tk.Button(
+            button_frame,
+            text="Upcoming Feature: Grammar Correction",
+            font=('Arial', 14, 'bold'),
+            bg='gray',
+            fg='white',
+            padx=20,
+            pady=10,
+            state=tk.DISABLED
+        )
+        future_btn.pack(pady=10)
+
+        # What's New / Releases button
+        whats_new_btn = tk.Button(
+            button_frame,
+            text="What's New",
+            font=('Arial', 12, 'bold'),
+            bg='#2f4f4f',
+            fg='white',
+            padx=16,
+            pady=8,
+            command=self.show_whats_new
+        )
+        whats_new_btn.pack(pady=(20, 10))
+
+        # One-time prompt to announce recent UI changes
+        try:
+            self.root.after(800, self.maybe_prompt_whats_new)
+        except Exception:
+            pass
+
+    def show_whats_new(self):
+        """Display a dialog with recent UI updates and release links."""
+        win = tk.Toplevel(self.root)
+        win.title("What's New")
+        win.configure(bg='light gray')
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        try:
+            self._wm_for(win)
+        except Exception:
+            pass
+
+        header = tk.Label(
+            win,
+            text="What's New",
+            font=('Arial', 16, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=8
+        )
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+
+        tk.Label(
+            body,
+            text=(
+                "Recent UI improvements: two-column card parity in matches view, "
+                "centered layout, equal column widths, radios never overlap text, and a centered final "
+                "card without stretching when there's an odd number of results."
+            ),
+            font=('Arial', 12),
+            bg='light gray',
+            wraplength=800,
+            justify='left'
+        ).pack(anchor='w', pady=(0, 10))
+
+        links = tk.Frame(body, bg='light gray')
+        links.pack(anchor='w', pady=(0, 8))
+
+        def link(label_parent, text, url):
+            lbl = tk.Label(
+                label_parent,
+                text=text,
+                font=('Arial', 12, 'underline'),
+                fg='blue',
+                bg='light gray',
+                cursor='hand2'
+            )
+            lbl.pack(anchor='w', pady=2)
+            lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
+
+        link(links, f"View UI tag: {WHATS_NEW_ID}",
+             f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
+        link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
+
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(fill=tk.X, padx=20, pady=(0, 16))
+        tk.Button(
+            btns,
+            text='Close',
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=16, pady=6,
+            command=win.destroy
+        ).pack(side=tk.RIGHT)
+
+        # Center over root
+        win.update_idletasks()
+        try:
+            w, h = win.winfo_width(), win.winfo_height()
+            x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
+            y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
+            win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
+
+    def _go_back_to_dashboard(self, win=None):
+        """Minimal helper: return to main dashboard in the root window.
+
+        Optional 'win' is ignored for API compatibility with other back buttons.
+        """
+        try:
+            if win is not None and hasattr(win, 'destroy'):
+                # If a child window was passed accidentally, close it safely
+                win.destroy()
+        except Exception:
+            pass
+        self.show_dashboard()
+
+    def launch_word_assessment_dashboard(self):
+        """Root-rendered UI for 'Assess by Word' dashboard (UI-only, no logic)."""
+        # Clear any existing widgets from the root and prep the surface
+        for widget in self.root.winfo_children():
+            try:
+                widget.destroy()
+            except Exception:
+                pass
+
+        self.root.title("Assess by Word")
+        try:
             self.root.configure(bg='light gray')
             try:
                 self._wm_for(self.root).maximize()
             except Exception:
                 pass
+        except Exception:
+            pass
 
-            # Dashboard header label
-            header = tk.Label(
-                self.root,
-                text="Welcome to Gurbani Software Dashboard",
-                font=('Arial', 18, 'bold'),
-                bg='dark slate gray',
-                fg='white'
-            )
-            header.pack(fill=tk.X, pady=20)
+        # Header
+        header = tk.Label(
+            self.root,
+            text="Assess by Word - Dashboard",
+            font=('Arial', 18, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=10
+        )
+        header.pack(fill=tk.X, pady=(0, 10))
 
-            # Create a frame to hold dashboard buttons
-            button_frame = tk.Frame(self.root, bg='light gray')
-            button_frame.pack(expand=True)
+        # Central buttons container
+        body = tk.Frame(self.root, bg='light gray')
+        body.pack(expand=True)
 
-            # New Button to open the Verse Analysis Dashboard
-            verse_analysis_btn = tk.Button(
-                button_frame,
-                text="Verse Analysis Dashboard",
-                font=('Arial', 14, 'bold'),
-                bg='dark cyan',
-                fg='white',
-                padx=20,
-                pady=10,
-                command=self.launch_verse_analysis_dashboard
-            )
-            verse_analysis_btn.pack(pady=10)
-
-            # Button to open the Grammar‑DB Update window
-            grammar_update_btn = tk.Button(
-                button_frame,
-                text="Grammar DB Update",
-                font=('Arial', 14, 'bold'),
-                bg='teal',
-                fg='white',
-                padx=20,
-                pady=10,
-                command=self.launch_grammar_update_dashboard
-            )
-            grammar_update_btn.pack(pady=10)
-
-            # Placeholder for future features (e.g., Grammar Correction)
-            future_btn = tk.Button(
-                button_frame,
-                text="Upcoming Feature: Grammar Correction",
-                font=('Arial', 14, 'bold'),
-                bg='gray',
-                fg='white',
-                padx=20,
-                pady=10,
-                state=tk.DISABLED
-            )
-            future_btn.pack(pady=10)
-
-            # What's New / Releases button
-            whats_new_btn = tk.Button(
-                button_frame,
-                text="What's New",
-                font=('Arial', 12, 'bold'),
-                bg='#2f4f4f',
-                fg='white',
-                padx=16,
-                pady=8,
-                command=self.show_whats_new
-            )
-            whats_new_btn.pack(pady=(20, 10))
-
-            # One-time prompt to announce recent UI changes
-            try:
-                self.root.after(800, self.maybe_prompt_whats_new)
-            except Exception:
-                pass
-
-        def show_whats_new(self):
-            """Display a dialog with recent UI updates and release links."""
+        # New Assessment menu housing the Word Search (Lexicon) launcher
+        def open_new_word_assessment_menu():
             win = tk.Toplevel(self.root)
-            win.title("What's New")
+            win.title("New Assessment – Assess by Word")
             win.configure(bg='light gray')
-            win.transient(self.root)
             try:
-                win.grab_set()
+                mgr = self._wm_for(win)
+                if mgr:
+                    mgr.maximize()
             except Exception:
-                pass
-            try:
-                self._wm_for(win)
-            except Exception:
+                # Some platforms/window managers may not support maximize; ignore silently
                 pass
 
             header = tk.Label(
                 win,
-                text="What's New",
-                font=('Arial', 16, 'bold'),
-                bg='dark slate gray',
-                fg='white',
-                pady=8
+                text="Start a New Assessment",
+                font=('Arial', 18, 'bold'),
+                bg='dark slate gray', fg='white', pady=10
             )
             header.pack(fill=tk.X)
 
-            body = tk.Frame(win, bg='light gray')
-            body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+            body_inner = tk.Frame(win, bg='light gray')
+            body_inner.pack(expand=True, padx=24, pady=20)
 
-            tk.Label(
-                body,
-                text=(
-                    "Recent UI improvements: two-column card parity in matches view, "
-                    "centered layout, equal column widths, radios never overlap text, and a centered final "
-                    "card without stretching when there's an odd number of results."
-                ),
-                font=('Arial', 12),
-                bg='light gray',
-                wraplength=800,
-                justify='left'
-            ).pack(anchor='w', pady=(0, 10))
-
-            links = tk.Frame(body, bg='light gray')
-            links.pack(anchor='w', pady=(0, 8))
-
-            def link(label_parent, text, url):
-                lbl = tk.Label(
-                    label_parent,
-                    text=text,
-                    font=('Arial', 12, 'underline'),
-                    fg='blue',
-                    bg='light gray',
-                    cursor='hand2'
-                )
-                lbl.pack(anchor='w', pady=2)
-                lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
-
-            link(links, f"View UI tag: {WHATS_NEW_ID}",
-                 f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
-            link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
-
-            btns = tk.Frame(win, bg='light gray')
-            btns.pack(fill=tk.X, padx=20, pady=(0, 16))
+            # Launcher: Word Search (Lexicon) → opens existing modal
             tk.Button(
-                btns,
-                text='Close',
-                font=('Arial', 12, 'bold'),
-                bg='gray', fg='white',
-                padx=16, pady=6,
-                command=win.destroy
-            ).pack(side=tk.RIGHT)
-
-            # Center over root
-            win.update_idletasks()
-            try:
-                w, h = win.winfo_width(), win.winfo_height()
-                x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
-                y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
-                win.geometry(f"{w}x{h}+{x}+{y}")
-            except Exception:
-                pass
-
-        def _go_back_to_dashboard(self, win=None):
-            """Minimal helper: return to main dashboard in the root window.
-
-            Optional 'win' is ignored for API compatibility with other back buttons.
-            """
-            try:
-                if win is not None and hasattr(win, 'destroy'):
-                    # If a child window was passed accidentally, close it safely
-                    win.destroy()
-            except Exception:
-                pass
-            self.show_dashboard()
-
-        def launch_word_assessment_dashboard(self):
-            """Root-rendered UI for 'Assess by Word' dashboard (UI-only, no logic)."""
-            # Clear any existing widgets from the root and prep the surface
-            for widget in self.root.winfo_children():
-                try:
-                    widget.destroy()
-                except Exception:
-                    pass
-
-            self.root.title("Assess by Word")
-            try:
-                self.root.configure(bg='light gray')
-                try:
-                    self._wm_for(self.root).maximize()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-            # Header
-            header = tk.Label(
-                self.root,
-                text="Assess by Word - Dashboard",
-                font=('Arial', 18, 'bold'),
-                bg='dark slate gray',
-                fg='white',
-                pady=10
-            )
-            header.pack(fill=tk.X, pady=(0, 10))
-
-            # Central buttons container
-            body = tk.Frame(self.root, bg='light gray')
-            body.pack(expand=True)
-
-            # New Assessment menu housing the Word Search (Lexicon) launcher
-            def open_new_word_assessment_menu():
-                win = tk.Toplevel(self.root)
-                win.title("New Assessment – Assess by Word")
-                win.configure(bg='light gray')
-                try:
-                    mgr = self._wm_for(win)
-                    if mgr:
-                        mgr.maximize()
-                except Exception:
-                    # Some platforms/window managers may not support maximize; ignore silently
-                    pass
-
-                header = tk.Label(
-                    win,
-                    text="Start a New Assessment",
-                    font=('Arial', 18, 'bold'),
-                    bg='dark slate gray', fg='white', pady=10
-                )
-                header.pack(fill=tk.X)
-
-                body_inner = tk.Frame(win, bg='light gray')
-                body_inner.pack(expand=True, padx=24, pady=20)
-
-                # Launcher: Word Search (Lexicon) → opens existing modal
-                tk.Button(
-                    body_inner,
-                    text="Word Search (Lexicon)",
-                    font=('Arial', 14, 'bold'),
-                    bg='#4b8bbe', fg='white',
-                    padx=20, pady=10,
-                    command=self.show_word_search_modal
-                ).pack(pady=10)
-
-                footer = tk.Frame(win, bg='light gray')
-                footer.pack(fill=tk.X, padx=24, pady=(0, 16))
-                tk.Button(
-                    footer,
-                    text="< Back",
-                    font=('Arial', 12, 'bold'),
-                    bg='#2f4f4f', fg='white',
-                    padx=16, pady=6,
-                    command=lambda: self._go_back_to_dashboard(win)
-                ).pack(side=tk.LEFT)
-                tk.Button(
-                    footer,
-                    text="Close",
-                    font=('Arial', 12, 'bold'),
-                    bg='gray', fg='white',
-                    padx=16, pady=6,
-                    command=win.destroy
-                ).pack(side=tk.RIGHT)
-
-            tk.Button(
-                body,
-                text="New Assessment",
+                body_inner,
+                text="Word Search (Lexicon)",
                 font=('Arial', 14, 'bold'),
-                bg='dark cyan', fg='white',
+                bg='#4b8bbe', fg='white',
                 padx=20, pady=10,
-                command=open_new_word_assessment_menu
-            ).pack(pady=8)
+                command=self.show_word_search_modal
+            ).pack(pady=10)
 
+            footer = tk.Frame(win, bg='light gray')
+            footer.pack(fill=tk.X, padx=24, pady=(0, 16))
             tk.Button(
-                body,
-                text="Continue Incomplete",
-                font=('Arial', 14, 'bold'),
-                bg='teal', fg='white',
-                padx=20, pady=10,
-                command=self.show_continue_incomplete
-            ).pack(pady=8)
-
-            tk.Button(
-                body,
-                text="View Completed",
-                font=('Arial', 14, 'bold'),
-                bg='#2f4f4f', fg='white',
-                padx=20, pady=10,
-                command=self.show_view_completed
-            ).pack(pady=8)
-
-            # Bottom bar with Back
-            bottom = tk.Frame(self.root, bg='light gray')
-            bottom.pack(fill=tk.X, padx=20, pady=15)
-            tk.Button(
-                bottom,
+                footer,
                 text="< Back",
                 font=('Arial', 12, 'bold'),
-                bg='gray', fg='white',
-                padx=14, pady=6,
-                command=self._go_back_to_dashboard  # no 'win' arg
+                bg='#2f4f4f', fg='white',
+                padx=16, pady=6,
+                command=lambda: self._go_back_to_dashboard(win)
             ).pack(side=tk.LEFT)
-
-        # ---------------------------
-        # One-time "What's New" helpers
-        # ---------------------------
-        def _state_file_path(self):
-            try:
-                base = os.path.join(os.path.expanduser("~"), ".birha")
-                os.makedirs(base, exist_ok=True)
-                return os.path.join(base, "state.json")
-            except Exception:
-                # Fallback to current working directory if home is not accessible
-                return os.path.join(os.getcwd(), ".birha_state.json")
-
-        def _load_state(self):
-            path = self._state_file_path()
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                return {}
-
-        def _save_state(self, state: dict):
-            path = self._state_file_path()
-            try:
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(state, f)
-            except Exception:
-                pass
-
-        def maybe_prompt_whats_new(self):
-            # Avoid multiple prompts per session
-            if getattr(self, "_whats_new_checked", False):
-                return
-            self._whats_new_checked = True
-
-            state = self._load_state()
-            if state.get("last_whats_new") != WHATS_NEW_ID:
-                # Ask the user if they'd like to view details, then record as shown
-                self.root.after(100, lambda: self._do_prompt_whats_new_fixed(state))
-
-        # ---------------------------
-        # Window manager helper
-        # ---------------------------
-        def _wm_for(self, win):
-            """Return a WindowManager bound to 'win', creating and binding <F11> if needed."""
-            try:
-                mgr = getattr(win, "_wmgr", None)
-                if mgr is None:
-                    mgr = WindowManager(win)
-                    setattr(win, "_wmgr", mgr)
-                return mgr
-            except Exception:
-                return None
-
-        def _wm_apply(self, win, margin_px: int | None = None, defer: bool = True):
-            """Attach WindowManager to 'win' and optionally maximize.
-
-            - margin_px=None: only bind F11 (no sizing).
-            - margin_px>0: maximize_client(margin_px) for taskbar-safe sizing.
-            - margin_px==0: normal maximize().
-            If defer is True, schedule sizing after idle to let geometry realize first.
-            Returns the WindowManager or None.
-            """
-            mgr = self._wm_for(win)
-            if not mgr:
-                return None
-            def _do_size():
-                try:
-                    if margin_px is None:
-                        return
-                    if isinstance(margin_px, int) and margin_px > 0:
-                        mgr.maximize_client(bottom_margin_px=margin_px)
-                    else:
-                        mgr.maximize()
-                except Exception:
-                    pass
-            try:
-                if margin_px is not None:
-                    if defer:
-                        try:
-                            win.after_idle(_do_size)
-                        except Exception:
-                            _do_size()
-                    else:
-                        _do_size()
-            except Exception:
-                pass
-            return mgr
-
-        def _do_prompt_whats_new(self, state: dict):
-            try:
-                if messagebox.askyesno(
-                    "What’s New",
-                    (
-                        "We’ve improved verse selection cards: centered layout, equal column widths, "
-                        "and radios no longer overlap text. View details now?"
-                    ),
-                ):
-                    self.show_whats_new()
-            finally:
-                try:
-                    state["last_whats_new"] = WHATS_NEW_ID
-                    self._save_state(state)
-                except Exception:
-                    pass
-            return
-
-            header = tk.Label(
-                win,
-                text="What's New",
-                font=('Arial', 16, 'bold'),
-                bg='dark slate gray',
-                fg='white',
-                pady=8
-            )
-            header.pack(fill=tk.X)
-
-            body = tk.Frame(win, bg='light gray')
-            body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
-
-            tk.Label(
-                body,
-                text=(
-                    "Recent UI improvements: two-column card parity in matches view, "
-                    "centered layout, equal column widths, radios never overlap text, and a centered final "
-                    "card without stretching when there’s an odd number of results."
-                ),
-                font=('Arial', 12),
-                bg='light gray',
-                wraplength=800,
-                justify='left'
-            ).pack(anchor='w', pady=(0, 10))
-
-            links = tk.Frame(body, bg='light gray')
-            links.pack(anchor='w', pady=(0, 8))
-
-            def link(label_parent, text, url):
-                lbl = tk.Label(
-                    label_parent,
-                    text=text,
-                    font=('Arial', 12, 'underline'),
-                    fg='blue',
-                    bg='light gray',
-                    cursor='hand2'
-                )
-                lbl.pack(anchor='w', pady=2)
-                lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
-
-            link(links, f"View UI tag: {WHATS_NEW_ID}",
-                 f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
-            link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
-
-            btns = tk.Frame(win, bg='light gray')
-            btns.pack(fill=tk.X, padx=20, pady=(0, 16))
             tk.Button(
-                btns,
-                text='Close',
+                footer,
+                text="Close",
                 font=('Arial', 12, 'bold'),
                 bg='gray', fg='white',
                 padx=16, pady=6,
                 command=win.destroy
             ).pack(side=tk.RIGHT)
 
-            # Center over root
-            win.update_idletasks()
+        tk.Button(
+            body,
+            text="New Assessment",
+            font=('Arial', 14, 'bold'),
+            bg='dark cyan', fg='white',
+            padx=20, pady=10,
+            command=open_new_word_assessment_menu
+        ).pack(pady=8)
+
+        tk.Button(
+            body,
+            text="Continue Incomplete",
+            font=('Arial', 14, 'bold'),
+            bg='teal', fg='white',
+            padx=20, pady=10,
+            command=self.show_continue_incomplete
+        ).pack(pady=8)
+
+        tk.Button(
+            body,
+            text="View Completed",
+            font=('Arial', 14, 'bold'),
+            bg='#2f4f4f', fg='white',
+            padx=20, pady=10,
+            command=self.show_view_completed
+        ).pack(pady=8)
+
+        # Bottom bar with Back
+        bottom = tk.Frame(self.root, bg='light gray')
+        bottom.pack(fill=tk.X, padx=20, pady=15)
+        tk.Button(
+            bottom,
+            text="< Back",
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=14, pady=6,
+            command=self._go_back_to_dashboard  # no 'win' arg
+        ).pack(side=tk.LEFT)
+
+    # ---------------------------
+    # One-time "What's New" helpers
+    # ---------------------------
+    def _state_file_path(self):
+        try:
+            base = os.path.join(os.path.expanduser("~"), ".birha")
+            os.makedirs(base, exist_ok=True)
+            return os.path.join(base, "state.json")
+        except Exception:
+            # Fallback to current working directory if home is not accessible
+            return os.path.join(os.getcwd(), ".birha_state.json")
+
+    def _load_state(self):
+        path = self._state_file_path()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_state(self, state: dict):
+        path = self._state_file_path()
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(state, f)
+        except Exception:
+            pass
+
+    def maybe_prompt_whats_new(self):
+        # Avoid multiple prompts per session
+        if getattr(self, "_whats_new_checked", False):
+            return
+        self._whats_new_checked = True
+
+        state = self._load_state()
+        if state.get("last_whats_new") != WHATS_NEW_ID:
+            # Ask the user if they'd like to view details, then record as shown
+            self.root.after(100, lambda: self._do_prompt_whats_new_fixed(state))
+
+    # ---------------------------
+    # Window manager helper
+    # ---------------------------
+    def _wm_for(self, win):
+        """Return a WindowManager bound to 'win', creating and binding <F11> if needed."""
+        try:
+            mgr = getattr(win, "_wmgr", None)
+            if mgr is None:
+                mgr = WindowManager(win)
+                setattr(win, "_wmgr", mgr)
+            return mgr
+        except Exception:
+            return None
+
+    def _wm_apply(self, win, margin_px: int | None = None, defer: bool = True):
+        """Attach WindowManager to 'win' and optionally maximize.
+
+        - margin_px=None: only bind F11 (no sizing).
+        - margin_px>0: maximize_client(margin_px) for taskbar-safe sizing.
+        - margin_px==0: normal maximize().
+        If defer is True, schedule sizing after idle to let geometry realize first.
+        Returns the WindowManager or None.
+        """
+        mgr = self._wm_for(win)
+        if not mgr:
+            return None
+        def _do_size():
             try:
-                w, h = win.winfo_width(), win.winfo_height()
-                x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
-                y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
-                win.geometry(f"{w}x{h}+{x}+{y}")
+                if margin_px is None:
+                    return
+                if isinstance(margin_px, int) and margin_px > 0:
+                    mgr.maximize_client(bottom_margin_px=margin_px)
+                else:
+                    mgr.maximize()
+            except Exception:
+                pass
+        try:
+            if margin_px is not None:
+                if defer:
+                    try:
+                        win.after_idle(_do_size)
+                    except Exception:
+                        _do_size()
+                else:
+                    _do_size()
+        except Exception:
+            pass
+        return mgr
+
+    def _do_prompt_whats_new(self, state: dict):
+        try:
+            if messagebox.askyesno(
+                "What’s New",
+                (
+                    "We’ve improved verse selection cards: centered layout, equal column widths, "
+                    "and radios no longer overlap text. View details now?"
+                ),
+            ):
+                self.show_whats_new()
+        finally:
+            try:
+                state["last_whats_new"] = WHATS_NEW_ID
+                self._save_state(state)
+            except Exception:
+                pass
+        return
+
+        header = tk.Label(
+            win,
+            text="What's New",
+            font=('Arial', 16, 'bold'),
+            bg='dark slate gray',
+            fg='white',
+            pady=8
+        )
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(win, bg='light gray')
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+
+        tk.Label(
+            body,
+            text=(
+                "Recent UI improvements: two-column card parity in matches view, "
+                "centered layout, equal column widths, radios never overlap text, and a centered final "
+                "card without stretching when there’s an odd number of results."
+            ),
+            font=('Arial', 12),
+            bg='light gray',
+            wraplength=800,
+            justify='left'
+        ).pack(anchor='w', pady=(0, 10))
+
+        links = tk.Frame(body, bg='light gray')
+        links.pack(anchor='w', pady=(0, 8))
+
+        def link(label_parent, text, url):
+            lbl = tk.Label(
+                label_parent,
+                text=text,
+                font=('Arial', 12, 'underline'),
+                fg='blue',
+                bg='light gray',
+                cursor='hand2'
+            )
+            lbl.pack(anchor='w', pady=2)
+            lbl.bind('<Button-1>', lambda e: webbrowser.open(url))
+
+        link(links, f"View UI tag: {WHATS_NEW_ID}",
+             f"https://github.com/vije1711/Birha/tree/{WHATS_NEW_ID}")
+        link(links, 'All Releases', 'https://github.com/vije1711/Birha/releases')
+
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(fill=tk.X, padx=20, pady=(0, 16))
+        tk.Button(
+            btns,
+            text='Close',
+            font=('Arial', 12, 'bold'),
+            bg='gray', fg='white',
+            padx=16, pady=6,
+            command=win.destroy
+        ).pack(side=tk.RIGHT)
+
+        # Center over root
+        win.update_idletasks()
+        try:
+            w, h = win.winfo_width(), win.winfo_height()
+            x = self.root.winfo_x() + (self.root.winfo_width() - w)//2
+            y = self.root.winfo_y() + (self.root.winfo_height() - h)//2
+            win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
+
+    def launch_grammar_update_dashboard(self):
+        win = tk.Toplevel(self.root)
+        win.title("Grammar Database Update")
+        win.configure(bg='#e0e0e0')  # light neutral background
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=0, defer=True)
+
+        # — Header Bar —
+        header = tk.Frame(win, bg='#2f4f4f', height=60)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Grammar Database Update",
+            font=('Arial', 20, 'bold'),
+            bg='#2f4f4f',
+            fg='white'
+        ).place(relx=0.5, rely=0.5, anchor='center')
+
+        # — Separator —
+        sep = tk.Frame(win, bg='#cccccc', height=2)
+        sep.pack(fill=tk.X)
+
+        # — Navigation Buttons —
+        nav = tk.Frame(win, bg='#e0e0e0')
+        nav.pack(pady=30)
+        btn_kwargs = dict(
+            font=('Arial', 14, 'bold'),
+            width=20,
+            padx=10, pady=10,
+            relief='flat',
+            activebackground='#007d7d',
+            bg='#008c8c', fg='white'
+        )
+
+        btn_verse = tk.Button(
+            nav, text="Assess by Verse", **btn_kwargs,
+            command=self.launch_verse_assessment
+        )
+        btn_verse.grid(row=0, column=0, padx=20)
+
+        btn_word = tk.Button(
+            nav, text="Assess by Word", **btn_kwargs,
+            command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
+        )
+        btn_word.grid(row=0, column=1, padx=20)
+
+        # — Instruction / Description —
+        instr = (
+            "Choose “Assess by Verse” to look up verses and refine grammar entries.\n"
+            "The “Assess by Word” workflow is coming in the next release."
+        )
+        tk.Label(
+            win, text=instr,
+            font=('Arial', 16),
+            bg='#e0e0e0', fg='#333333',
+            justify='center', wraplength=800
+        ).pack(pady=20)
+
+        # — Bottom Back Button —
+        bottom = tk.Frame(win, bg='#e0e0e0')
+        bottom.pack(side=tk.BOTTOM, pady=30)
+        back_btn = tk.Button(
+            bottom,
+            text="← Back to Dashboard",
+            font=('Arial', 14),
+            bg='#2f4f4f', fg='white',
+            activebackground='#3f6f6f',
+            padx=20, pady=10,
+            command=lambda: self._go_back_to_dashboard(win)
+        )
+        back_btn.pack()
+
+        # Optional: make ESC key close this window
+        win.bind("<Escape>", lambda e: win.destroy())
+
+    def launch_verse_assessment(self):
+        """Window for searching & selecting verses to assess grammar using a 2-column card layout."""
+        win = tk.Toplevel(self.root)
+        win.title("Assess by Verse")
+        win.configure(bg='light gray')
+        # Taskbar-safe sizing
+        self._wm_apply(win, margin_px=0, defer=True)
+    
+        # — Optional page‐wide heading —
+        tk.Label(
+            win,
+            text="Select a Verse to Refine Grammar Entries",
+            font=("Arial", 20, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=10
+        ).pack(fill=tk.X)
+
+        # keep track of which card is selected
+        self._selected_verse_idx = tk.IntVar(value=-1)
+        # ensure safe defaults so Next can't crash before a search
+        self._last_filtered = []
+        try:
+            self._selected_verse_idx.trace_add("write", lambda *args: self._update_next_button_state())
+        except Exception:
+            pass
+
+        # — Top frame: entry + Search button —
+        top = tk.Frame(win, bg='light gray')
+        top.pack(fill=tk.X, padx=20, pady=15)
+        tk.Label(top, text="Enter Verse:", font=("Arial", 16), bg='light gray').pack(side=tk.LEFT)
+        self._verse_var = tk.StringVar()
+        tk.Entry(top, textvariable=self._verse_var, font=("Arial", 16))\
+        .pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10,10))
+        tk.Button(
+            top, text="Search", font=("Arial", 16, "bold"),
+            bg='dark cyan', fg='white',
+            command=self._populate_cards
+        ).pack(side=tk.LEFT)
+
+        # — Middle frame: scrollable canvas + 2‑column grid of “cards” —
+        middle = tk.Frame(win, bg='light gray')
+        middle.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        canvas = tk.Canvas(middle, bg='light gray', highlightthickness=0)
+        vsb    = tk.Scrollbar(middle, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        # This frame goes inside the canvas and will hold our cards
+        self._cards_frame = tk.Frame(canvas, bg='light gray')
+
+        # create_window with anchor="n" so its x coordinate is the top-center of cards_frame
+        cards_window = canvas.create_window((0, 0), window=self._cards_frame, anchor="n")
+
+        # configure two equal‑weight columns for 2‑column layout
+        self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
+        self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
+
+        # keep scrollregion up to date
+        def _on_cards_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        self._cards_frame.bind("<Configure>", _on_cards_configure)
+
+        # **New:** whenever the canvas resizes, recenter cards_frame horizontally
+        def _on_canvas_resize(event):
+            canvas.coords(cards_window, event.width // 2, 0)
+        canvas.bind("<Configure>", _on_canvas_resize)
+
+        # — Bottom frame: navigation buttons —
+        bottom = tk.Frame(win, bg='light gray')
+        bottom.pack(fill=tk.X, padx=20, pady=15)
+        tk.Button(
+            bottom, text="‹ Back", font=("Arial", 14),
+            bg='gray', fg='white', command=win.destroy
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            bottom, text="Back to Dashboard", font=("Arial", 14),
+            bg='gray', fg='white', command=lambda: self._go_back_to_dashboard(win)
+        ).pack(side=tk.LEFT, padx=5)
+        tk.Button(
+            bottom, text="Next →", font=("Arial", 14, "bold"),
+            bg='dark cyan', fg='white',
+            command=lambda: self.proceed_to_word_assessment(self._selected_verse_idx.get())
+        ).pack(side=tk.RIGHT)
+        # Keep a reference to the Next button and disable it until selection
+        try:
+            self._next_btn = bottom.winfo_children()[-1]
+            self._next_btn.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+
+    def _update_next_button_state(self, *args):
+        """Enable Next only when there are results and a valid selection."""
+        try:
+            results = getattr(self, "_last_filtered", [])
+            idx = self._selected_verse_idx.get() if hasattr(self, "_selected_verse_idx") else -1
+            ok = bool(results) and (0 <= idx < len(results))
+            if hasattr(self, "_next_btn") and self._next_btn and self._next_btn.winfo_exists():
+                self._next_btn.configure(state=(tk.NORMAL if ok else tk.DISABLED))
+        except Exception:
+            try:
+                if hasattr(self, "_next_btn") and self._next_btn and self._next_btn.winfo_exists():
+                    self._next_btn.configure(state=tk.DISABLED)
             except Exception:
                 pass
 
-        def launch_grammar_update_dashboard(self):
-            win = tk.Toplevel(self.root)
-            win.title("Grammar Database Update")
-            win.configure(bg='#e0e0e0')  # light neutral background
-            # Taskbar-safe sizing
-            self._wm_apply(win, margin_px=0, defer=True)
-
-            # — Header Bar —
-            header = tk.Frame(win, bg='#2f4f4f', height=60)
-            header.pack(fill=tk.X)
-            tk.Label(
-                header,
-                text="Grammar Database Update",
-                font=('Arial', 20, 'bold'),
-                bg='#2f4f4f',
-                fg='white'
-            ).place(relx=0.5, rely=0.5, anchor='center')
-
-            # — Separator —
-            sep = tk.Frame(win, bg='#cccccc', height=2)
-            sep.pack(fill=tk.X)
-
-            # — Navigation Buttons —
-            nav = tk.Frame(win, bg='#e0e0e0')
-            nav.pack(pady=30)
-            btn_kwargs = dict(
-                font=('Arial', 14, 'bold'),
-                width=20,
-                padx=10, pady=10,
-                relief='flat',
-                activebackground='#007d7d',
-                bg='#008c8c', fg='white'
-            )
-
-            btn_verse = tk.Button(
-                nav, text="Assess by Verse", **btn_kwargs,
-                command=self.launch_verse_assessment
-            )
-            btn_verse.grid(row=0, column=0, padx=20)
-
-            btn_word = tk.Button(
-                nav, text="Assess by Word", **btn_kwargs,
-                command=lambda: (win.destroy(), self.launch_word_assessment_dashboard())
-            )
-            btn_word.grid(row=0, column=1, padx=20)
-
-            # — Instruction / Description —
-            instr = (
-                "Choose “Assess by Verse” to look up verses and refine grammar entries.\n"
-                "The “Assess by Word” workflow is coming in the next release."
-            )
-            tk.Label(
-                win, text=instr,
-                font=('Arial', 16),
-                bg='#e0e0e0', fg='#333333',
-                justify='center', wraplength=800
-            ).pack(pady=20)
-
-            # — Bottom Back Button —
-            bottom = tk.Frame(win, bg='#e0e0e0')
-            bottom.pack(side=tk.BOTTOM, pady=30)
-            back_btn = tk.Button(
-                bottom,
-                text="← Back to Dashboard",
-                font=('Arial', 14),
-                bg='#2f4f4f', fg='white',
-                activebackground='#3f6f6f',
-                padx=20, pady=10,
-                command=lambda: self._go_back_to_dashboard(win)
-            )
-            back_btn.pack()
-
-            # Optional: make ESC key close this window
-            win.bind("<Escape>", lambda e: win.destroy())
-
-        def launch_verse_assessment(self):
-            """Window for searching & selecting verses to assess grammar using a 2-column card layout."""
-            win = tk.Toplevel(self.root)
-            win.title("Assess by Verse")
-            win.configure(bg='light gray')
-            # Taskbar-safe sizing
-            self._wm_apply(win, margin_px=0, defer=True)
-        
-            # — Optional page‐wide heading —
-            tk.Label(
-                win,
-                text="Select a Verse to Refine Grammar Entries",
-                font=("Arial", 20, "bold"),
-                bg="dark slate gray",
-                fg="white",
-                pady=10
-            ).pack(fill=tk.X)
-
-            # keep track of which card is selected
-            self._selected_verse_idx = tk.IntVar(value=-1)
-            # ensure safe defaults so Next can't crash before a search
+    def _populate_cards(self):
+        """Perform the verse search, filter & then render up to 10 cards in two columns."""
+        # first, clear any existing cards
+        for w in self._cards_frame.winfo_children():
+            w.destroy()
+        # disable Next and clear stale results on refresh
+        try:
             self._last_filtered = []
-            try:
-                self._selected_verse_idx.trace_add("write", lambda *args: self._update_next_button_state())
-            except Exception:
-                pass
+            self._selected_verse_idx.set(-1)
+            self._update_next_button_state()
+        except Exception:
+            pass
 
-            # — Top frame: entry + Search button —
-            top = tk.Frame(win, bg='light gray')
-            top.pack(fill=tk.X, padx=20, pady=15)
-            tk.Label(top, text="Enter Verse:", font=("Arial", 16), bg='light gray').pack(side=tk.LEFT)
-            self._verse_var = tk.StringVar()
-            tk.Entry(top, textvariable=self._verse_var, font=("Arial", 16))\
-            .pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10,10))
-            tk.Button(
-                top, text="Search", font=("Arial", 16, "bold"),
-                bg='dark cyan', fg='white',
-                command=self._populate_cards
-            ).pack(side=tk.LEFT)
-
-            # — Middle frame: scrollable canvas + 2‑column grid of “cards” —
-            middle = tk.Frame(win, bg='light gray')
-            middle.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-
-            canvas = tk.Canvas(middle, bg='light gray', highlightthickness=0)
-            vsb    = tk.Scrollbar(middle, orient="vertical", command=canvas.yview)
-            canvas.configure(yscrollcommand=vsb.set)
-            vsb.pack(side="right", fill="y")
-            canvas.pack(side="left", fill="both", expand=True)
-
-            # This frame goes inside the canvas and will hold our cards
-            self._cards_frame = tk.Frame(canvas, bg='light gray')
-
-            # create_window with anchor="n" so its x coordinate is the top-center of cards_frame
-            cards_window = canvas.create_window((0, 0), window=self._cards_frame, anchor="n")
-
-            # configure two equal‑weight columns for 2‑column layout
+        # Ensure equal column widths using a uniform group to avoid asymmetry
+        try:
+            self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
+            self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
+        except Exception:
+            # Fallback in case uniform isn't supported, keep prior settings
             self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
             self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
 
-            # keep scrollregion up to date
-            def _on_cards_configure(event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
-            self._cards_frame.bind("<Configure>", _on_cards_configure)
+        # 1) run search & filter
+        query = self._verse_var.get().strip()
+        headers, all_matches = self.match_sggs_verse(query)
+        filtered = [m for m in all_matches if m.get("Score",0) >= 25.0][:10]
+        # remember these for the “Next →” step
+        self._last_filtered = filtered
 
-            # **New:** whenever the canvas resizes, recenter cards_frame horizontally
-            def _on_canvas_resize(event):
-                canvas.coords(cards_window, event.width // 2, 0)
-            canvas.bind("<Configure>", _on_canvas_resize)
+        # reset selection
+        self._selected_verse_idx.set(-1)
 
-            # — Bottom frame: navigation buttons —
-            bottom = tk.Frame(win, bg='light gray')
-            bottom.pack(fill=tk.X, padx=20, pady=15)
-            tk.Button(
-                bottom, text="‹ Back", font=("Arial", 14),
-                bg='gray', fg='white', command=win.destroy
-            ).pack(side=tk.LEFT)
-            tk.Button(
-                bottom, text="Back to Dashboard", font=("Arial", 14),
-                bg='gray', fg='white', command=lambda: self._go_back_to_dashboard(win)
-            ).pack(side=tk.LEFT, padx=5)
-            tk.Button(
-                bottom, text="Next →", font=("Arial", 14, "bold"),
-                bg='dark cyan', fg='white',
-                command=lambda: self.proceed_to_word_assessment(self._selected_verse_idx.get())
-            ).pack(side=tk.RIGHT)
-            # Keep a reference to the Next button and disable it until selection
-            try:
-                self._next_btn = bottom.winfo_children()[-1]
-                self._next_btn.configure(state=tk.DISABLED)
-            except Exception:
-                pass
-
-        def _update_next_button_state(self, *args):
-            """Enable Next only when there are results and a valid selection."""
-            try:
-                results = getattr(self, "_last_filtered", [])
-                idx = self._selected_verse_idx.get() if hasattr(self, "_selected_verse_idx") else -1
-                ok = bool(results) and (0 <= idx < len(results))
-                if hasattr(self, "_next_btn") and self._next_btn and self._next_btn.winfo_exists():
-                    self._next_btn.configure(state=(tk.NORMAL if ok else tk.DISABLED))
-            except Exception:
-                try:
-                    if hasattr(self, "_next_btn") and self._next_btn and self._next_btn.winfo_exists():
-                        self._next_btn.configure(state=tk.DISABLED)
-                except Exception:
-                    pass
-
-        def _populate_cards(self):
-            """Perform the verse search, filter & then render up to 10 cards in two columns."""
-            # first, clear any existing cards
-            for w in self._cards_frame.winfo_children():
-                w.destroy()
-            # disable Next and clear stale results on refresh
-            try:
-                self._last_filtered = []
-                self._selected_verse_idx.set(-1)
-                self._update_next_button_state()
-            except Exception:
-                pass
-
-            # Ensure equal column widths using a uniform group to avoid asymmetry
-            try:
-                self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
-                self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
-            except Exception:
-                # Fallback in case uniform isn't supported, keep prior settings
-                self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
-                self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
-
-            # 1) run search & filter
-            query = self._verse_var.get().strip()
-            headers, all_matches = self.match_sggs_verse(query)
-            filtered = [m for m in all_matches if m.get("Score",0) >= 25.0][:10]
-            # remember these for the “Next →” step
-            self._last_filtered = filtered
-
-            # reset selection
-            self._selected_verse_idx.set(-1)
-
-            # 2) render each card
-            total_cards = len(filtered)
-            for idx, m in enumerate(filtered):
-                row, col = divmod(idx, 2)
-                card = tk.Frame(
-                    self._cards_frame,
-                    bd=1,
-                    relief="solid",
-                    bg="white",
-                    padx=8,
-                    pady=8
-                )
-                # If odd number of cards and this is the last one, span both columns for visual centering
-                if (total_cards % 2 == 1) and (idx == total_cards - 1):
-                    # Do not stretch the final full-width card; keep it centered with natural width
-                    card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="n")
-                else:
-                    card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-
-                # the verse itself, wrapped
-                tk.Label(
-                    card,
-                    text=m.get("Verse","").strip(),
-                    font=("Arial", 14, "bold"),
-                    wraplength=500,
-                    justify="center",
-                    bg="white"
-                ).pack(pady=(14,4), padx=(28,8))
-
-                # a little radiobutton at top-left for selection (created after the label and raised)
-                rb = tk.Radiobutton(
-                    card,
-                    variable=self._selected_verse_idx,
-                    value=idx,
-                    bg="white",
-                    activebackground="white",
-                    command=self._update_next_button_state
-                )
-                rb.place(x=6, y=6)
-                try:
-                    rb.lift()
-                except Exception:
-                    pass
-
-                # metadata line
-                # build a list of (label, key) pairs
-                fields = [
-                    ("Raag",   "Raag (Fixed)"),
-                    ("Writer", "Writer (Fixed)"),
-                    ("Bani",   "Bani Name"),
-                    ("Page",   "Page Number"),
-                ]
-
-                meta_parts = []
-                for label, key in fields:
-                    v = m.get(key)
-                    # skip if missing or NaN
-                    if v is None or (isinstance(v, float) and math.isnan(v)):
-                        continue
-                    meta_parts.append(f"{label}: {v}")
-
-                # always include the match%
-                meta_parts.append(f"Match: {m.get('Score',0):.1f}%")
-
-                # join with separators
-                meta = "   |   ".join(meta_parts)
-
-                tk.Label(
-                    card,
-                    text=meta,
-                    font=("Arial", 12),
-                    bg="white"
-                ).pack()
-
-            # 3) force a canvas update of its scroll region
-            self._cards_frame.update_idletasks()
-            self._cards_frame.master.configure(
-                scrollregion=self._cards_frame.master.bbox("all")
+        # 2) render each card
+        total_cards = len(filtered)
+        for idx, m in enumerate(filtered):
+            row, col = divmod(idx, 2)
+            card = tk.Frame(
+                self._cards_frame,
+                bd=1,
+                relief="solid",
+                bg="white",
+                padx=8,
+                pady=8
             )
+            # If odd number of cards and this is the last one, span both columns for visual centering
+            if (total_cards % 2 == 1) and (idx == total_cards - 1):
+                # Do not stretch the final full-width card; keep it centered with natural width
+                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="n")
+            else:
+                card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
-        def _populate_cards_multiselect(self, parent, hits, palette=None):
-            """Render verse hits as two-column checkbox cards with preserved centering."""
-            if parent is None:
-                return {}
-
-            palette = palette or {}
-            body_bg = palette.get('body_bg', 'light gray')
-            card_bg = palette.get('card_bg', 'white')
-            border_color = palette.get('card_border', '#c8c8c8')
-            select_color = palette.get('select_color', 'light blue')
-
-            try:
-                children = list(parent.winfo_children())
-            except Exception:
-                children = []
-            for child in children:
-                try:
-                    child.destroy()
-                except Exception:
-                    pass
-
-            selected_ids = getattr(self, '_hits_selected_ids', None)
-            if not isinstance(selected_ids, set):
-                try:
-                    selected_ids = set(selected_ids or [])
-                except Exception:
-                    selected_ids = set()
-                self._hits_selected_ids = selected_ids
-
-            container = tk.Frame(parent, bg=body_bg)
-            container.pack(fill=tk.BOTH, expand=True)
-
-            canvas = tk.Canvas(container, bg=body_bg, highlightthickness=0)
-            vsb = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
-            canvas.configure(yscrollcommand=vsb.set)
-            vsb.pack(side="right", fill="y")
-            canvas.pack(side="left", fill="both", expand=True)
-
-            cards_frame = tk.Frame(canvas, bg=body_bg)
-            cards_window = canvas.create_window((0, 0), window=cards_frame, anchor="n")
-
-            try:
-                cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
-                cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
-            except Exception:
-                cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
-                cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
-
-            def _on_cards_configure(_event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
-            cards_frame.bind("<Configure>", _on_cards_configure)
-
-            def _on_canvas_resize(event):
-                canvas.coords(cards_window, event.width // 2, 0)
-                try:
-                    canvas.itemconfigure(cards_window, width=event.width)
-                except Exception:
-                    pass
-            canvas.bind("<Configure>", _on_canvas_resize)
-
-            canvas.update_idletasks()
-            try:
-                canvas.coords(cards_window, canvas.winfo_width() // 2, 0)
-                canvas.itemconfigure(cards_window, width=canvas.winfo_width())
-            except Exception:
-                pass
-
-            toggle_cb = getattr(self, '_hits_multiselect_toggle_callback', None)
-
-            def _clean_value(val):
-                if val is None:
-                    return None
-                if isinstance(val, float):
-                    try:
-                        if math.isnan(val):
-                            return None
-                    except Exception:
-                        pass
-                text = str(val).strip()
-                if not text or text.lower() == 'nan':
-                    return None
-                return text
-
-            def _pick(record, keys):
-                for key in keys:
-                    if not key:
-                        continue
-                    if isinstance(record, dict) and key in record:
-                        cleaned = _clean_value(record.get(key))
-                        if cleaned is not None:
-                            return cleaned
-                return None
-
-            vars_by_id = {}
-            total_cards = len(hits)
-
-            for visible_idx, item in enumerate(hits):
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    hit_id, record = item[0], item[1]
-                else:
-                    record = item if isinstance(item, dict) else {}
-                    hit_id = record.get('__id__', visible_idx)
-                try:
-                    hit_id = int(hit_id)
-                except Exception:
-                    hit_id = visible_idx
-
-                row, col = divmod(visible_idx, 2)
-                card = tk.Frame(
-                    cards_frame,
-                    bd=1,
-                    relief="solid",
-                    bg=card_bg,
-                    padx=8,
-                    pady=8,
-                )
-                try:
-                    card.configure(highlightbackground=border_color, highlightcolor=border_color, highlightthickness=1)
-                except Exception:
-                    pass
-
-                if (total_cards % 2 == 1) and (visible_idx == total_cards - 1):
-                    card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="n")
-                else:
-                    card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-
-                verse_text = _pick(record, ("Verse", "verse")) or ""
-                verse_label = tk.Label(
-                    card,
-                    text=verse_text,
-                    font=("Arial", 14, "bold"),
-                    wraplength=10,
-                    justify="center",
-                    bg=card_bg,
-                )
-                verse_label.pack(pady=(14, 8), padx=(28, 8))
-
-                raag_val = _pick(record, ("Raag (Fixed)", "Raag", "raag_fixed", "raag"))
-                writer_val = _pick(record, ("Writer (Fixed)", "Writer", "writer_fixed", "writer"))
-                bani_val = _pick(record, ("Bani Name", "Bani", "bani_name", "bani"))
-                page_val = _pick(record, ("Page Number", "page_number", "Page", "page"))
-
-                meta_parts = []
-                if raag_val:
-                    meta_parts.append(f"Raag: {raag_val}")
-                if writer_val:
-                    meta_parts.append(f"Writer: {writer_val}")
-                if bani_val:
-                    meta_parts.append(f"Bani: {bani_val}")
-                if page_val:
-                    meta_parts.append(f"Page: {page_val}")
-                if not meta_parts:
-                    meta_parts.append("Page: -")
-
-                meta_label = tk.Label(
-                    card,
-                    text="   |   ".join(meta_parts),
-                    font=("Arial", 12),
-                    bg=card_bg,
-                    justify="center",
-                    wraplength=10,
-                )
-                meta_label.pack(padx=12)
-
-                def _on_card_resize(event, v_label=verse_label, m_label=meta_label):
-                    try:
-                        wrap_main = max(260, event.width - 56)
-                    except Exception:
-                        wrap_main = 260
-                    try:
-                        wrap_meta = max(220, event.width - 40)
-                    except Exception:
-                        wrap_meta = 220
-                    try:
-                        v_label.configure(wraplength=wrap_main)
-                        m_label.configure(wraplength=wrap_meta)
-                    except Exception:
-                        pass
-                card.bind("<Configure>", _on_card_resize, add="+")
-
-                var = tk.BooleanVar(value=(hit_id in selected_ids))
-                vars_by_id[hit_id] = var
-
-                def _toggle(hid=hit_id, _var=var):
-                    selected = getattr(self, '_hits_selected_ids', set())
-                    if _var.get():
-                        selected.add(hid)
-                    else:
-                        selected.discard(hid)
-                    self._hits_selected_ids = selected
-                    if callable(toggle_cb):
-                        try:
-                            toggle_cb(hid, _var)
-                        except Exception:
-                            pass
-
-                chk = tk.Checkbutton(
-                    card,
-                    variable=var,
-                    bg=card_bg,
-                    activebackground=card_bg,
-                    selectcolor=select_color,
-                    command=_toggle,
-                    highlightthickness=0,
-                    bd=0,
-                    takefocus=1,
-                )
-                chk.place(x=6, y=6)
-                try:
-                    chk.lift()
-                except Exception:
-                    pass
-
-                def _invoke_toggle(_event=None, cb=chk):
-                    try:
-                        cb.invoke()
-                    except Exception:
-                        pass
-
-                verse_label.bind("<Button-1>", _invoke_toggle, add="+")
-                meta_label.bind("<Button-1>", _invoke_toggle, add="+")
-
-            cards_frame.update_idletasks()
-            try:
-                canvas.configure(scrollregion=canvas.bbox("all"))
-            except Exception:
-                pass
-
-            return vars_by_id
-
-        def show_translation_input(self):
-            win = tk.Toplevel(self.root)
-            win.title("Paste Darpan Translation")
-            win.configure(bg='light gray')
-            # Taskbar-safe sizing: exact work-area maximize (no extra bottom gap)
-            self._wm_apply(win, margin_px=0, defer=True)
-            win.transient(self.root)
-            win.grab_set()
-
-            # Ensure any close action (X or Back button wired to win.destroy) cancels driver state safely
-            try:
-                _orig_destroy = win.destroy
-
-                def _driver_safe_destroy():
-                    try:
-                        if getattr(self, '_abw_suppress_driver_cancel_once', False):
-                            try:
-                                self._abw_suppress_driver_cancel_once = False
-                            except Exception:
-                                pass
-                        elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
-                            try:
-                                self._word_driver_cancel_current()
-                            except Exception:
-                                pass
-                    finally:
-                        try:
-                            _orig_destroy()
-                        except Exception:
-                            pass
-                win.destroy = _driver_safe_destroy
-                try:
-                    win.protocol("WM_DELETE_WINDOW", win.destroy)
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-            # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
-            try:
-                if not hasattr(self, '_gurmukhi_font_family'):
-                    families = set(map(str, tkfont.families()))
-                    candidates = [
-                        'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
-                        'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
-                        'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
-                    ]
-                    chosen = None
-                    for name in candidates:
-                        if name in families:
-                            chosen = name
-                            break
-                    if not chosen:
-                        # fall back to Tk's default family rather than Arial to keep system fallback working
-                        chosen = tkfont.nametofont('TkDefaultFont').cget('family')
-                    self._gurmukhi_font_family = chosen
-            except Exception:
-                if not hasattr(self, '_gurmukhi_font_family'):
-                    # last resort: don't force a specific family; rely on Tk's default
-                    try:
-                        self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
-                    except Exception:
-                        self._gurmukhi_font_family = 'TkDefaultFont'
-
-            # - Heading -
+            # the verse itself, wrapped
             tk.Label(
-                win,
-                text=self.selected_verse_text,
-                # Use a font with proper ascent for Gurmukhi + extra top padding
-                font=(self._gurmukhi_font_family, 20, "bold"),
-                bg="light gray",
-                wraplength=900,
+                card,
+                text=m.get("Verse","").strip(),
+                font=("Arial", 14, "bold"),
+                wraplength=500,
                 justify="center",
-                pady=12
-            ).pack(fill=tk.X, padx=20, pady=(15,10))
+                bg="white"
+            ).pack(pady=(14,4), padx=(28,8))
 
-            # Make a content container so bottom buttons are anchored reliably
-            content = tk.Frame(win, bg='light gray')
-            content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-            # - Translation area -
-            tf = tk.LabelFrame(
-                content,
-                text="Established Darpan Translation",
-                font=("Arial", 14, "bold"),
-                bg='light gray',
-                fg='black',
-                padx=10, pady=5
+            # a little radiobutton at top-left for selection (created after the label and raised)
+            rb = tk.Radiobutton(
+                card,
+                variable=self._selected_verse_idx,
+                value=idx,
+                bg="white",
+                activebackground="white",
+                command=self._update_next_button_state
             )
-            # allow translation area to take the extra space
-            tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
-
-            # Text area with vertical scrollbar so content scrolls instead of pushing layout
-            text_container = tk.Frame(tf, bg='light gray')
-            text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-            scroll_y = tk.Scrollbar(text_container, orient="vertical")
-            self._translation_text = tk.Text(
-                text_container, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
-                height=10, padx=8, pady=12
-            )
-            self._translation_text.configure(yscrollcommand=scroll_y.set)
-            scroll_y.configure(command=self._translation_text.yview)
-            self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-
-            # Status + Refresh row under the translation box
-            status_row = tk.Frame(tf, bg='light gray')
-            # keep status row pinned to the bottom of the translation frame
-            status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
-            # grid inside the row: label left (expands), button right
-            status_row.columnconfigure(0, weight=1)
-            status_row.columnconfigure(1, weight=0)
-            self._translation_status_var = tk.StringVar(value="")
-            tk.Label(
-                status_row,
-                textvariable=self._translation_status_var,
-                font=("Arial", 10, "italic"),
-                bg='light gray', fg='#333333',
-                anchor='w'
-            ).grid(row=0, column=0, sticky='w', padx=(0,8))
-            tk.Button(
-                status_row,
-                text="Refresh from data files",
-                font=("Arial", 10),
-                bg='gray', fg='white',
-                command=self._refresh_translation_from_data
-            ).grid(row=0, column=1, sticky='e')
-
-            # Try to auto-populate translation from structured sources
-            filled, status = self._populate_translation_from_structured()
-            self._translation_status_var.set(status)
-
-            # (Removed one-off height cap; scrollable text keeps buttons visible)
-
-            # — Word‐selection area —
-            wf = tk.LabelFrame(
-                content,
-                text="Select Words to Assess Grammar",
-                font=("Arial", 14, "bold"),
-                bg='light gray',
-                fg='black',
-                padx=10, pady=10
-            )
-            # reduce the vertical footprint of the word-selection area
-            wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
-
-            # select/deselect all
-            self._select_all_words_var = tk.BooleanVar(value=False)
-            tk.Checkbutton(
-                wf,
-                text="Select/Deselect All Words",
-                variable=self._select_all_words_var,
-                bg="light gray",
-                font=("Arial", 12, "italic"),
-                command=self._toggle_all_word_selection
-            ).pack(anchor="w", pady=(0,10))
-
-            # scrollable word row (single line, horizontal scroll)
-            canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
-            # limit the canvas height to roughly a single checkbox row (~75% reduction)
-            canvas.configure(height=48)
-            scrollbar = tk.Scrollbar(wf, orient="horizontal", command=canvas.xview)
-            word_frame = tk.Frame(canvas, bg='light gray')
-            canvas.configure(xscrollcommand=scrollbar.set)
-
-            canvas.pack(side="top", fill="x", expand=False)
-            scrollbar.pack(side="top", fill="x")
-            canvas.create_window((0,0), window=word_frame, anchor="nw")
-
-            def _on_wf_resize(event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
-            word_frame.bind("<Configure>", _on_wf_resize)
-
-            # lay out each word
-            self._word_selection_vars = []
-
-            # 1) grab the verse text, remove any trailing danda symbols:
-            verse_text = self.selected_verse_text.split('॥', 1)[0].strip()
-
-            # 2) split into words (now “॥” won’t appear as its own token)
-            words = verse_text.split()
-
-            # 3) build your checkboxes off `words` instead of the raw text:
-            for i, w in enumerate(words):
-                var = tk.BooleanVar(value=False)
-                chk = tk.Checkbutton(
-                    word_frame,
-                    text=w,
-                    variable=var,
-                    bg='light gray',
-                    font=('Arial', 12),
-                    anchor='w',
-                    justify='left'
-                )
-                # arrange all checkboxes in a single row; scroll horizontally if needed
-                chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
-                self._word_selection_vars.append((var, w))
-
-            # - Bottom buttons -
-            btn_frame = tk.Frame(win, bg="light gray")
-            # Anchor to bottom; keep visual gap equal to BOTTOM_PAD
-            btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
-
-            tk.Button(
-                btn_frame,
-                text="← Back to Verse Search",
-                font=("Arial", 12),
-                bg="gray",
-                fg="white",
-                command=win.destroy,
-                padx=15, pady=8
-            ).pack(side=tk.LEFT)
-
-            tk.Button(
-                btn_frame,
-                text="Submit Translation →",
-                font=("Arial", 12, "bold"),
-                bg="dark cyan",
-                fg="white",
-                command=lambda: self._on_translation_submitted(win),
-                padx=15, pady=8
-            ).pack(side=tk.RIGHT)
-
-        def _populate_translation_from_structured(self):
-            """Attempt to fill the translation Text from structured JSON/CSV.
-            Returns ``(filled, status_message)``.
-            """
+            rb.place(x=6, y=6)
             try:
-                meta = getattr(self, 'selected_verse_meta', {}) or {}
-                verse_text = self.selected_verse_text if hasattr(self, 'selected_verse_text') else ''
-                page_num = meta.get('Page Number')
-                record = _find_arth_for(self, verse_text, page_num)
-                if not record:
-                    return False, "Manual input"
-                v = record.get('verse') or record.get('Verse') or ''
-                p = record.get('padarth') or record.get('Padarth') or ''
-                a = record.get('arth') or record.get('Arth') or ''
-                ch = record.get('chhand') or record.get('Chhand') or ''
-                bh = record.get('bhav') or record.get('Bhav') or ''
-
-                if not any([v, p, a, ch, bh]):
-                    return False, "Manual input"
-
-                # Write into Text widget using a bold header tag for labels
-                self._translation_text.delete('1.0', tk.END)
-                try:
-                    self._translation_text.tag_configure('hdr', font=('Arial', 12, 'bold'))
-                except Exception:
-                    # If tag config fails, continue without styling
-                    pass
-
-                def _ins(label, value):
-                    if value:
-                        self._translation_text.insert('end', f"{label}:\n", 'hdr')
-                        self._translation_text.insert('end', str(value).strip() + "\n\n")
-
-                _ins('Verse', v)
-                _ins('Padarth', p)
-                _ins('Arth', a)
-                _ins('Chhand', ch)
-                _ins('Bhav', bh)
-                return True, "Auto-filled from structured data"
-            except Exception:
-                return False, "Manual input"
-
-        def _refresh_translation_from_data(self):
-            """Handler for the Refresh button to try loading from data files again."""
-            filled, status = self._populate_translation_from_structured()
-            if hasattr(self, '_translation_status_var'):
-                self._translation_status_var.set(status if filled else "No structured data match found")
-
-        # ---------------------------
-        # Assess-by-Word: Dedicated translation/selection UI (no Verse deps)
-        # ---------------------------
-        def show_word_translation_input(self):
-            win = tk.Toplevel(self.root)
-            win.title("Assess by Word - Translation & Selection")
-            win.configure(bg='light gray')
-            # Taskbar-safe exact work-area maximize (deferred) and F11 toggle
-            self._wm_apply(win, margin_px=0, defer=True)
-            win.transient(self.root)
-            try:
-                win.grab_set()
+                rb.lift()
             except Exception:
                 pass
 
-            # Safe destroy cancels driver state if in-progress
+            # metadata line
+            # build a list of (label, key) pairs
+            fields = [
+                ("Raag",   "Raag (Fixed)"),
+                ("Writer", "Writer (Fixed)"),
+                ("Bani",   "Bani Name"),
+                ("Page",   "Page Number"),
+            ]
+
+            meta_parts = []
+            for label, key in fields:
+                v = m.get(key)
+                # skip if missing or NaN
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    continue
+                meta_parts.append(f"{label}: {v}")
+
+            # always include the match%
+            meta_parts.append(f"Match: {m.get('Score',0):.1f}%")
+
+            # join with separators
+            meta = "   |   ".join(meta_parts)
+
+            tk.Label(
+                card,
+                text=meta,
+                font=("Arial", 12),
+                bg="white"
+            ).pack()
+
+        # 3) force a canvas update of its scroll region
+        self._cards_frame.update_idletasks()
+        self._cards_frame.master.configure(
+            scrollregion=self._cards_frame.master.bbox("all")
+        )
+
+    def _populate_cards_multiselect(self, parent, hits, palette=None):
+        """Render verse hits as two-column checkbox cards with preserved centering."""
+        if parent is None:
+            return {}
+
+        palette = palette or {}
+        body_bg = palette.get('body_bg', 'light gray')
+        card_bg = palette.get('card_bg', 'white')
+        border_color = palette.get('card_border', '#c8c8c8')
+        select_color = palette.get('select_color', 'light blue')
+
+        try:
+            children = list(parent.winfo_children())
+        except Exception:
+            children = []
+        for child in children:
             try:
-                _orig_destroy = win.destroy
-                def _driver_safe_destroy():
+                child.destroy()
+            except Exception:
+                pass
+
+        selected_ids = getattr(self, '_hits_selected_ids', None)
+        if not isinstance(selected_ids, set):
+            try:
+                selected_ids = set(selected_ids or [])
+            except Exception:
+                selected_ids = set()
+            self._hits_selected_ids = selected_ids
+
+        container = tk.Frame(parent, bg=body_bg)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(container, bg=body_bg, highlightthickness=0)
+        vsb = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        cards_frame = tk.Frame(canvas, bg=body_bg)
+        cards_window = canvas.create_window((0, 0), window=cards_frame, anchor="n")
+
+        try:
+            cards_frame.grid_columnconfigure(0, weight=1, minsize=450, uniform='cards')
+            cards_frame.grid_columnconfigure(1, weight=1, minsize=450, uniform='cards')
+        except Exception:
+            cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
+            cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
+
+        def _on_cards_configure(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        cards_frame.bind("<Configure>", _on_cards_configure)
+
+        def _on_canvas_resize(event):
+            canvas.coords(cards_window, event.width // 2, 0)
+            try:
+                canvas.itemconfigure(cards_window, width=event.width)
+            except Exception:
+                pass
+        canvas.bind("<Configure>", _on_canvas_resize)
+
+        canvas.update_idletasks()
+        try:
+            canvas.coords(cards_window, canvas.winfo_width() // 2, 0)
+            canvas.itemconfigure(cards_window, width=canvas.winfo_width())
+        except Exception:
+            pass
+
+        toggle_cb = getattr(self, '_hits_multiselect_toggle_callback', None)
+
+        def _clean_value(val):
+            if val is None:
+                return None
+            if isinstance(val, float):
+                try:
+                    if math.isnan(val):
+                        return None
+                except Exception:
+                    pass
+            text = str(val).strip()
+            if not text or text.lower() == 'nan':
+                return None
+            return text
+
+        def _pick(record, keys):
+            for key in keys:
+                if not key:
+                    continue
+                if isinstance(record, dict) and key in record:
+                    cleaned = _clean_value(record.get(key))
+                    if cleaned is not None:
+                        return cleaned
+            return None
+
+        vars_by_id = {}
+        total_cards = len(hits)
+
+        for visible_idx, item in enumerate(hits):
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                hit_id, record = item[0], item[1]
+            else:
+                record = item if isinstance(item, dict) else {}
+                hit_id = record.get('__id__', visible_idx)
+            try:
+                hit_id = int(hit_id)
+            except Exception:
+                hit_id = visible_idx
+
+            row, col = divmod(visible_idx, 2)
+            card = tk.Frame(
+                cards_frame,
+                bd=1,
+                relief="solid",
+                bg=card_bg,
+                padx=8,
+                pady=8,
+            )
+            try:
+                card.configure(highlightbackground=border_color, highlightcolor=border_color, highlightthickness=1)
+            except Exception:
+                pass
+
+            if (total_cards % 2 == 1) and (visible_idx == total_cards - 1):
+                card.grid(row=row, column=0, columnspan=2, padx=10, pady=10, sticky="n")
+            else:
+                card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+            verse_text = _pick(record, ("Verse", "verse")) or ""
+            verse_label = tk.Label(
+                card,
+                text=verse_text,
+                font=("Arial", 14, "bold"),
+                wraplength=10,
+                justify="center",
+                bg=card_bg,
+            )
+            verse_label.pack(pady=(14, 8), padx=(28, 8))
+
+            raag_val = _pick(record, ("Raag (Fixed)", "Raag", "raag_fixed", "raag"))
+            writer_val = _pick(record, ("Writer (Fixed)", "Writer", "writer_fixed", "writer"))
+            bani_val = _pick(record, ("Bani Name", "Bani", "bani_name", "bani"))
+            page_val = _pick(record, ("Page Number", "page_number", "Page", "page"))
+
+            meta_parts = []
+            if raag_val:
+                meta_parts.append(f"Raag: {raag_val}")
+            if writer_val:
+                meta_parts.append(f"Writer: {writer_val}")
+            if bani_val:
+                meta_parts.append(f"Bani: {bani_val}")
+            if page_val:
+                meta_parts.append(f"Page: {page_val}")
+            if not meta_parts:
+                meta_parts.append("Page: -")
+
+            meta_label = tk.Label(
+                card,
+                text="   |   ".join(meta_parts),
+                font=("Arial", 12),
+                bg=card_bg,
+                justify="center",
+                wraplength=10,
+            )
+            meta_label.pack(padx=12)
+
+            def _on_card_resize(event, v_label=verse_label, m_label=meta_label):
+                try:
+                    wrap_main = max(260, event.width - 56)
+                except Exception:
+                    wrap_main = 260
+                try:
+                    wrap_meta = max(220, event.width - 40)
+                except Exception:
+                    wrap_meta = 220
+                try:
+                    v_label.configure(wraplength=wrap_main)
+                    m_label.configure(wraplength=wrap_meta)
+                except Exception:
+                    pass
+            card.bind("<Configure>", _on_card_resize, add="+")
+
+            var = tk.BooleanVar(value=(hit_id in selected_ids))
+            vars_by_id[hit_id] = var
+
+            def _toggle(hid=hit_id, _var=var):
+                selected = getattr(self, '_hits_selected_ids', set())
+                if _var.get():
+                    selected.add(hid)
+                else:
+                    selected.discard(hid)
+                self._hits_selected_ids = selected
+                if callable(toggle_cb):
                     try:
-                        if getattr(self, '_abw_suppress_driver_cancel_once', False):
-                            try:
-                                self._abw_suppress_driver_cancel_once = False
-                            except Exception:
-                                pass
-                        elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
-                            try:
-                                self._word_driver_cancel_current()
-                            except Exception:
-                                pass
-                    finally:
+                        toggle_cb(hid, _var)
+                    except Exception:
+                        pass
+
+            chk = tk.Checkbutton(
+                card,
+                variable=var,
+                bg=card_bg,
+                activebackground=card_bg,
+                selectcolor=select_color,
+                command=_toggle,
+                highlightthickness=0,
+                bd=0,
+                takefocus=1,
+            )
+            chk.place(x=6, y=6)
+            try:
+                chk.lift()
+            except Exception:
+                pass
+
+            def _invoke_toggle(_event=None, cb=chk):
+                try:
+                    cb.invoke()
+                except Exception:
+                    pass
+
+            verse_label.bind("<Button-1>", _invoke_toggle, add="+")
+            meta_label.bind("<Button-1>", _invoke_toggle, add="+")
+
+        cards_frame.update_idletasks()
+        try:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        except Exception:
+            pass
+
+        return vars_by_id
+
+    def show_translation_input(self):
+        win = tk.Toplevel(self.root)
+        win.title("Paste Darpan Translation")
+        win.configure(bg='light gray')
+        # Taskbar-safe sizing: exact work-area maximize (no extra bottom gap)
+        self._wm_apply(win, margin_px=0, defer=True)
+        win.transient(self.root)
+        win.grab_set()
+
+        # Ensure any close action (X or Back button wired to win.destroy) cancels driver state safely
+        try:
+            _orig_destroy = win.destroy
+
+            def _driver_safe_destroy():
+                try:
+                    if getattr(self, '_abw_suppress_driver_cancel_once', False):
                         try:
-                            _orig_destroy()
+                            self._abw_suppress_driver_cancel_once = False
                         except Exception:
                             pass
-                win.destroy = _driver_safe_destroy
+                    elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
+                finally:
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
+            win.destroy = _driver_safe_destroy
+            try:
                 win.protocol("WM_DELETE_WINDOW", win.destroy)
             except Exception:
                 pass
+        except Exception:
+            pass
 
-            # Header with integrated driver controls
-            hdr = tk.Frame(win, bg='dark slate gray')
-            hdr.pack(fill=tk.X)
-            self._abw_driver_status_var = tk.StringVar(value="")
-            tk.Label(hdr, textvariable=self._abw_driver_status_var, font=("Arial", 12, 'bold'),
-                     bg='dark slate gray', fg='white').pack(side=tk.LEFT, padx=12, pady=8)
-            ctrls = tk.Frame(hdr, bg='dark slate gray')
-            ctrls.pack(side=tk.RIGHT, padx=8, pady=6)
-            # Prev/Next/Pause/Close
-            def _prev():
-                if getattr(self, '_word_driver_in_progress', False):
-                    return
+        # Prefer a Gurmukhi-safe font to avoid clipping of shirorekha and matras
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    # fall back to Tk's default family rather than Arial to keep system fallback working
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                # last resort: don't force a specific family; rely on Tk's default
                 try:
-                    if getattr(self, '_word_driver_index', 0) > 0:
-                        self._word_driver_index -= 1
-                        self._word_driver_update_ui()
-                        self._word_driver_open_current_verse()
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
                 except Exception:
-                    pass
-            def _next():
-                if getattr(self, '_word_driver_in_progress', False):
-                    return
-                try:
-                    self._word_driver_open_current_verse()
-                except Exception:
-                    pass
-            def _pause_toggle():
-                try:
-                    self._word_driver_toggle_pause()
-                except Exception:
-                    pass
-            self._abw_driver_prev_btn = tk.Button(ctrls, text="◀ Prev", bg='gray', fg='white', command=_prev)
-            self._abw_driver_prev_btn.pack(side=tk.LEFT, padx=(0,6))
-            self._abw_driver_next_btn = tk.Button(ctrls, text="Next ▶", bg='navy', fg='white', command=_next)
-            self._abw_driver_next_btn.pack(side=tk.LEFT, padx=(0,6))
-            self._abw_driver_pause_btn = tk.Button(ctrls, text="Pause", bg='#444', fg='white', command=_pause_toggle)
-            self._abw_driver_pause_btn.pack(side=tk.LEFT, padx=(0,6))
-            tk.Button(ctrls, text="Close", bg='#2f4f4f', fg='white', command=win.destroy).pack(side=tk.LEFT)
-            # Initialize status/enablement
-            try:
-                self._word_driver_update_ui()
-            except Exception:
-                pass
-
-            # Prefer a Gurmukhi-safe font for heading
-            try:
-                if not hasattr(self, '_gurmukhi_font_family'):
-                    families = set(map(str, tkfont.families()))
-                    for name in ['Nirmala UI','Raavi','Noto Sans Gurmukhi','Noto Serif Gurmukhi','GurbaniAkhar','AnmolLipi','Lohit Gurmukhi','Mukta Mahee','Saab','Gurmukhi MN']:
-                        if name in families:
-                            self._gurmukhi_font_family = name
-                            break
-                    if not hasattr(self, '_gurmukhi_font_family'):
-                        self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
-            except Exception:
-                if not hasattr(self, '_gurmukhi_font_family'):
                     self._gurmukhi_font_family = 'TkDefaultFont'
 
-            # Verse heading
-            tk.Label(
-                win,
-                text=self.selected_verse_text,
-                font=(self._gurmukhi_font_family, 20, 'bold'),
-                bg='light gray', wraplength=900, justify='center', pady=12
-            ).pack(fill=tk.X, padx=20, pady=(12,10))
+        # - Heading -
+        tk.Label(
+            win,
+            text=self.selected_verse_text,
+            # Use a font with proper ascent for Gurmukhi + extra top padding
+            font=(self._gurmukhi_font_family, 20, "bold"),
+            bg="light gray",
+            wraplength=900,
+            justify="center",
+            pady=12
+        ).pack(fill=tk.X, padx=20, pady=(15,10))
 
-            content = tk.Frame(win, bg='light gray')
-            content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        # Make a content container so bottom buttons are anchored reliably
+        content = tk.Frame(win, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-            # Translation area
-            tf = tk.LabelFrame(content, text="Established Darpan Translation",
-                               font=("Arial", 14, 'bold'), bg='light gray', fg='black', padx=10, pady=5)
-            tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+        # - Translation area -
+        tf = tk.LabelFrame(
+            content,
+            text="Established Darpan Translation",
+            font=("Arial", 14, "bold"),
+            bg='light gray',
+            fg='black',
+            padx=10, pady=5
+        )
+        # allow translation area to take the extra space
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
-            text_container = tk.Frame(tf, bg='light gray')
-            text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-            scroll_y = tk.Scrollbar(text_container, orient='vertical')
-            self._translation_text = tk.Text(text_container, wrap=tk.WORD,
-                                             font=(self._gurmukhi_font_family, 13),
-                                             height=10, padx=8, pady=12)
-            self._translation_text.configure(yscrollcommand=scroll_y.set)
-            scroll_y.configure(command=self._translation_text.yview)
-            self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        # Text area with vertical scrollbar so content scrolls instead of pushing layout
+        text_container = tk.Frame(tf, bg='light gray')
+        text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_y = tk.Scrollbar(text_container, orient="vertical")
+        self._translation_text = tk.Text(
+            text_container, wrap=tk.WORD, font=(self._gurmukhi_font_family, 13),
+            height=10, padx=8, pady=12
+        )
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
-            status_row = tk.Frame(tf, bg='light gray')
-            status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6,0))
-            self._translation_status_var = tk.StringVar(value="Manual input")
-            tk.Label(status_row, textvariable=self._translation_status_var, bg='light gray', fg='#333', font=("Arial", 10, 'italic')).pack(side=tk.LEFT)
-            tk.Button(status_row, text="Refresh from Data", command=self._refresh_translation_from_data,
-                      bg='teal', fg='white', font=("Arial", 10)).pack(side=tk.RIGHT)
+        # Status + Refresh row under the translation box
+        status_row = tk.Frame(tf, bg='light gray')
+        # keep status row pinned to the bottom of the translation frame
+        status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        # grid inside the row: label left (expands), button right
+        status_row.columnconfigure(0, weight=1)
+        status_row.columnconfigure(1, weight=0)
+        self._translation_status_var = tk.StringVar(value="")
+        tk.Label(
+            status_row,
+            textvariable=self._translation_status_var,
+            font=("Arial", 10, "italic"),
+            bg='light gray', fg='#333333',
+            anchor='w'
+        ).grid(row=0, column=0, sticky='w', padx=(0,8))
+        tk.Button(
+            status_row,
+            text="Refresh from data files",
+            font=("Arial", 10),
+            bg='gray', fg='white',
+            command=self._refresh_translation_from_data
+        ).grid(row=0, column=1, sticky='e')
 
-            # Word selection area
-            wf = tk.LabelFrame(content, text="Select Words to Assess Grammar",
-                               font=("Arial", 14, 'bold'), bg='light gray', fg='black', padx=10, pady=10)
-            wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
-            self._select_all_words_var = tk.BooleanVar(value=False)
-            tk.Checkbutton(wf, text="Select/Deselect All Words", variable=self._select_all_words_var,
-                           bg='light gray', font=("Arial", 12, 'italic'), command=self._toggle_all_word_selection).pack(anchor='w', pady=(0,10))
-            canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
-            canvas.configure(height=48)
-            scrollbar = tk.Scrollbar(wf, orient='horizontal', command=canvas.xview)
-            word_frame = tk.Frame(canvas, bg='light gray')
-            canvas.configure(xscrollcommand=scrollbar.set)
-            canvas.pack(side='top', fill='x', expand=False)
-            scrollbar.pack(side='top', fill='x')
-            canvas.create_window((0,0), window=word_frame, anchor='nw')
-            word_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        # Try to auto-populate translation from structured sources
+        filled, status = self._populate_translation_from_structured()
+        self._translation_status_var.set(status)
 
-            self._word_selection_vars = []
-            self._word_selection_locked_vars = []
+        # (Removed one-off height cap; scrollable text keeps buttons visible)
 
-            verse_text = (self.selected_verse_text or '').split('\u0965', 1)[0].strip()
-            words = verse_text.split()
+        # — Word‐selection area —
+        wf = tk.LabelFrame(
+            content,
+            text="Select Words to Assess Grammar",
+            font=("Arial", 14, "bold"),
+            bg='light gray',
+            fg='black',
+            padx=10, pady=10
+        )
+        # reduce the vertical footprint of the word-selection area
+        wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
 
-            default_word = getattr(self, '_word_driver_word', None)
-            default_norm = None
-            if default_word:
+        # select/deselect all
+        self._select_all_words_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            wf,
+            text="Select/Deselect All Words",
+            variable=self._select_all_words_var,
+            bg="light gray",
+            font=("Arial", 12, "italic"),
+            command=self._toggle_all_word_selection
+        ).pack(anchor="w", pady=(0,10))
+
+        # scrollable word row (single line, horizontal scroll)
+        canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
+        # limit the canvas height to roughly a single checkbox row (~75% reduction)
+        canvas.configure(height=48)
+        scrollbar = tk.Scrollbar(wf, orient="horizontal", command=canvas.xview)
+        word_frame = tk.Frame(canvas, bg='light gray')
+        canvas.configure(xscrollcommand=scrollbar.set)
+
+        canvas.pack(side="top", fill="x", expand=False)
+        scrollbar.pack(side="top", fill="x")
+        canvas.create_window((0,0), window=word_frame, anchor="nw")
+
+        def _on_wf_resize(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        word_frame.bind("<Configure>", _on_wf_resize)
+
+        # lay out each word
+        self._word_selection_vars = []
+
+        # 1) grab the verse text, remove any trailing danda symbols:
+        verse_text = self.selected_verse_text.split('॥', 1)[0].strip()
+
+        # 2) split into words (now “॥” won’t appear as its own token)
+        words = verse_text.split()
+
+        # 3) build your checkboxes off `words` instead of the raw text:
+        for i, w in enumerate(words):
+            var = tk.BooleanVar(value=False)
+            chk = tk.Checkbutton(
+                word_frame,
+                text=w,
+                variable=var,
+                bg='light gray',
+                font=('Arial', 12),
+                anchor='w',
+                justify='left'
+            )
+            # arrange all checkboxes in a single row; scroll horizontally if needed
+            chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
+            self._word_selection_vars.append((var, w))
+
+        # - Bottom buttons -
+        btn_frame = tk.Frame(win, bg="light gray")
+        # Anchor to bottom; keep visual gap equal to BOTTOM_PAD
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+
+        tk.Button(
+            btn_frame,
+            text="← Back to Verse Search",
+            font=("Arial", 12),
+            bg="gray",
+            fg="white",
+            command=win.destroy,
+            padx=15, pady=8
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            btn_frame,
+            text="Submit Translation →",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            command=lambda: self._on_translation_submitted(win),
+            padx=15, pady=8
+        ).pack(side=tk.RIGHT)
+
+    def _populate_translation_from_structured(self):
+        """Attempt to fill the translation Text from structured JSON/CSV.
+        Returns ``(filled, status_message)``.
+        """
+        try:
+            meta = getattr(self, 'selected_verse_meta', {}) or {}
+            verse_text = self.selected_verse_text if hasattr(self, 'selected_verse_text') else ''
+            page_num = meta.get('Page Number')
+            record = _find_arth_for(self, verse_text, page_num)
+            if not record:
+                return False, "Manual input"
+            v = record.get('verse') or record.get('Verse') or ''
+            p = record.get('padarth') or record.get('Padarth') or ''
+            a = record.get('arth') or record.get('Arth') or ''
+            ch = record.get('chhand') or record.get('Chhand') or ''
+            bh = record.get('bhav') or record.get('Bhav') or ''
+
+            if not any([v, p, a, ch, bh]):
+                return False, "Manual input"
+
+            # Write into Text widget using a bold header tag for labels
+            self._translation_text.delete('1.0', tk.END)
+            try:
+                self._translation_text.tag_configure('hdr', font=('Arial', 12, 'bold'))
+            except Exception:
+                # If tag config fails, continue without styling
+                pass
+
+            def _ins(label, value):
+                if value:
+                    self._translation_text.insert('end', f"{label}:\n", 'hdr')
+                    self._translation_text.insert('end', str(value).strip() + "\n\n")
+
+            _ins('Verse', v)
+            _ins('Padarth', p)
+            _ins('Arth', a)
+            _ins('Chhand', ch)
+            _ins('Bhav', bh)
+            return True, "Auto-filled from structured data"
+        except Exception:
+            return False, "Manual input"
+
+    def _refresh_translation_from_data(self):
+        """Handler for the Refresh button to try loading from data files again."""
+        filled, status = self._populate_translation_from_structured()
+        if hasattr(self, '_translation_status_var'):
+            self._translation_status_var.set(status if filled else "No structured data match found")
+
+    # ---------------------------
+    # Assess-by-Word: Dedicated translation/selection UI (no Verse deps)
+    # ---------------------------
+    def show_word_translation_input(self):
+        win = tk.Toplevel(self.root)
+        win.title("Assess by Word - Translation & Selection")
+        win.configure(bg='light gray')
+        # Taskbar-safe exact work-area maximize (deferred) and F11 toggle
+        self._wm_apply(win, margin_px=0, defer=True)
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+
+        # Safe destroy cancels driver state if in-progress
+        try:
+            _orig_destroy = win.destroy
+            def _driver_safe_destroy():
                 try:
-                    default_norm = _normalize_simple(str(default_word))
+                    if getattr(self, '_abw_suppress_driver_cancel_once', False):
+                        try:
+                            self._abw_suppress_driver_cancel_once = False
+                        except Exception:
+                            pass
+                    elif getattr(self, '_word_driver_active', False) and getattr(self, '_word_driver_in_progress', False):
+                        try:
+                            self._word_driver_cancel_current()
+                        except Exception:
+                            pass
+                finally:
+                    try:
+                        _orig_destroy()
+                    except Exception:
+                        pass
+            win.destroy = _driver_safe_destroy
+            win.protocol("WM_DELETE_WINDOW", win.destroy)
+        except Exception:
+            pass
+
+        # Header with integrated driver controls
+        hdr = tk.Frame(win, bg='dark slate gray')
+        hdr.pack(fill=tk.X)
+        self._abw_driver_status_var = tk.StringVar(value="")
+        tk.Label(hdr, textvariable=self._abw_driver_status_var, font=("Arial", 12, 'bold'),
+                 bg='dark slate gray', fg='white').pack(side=tk.LEFT, padx=12, pady=8)
+        ctrls = tk.Frame(hdr, bg='dark slate gray')
+        ctrls.pack(side=tk.RIGHT, padx=8, pady=6)
+        # Prev/Next/Pause/Close
+        def _prev():
+            if getattr(self, '_word_driver_in_progress', False):
+                return
+            try:
+                if getattr(self, '_word_driver_index', 0) > 0:
+                    self._word_driver_index -= 1
+                    self._word_driver_update_ui()
+                    self._word_driver_open_current_verse()
+            except Exception:
+                pass
+        def _next():
+            if getattr(self, '_word_driver_in_progress', False):
+                return
+            try:
+                self._word_driver_open_current_verse()
+            except Exception:
+                pass
+        def _pause_toggle():
+            try:
+                self._word_driver_toggle_pause()
+            except Exception:
+                pass
+        self._abw_driver_prev_btn = tk.Button(ctrls, text="◀ Prev", bg='gray', fg='white', command=_prev)
+        self._abw_driver_prev_btn.pack(side=tk.LEFT, padx=(0,6))
+        self._abw_driver_next_btn = tk.Button(ctrls, text="Next ▶", bg='navy', fg='white', command=_next)
+        self._abw_driver_next_btn.pack(side=tk.LEFT, padx=(0,6))
+        self._abw_driver_pause_btn = tk.Button(ctrls, text="Pause", bg='#444', fg='white', command=_pause_toggle)
+        self._abw_driver_pause_btn.pack(side=tk.LEFT, padx=(0,6))
+        tk.Button(ctrls, text="Close", bg='#2f4f4f', fg='white', command=win.destroy).pack(side=tk.LEFT)
+        # Initialize status/enablement
+        try:
+            self._word_driver_update_ui()
+        except Exception:
+            pass
+
+        # Prefer a Gurmukhi-safe font for heading
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                for name in ['Nirmala UI','Raavi','Noto Sans Gurmukhi','Noto Serif Gurmukhi','GurbaniAkhar','AnmolLipi','Lohit Gurmukhi','Mukta Mahee','Saab','Gurmukhi MN']:
+                    if name in families:
+                        self._gurmukhi_font_family = name
+                        break
+                if not hasattr(self, '_gurmukhi_font_family'):
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Verse heading
+        tk.Label(
+            win,
+            text=self.selected_verse_text,
+            font=(self._gurmukhi_font_family, 20, 'bold'),
+            bg='light gray', wraplength=900, justify='center', pady=12
+        ).pack(fill=tk.X, padx=20, pady=(12,10))
+
+        content = tk.Frame(win, bg='light gray')
+        content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Translation area
+        tf = tk.LabelFrame(content, text="Established Darpan Translation",
+                           font=("Arial", 14, 'bold'), bg='light gray', fg='black', padx=10, pady=5)
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+
+        text_container = tk.Frame(tf, bg='light gray')
+        text_container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_y = tk.Scrollbar(text_container, orient='vertical')
+        self._translation_text = tk.Text(text_container, wrap=tk.WORD,
+                                         font=(self._gurmukhi_font_family, 13),
+                                         height=10, padx=8, pady=12)
+        self._translation_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self._translation_text.yview)
+        self._translation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+        status_row = tk.Frame(tf, bg='light gray')
+        status_row.pack(side=tk.BOTTOM, fill=tk.X, pady=(6,0))
+        self._translation_status_var = tk.StringVar(value="Manual input")
+        tk.Label(status_row, textvariable=self._translation_status_var, bg='light gray', fg='#333', font=("Arial", 10, 'italic')).pack(side=tk.LEFT)
+        tk.Button(status_row, text="Refresh from Data", command=self._refresh_translation_from_data,
+                  bg='teal', fg='white', font=("Arial", 10)).pack(side=tk.RIGHT)
+
+        # Word selection area
+        wf = tk.LabelFrame(content, text="Select Words to Assess Grammar",
+                           font=("Arial", 14, 'bold'), bg='light gray', fg='black', padx=10, pady=10)
+        wf.pack(fill=tk.X, expand=False, padx=20, pady=(0,15))
+        self._select_all_words_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(wf, text="Select/Deselect All Words", variable=self._select_all_words_var,
+                       bg='light gray', font=("Arial", 12, 'italic'), command=self._toggle_all_word_selection).pack(anchor='w', pady=(0,10))
+        canvas = tk.Canvas(wf, bg='light gray', highlightthickness=0)
+        canvas.configure(height=48)
+        scrollbar = tk.Scrollbar(wf, orient='horizontal', command=canvas.xview)
+        word_frame = tk.Frame(canvas, bg='light gray')
+        canvas.configure(xscrollcommand=scrollbar.set)
+        canvas.pack(side='top', fill='x', expand=False)
+        scrollbar.pack(side='top', fill='x')
+        canvas.create_window((0,0), window=word_frame, anchor='nw')
+        word_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+
+        self._word_selection_vars = []
+        self._word_selection_locked_vars = []
+
+        verse_text = (self.selected_verse_text or '').split('\u0965', 1)[0].strip()
+        words = verse_text.split()
+
+        default_word = getattr(self, '_word_driver_word', None)
+        default_norm = None
+        if default_word:
+            try:
+                default_norm = _normalize_simple(str(default_word))
+            except Exception:
+                try:
+                    default_norm = str(default_word).strip()
                 except Exception:
-                    try:
-                        default_norm = str(default_word).strip()
-                    except Exception:
-                        default_norm = None
-            default_assigned = False
+                    default_norm = None
+        default_assigned = False
 
-            for i, w in enumerate(words):
-                var = tk.BooleanVar(value=False)
-                chk = tk.Checkbutton(word_frame, text=w, variable=var, bg='light gray', font=('Arial', 12), anchor='w', justify='left')
+        for i, w in enumerate(words):
+            var = tk.BooleanVar(value=False)
+            chk = tk.Checkbutton(word_frame, text=w, variable=var, bg='light gray', font=('Arial', 12), anchor='w', justify='left')
 
-                is_default = False
-                if default_norm and not default_assigned:
-                    try:
-                        candidate_norm = _normalize_simple(str(w))
-                    except Exception:
-                        candidate_norm = str(w).strip()
-                    if candidate_norm == default_norm:
-                        is_default = True
-                        default_assigned = True
+            is_default = False
+            if default_norm and not default_assigned:
+                try:
+                    candidate_norm = _normalize_simple(str(w))
+                except Exception:
+                    candidate_norm = str(w).strip()
+                if candidate_norm == default_norm:
+                    is_default = True
+                    default_assigned = True
 
-                if is_default:
-                    var.set(True)
-                    self._word_selection_locked_vars.append(var)
-                    try:
-                        chk.configure(bg='LightYellow', activebackground='LightYellow', selectcolor='LightYellow')
-                    except Exception:
-                        pass
-                    try:
-                        chk.configure(highlightbackground='#d6c97a', highlightcolor='#d6c97a')
-                    except Exception:
-                        pass
+            if is_default:
+                var.set(True)
+                self._word_selection_locked_vars.append(var)
+                try:
+                    chk.configure(bg='LightYellow', activebackground='LightYellow', selectcolor='LightYellow')
+                except Exception:
+                    pass
+                try:
+                    chk.configure(highlightbackground='#d6c97a', highlightcolor='#d6c97a')
+                except Exception:
+                    pass
 
-                    def _keep_default_selected(v=var):
-                        if not v.get():
-                            v.set(True)
+                def _keep_default_selected(v=var):
+                    if not v.get():
+                        v.set(True)
 
-                    chk.configure(command=_keep_default_selected)
+                chk.configure(command=_keep_default_selected)
 
-                chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
-                self._word_selection_vars.append((var, w))
+            chk.grid(row=0, column=i, sticky='w', padx=5, pady=3)
+            self._word_selection_vars.append((var, w))
 
-            # Bottom buttons (consistent bottom spacing)
-            btn_frame = tk.Frame(win, bg='light gray')
-            # Visual bottom gap equals BOTTOM_PAD
-            btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
-            tk.Button(btn_frame, text="Close", font=('Arial', 12), bg='gray', fg='white', command=win.destroy, padx=15, pady=8).pack(side=tk.LEFT)
-            tk.Button(btn_frame, text="Submit Translation →", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
-                      command=lambda: self._abw_on_translation_submitted(win), padx=15, pady=8).pack(side=tk.RIGHT)
+        # Bottom buttons (consistent bottom spacing)
+        btn_frame = tk.Frame(win, bg='light gray')
+        # Visual bottom gap equals BOTTOM_PAD
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        tk.Button(btn_frame, text="Close", font=('Arial', 12), bg='gray', fg='white', command=win.destroy, padx=15, pady=8).pack(side=tk.LEFT)
+        tk.Button(btn_frame, text="Submit Translation →", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
+                  command=lambda: self._abw_on_translation_submitted(win), padx=15, pady=8).pack(side=tk.RIGHT)
 
-            # Prefill translation if possible
+        # Prefill translation if possible
+        try:
+            filled, status = self._populate_translation_from_structured()
+            self._translation_status_var.set(status if filled else "Manual input")
+        except Exception:
+            pass
+
+        # Update driver controls state once laid out
+        try:
+            self._word_driver_update_ui()
+        except Exception:
+            pass
+
+    def _abw_on_translation_submitted(self, win):
+        # Equivalent to verse handler but ABW-only
+        text = self._translation_text.get("1.0", tk.END).strip()
+        if not text:
+            messagebox.showwarning("No Translation", "Please paste a translation before submitting.")
+            return
+        self.current_translation = text
+        selected_idxs = [idx for idx, (var, _) in enumerate(self._word_selection_vars) if var.get()]
+        if not selected_idxs:
+            messagebox.showwarning("Nothing Selected", "Please select at least one word to assess.")
+            return
+        self._selected_word_indices = selected_idxs
+        try:
+            self._abw_suppress_driver_cancel_once = True
+            win.destroy()
+        except Exception:
+            pass
+        self.abw_initialize_grammar_queue()
+
+    def proceed_to_word_assessment(self, idx):
+        """Proceed only if there are results and a valid selected index; otherwise prompt the user."""
+        results = getattr(self, "_last_filtered", [])
+        try:
+            if not results or idx is None or idx < 0 or idx >= len(results):
+                messagebox.showinfo("Select a Verse", "Please search and select a verse first")
+                return
+        except Exception:
+            # Even if messagebox fails for any reason, do not crash
+            return
+
+        # grab the metadata dict from the last search
+        self.selected_verse_meta = results[idx]
+        self.selected_verse_text = self.selected_verse_meta["Verse"]
+        # now pop up the translation-paste window
+        self.show_translation_input()
+
+    def process_next_word_assessment(self):
+        if self.current_queue_pos >= len(self.grammar_queue):
+            return self.finish_and_prompt_save()
+
+        idx, word = self.grammar_queue[self.current_queue_pos]
+        self.current_word_index = idx
+        self.user_input_grammar(word, self.current_translation, idx)
+
+    def finish_and_prompt_save(self):
+        """Finalize grammar assessment and prompt to save results."""
+        try:
+            if hasattr(self, "save_results_btn") and self.save_results_btn.winfo_exists():
+                self.save_results_btn.config(state=tk.NORMAL)
+        except Exception:
+            pass
+
+        detailed_saved = getattr(self, "detailed_grammar_entries_saved", 0)
+
+        if detailed_saved:
             try:
-                filled, status = self._populate_translation_from_structured()
-                self._translation_status_var.set(status if filled else "Manual input")
+                noun = "entry" if detailed_saved == 1 else "entries"
+                messagebox.showinfo("Saved", f"Saved {detailed_saved} detailed grammar {noun} to 1.1.1_birha.csv.")
+            except Exception:
+                pass
+        elif self.all_new_entries:
+            try:
+                self.prompt_save_results(self.all_new_entries)
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred while saving: {e}")
+        else:
+            try:
+                messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
             except Exception:
                 pass
 
-            # Update driver controls state once laid out
+        # Word-driver hook: after a verse completes, advance and update tracker
+        try:
+            if getattr(self, "_word_driver_active", False) and getattr(self, "_word_driver_in_progress", False):
+                self._word_driver_after_verse_finished()
+        except Exception:
+            pass
+
+    def _on_translation_submitted(self, win):
+        # 1) grab and validate the translation itself
+        text = self._translation_text.get("1.0", tk.END).strip()
+        if not text:
+            messagebox.showwarning("No Translation", "Please paste a translation before submitting.")
+            return
+        self.current_translation = text
+
+        # 2) capture exactly which indices the user checked
+        #    (you built self._word_selection_vars = [(var, word), ...] in show_translation_input)
+        selected_idxs = [
+            idx for idx, (var, _) in enumerate(self._word_selection_vars)
+            if var.get()
+        ]
+        if not selected_idxs:
+            messagebox.showwarning("Nothing Selected", "Please select at least one word to assess.")
+            return
+        self._selected_word_indices = selected_idxs
+
+        # 3) tear down and hand off to your queue initializer
+        win.destroy()
+        self.initialize_grammar_queue()
+        # ← NO MORE direct call to process_next_word_assessment() here,
+        #     initialize_grammar_queue() will immediately invoke it.
+
+    def initialize_grammar_queue(self):
+        """
+        After the user has pasted their translation, split the verse
+        into words and build the queue of those words the user selected
+        for grammar assessment. Then immediately start the first word.
+        """
+        # Use the same trimmed verse text that powered the selection UI so indices line up
+        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        words = verse_text.split()
+
+        # collect exactly those indices the user checked in show_translation_input()
+        # (you should have created a tk.BooleanVar list self._word_vars there)
+        selected_indices = self._selected_word_indices
+
+        self.detailed_grammar_entries_saved = 0
+
+        # build the queue using only valid indices to avoid out-of-range lookups
+        self.grammar_queue = [
+            (i, words[i]) for i in selected_indices if 0 <= i < len(words)
+        ]
+        self.grammar_meanings = []        # ← NEW: clear out any old entries
+        self.current_queue_pos = 0
+
+        if not self.grammar_queue:
+            messagebox.showinfo("Nothing Selected",
+                "You didn’t select any words for grammar assessment.")
+            return
+
+        # **IMMEDIATELY** start your per-word flow
+        self.process_next_word_assessment()
+
+    # ABW-only: queue initializer and driver
+    def abw_initialize_grammar_queue(self):
+        """ABW: Build grammar queue from selected word indices and start first word (ABW UI only)."""
+        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        words = verse_text.split()
+        selected_indices = getattr(self, '_selected_word_indices', [])
+        self.detailed_grammar_entries_saved = 0
+        self.grammar_queue = [(i, words[i]) for i in selected_indices if 0 <= i < len(words)]
+        self.grammar_meanings = []
+        self.current_queue_pos = 0
+        if not self.grammar_queue:
+            messagebox.showinfo("Nothing Selected", "You didn't select any words for grammar assessment.")
+            return
+        self.abw_process_next_word_assessment()
+
+    def abw_process_next_word_assessment(self):
+        if self.current_queue_pos >= len(self.grammar_queue):
+            return self.finish_and_prompt_save()
+        idx, word = self.grammar_queue[self.current_queue_pos]
+        self.current_word_index = idx
+        self.user_input_grammar_for_word(word, self.current_translation, idx)
+
+    def _toggle_all_word_selection(self):
+        """Called by the top ‘Select/Deselect All Words’ checkbox."""
+        val = self._select_all_words_var.get()
+        locked = set(getattr(self, '_word_selection_locked_vars', []))
+        for var, _ in getattr(self, '_word_selection_vars', []):
+            if var in locked:
+                var.set(True)
+                continue
+            var.set(val)
+    def _build_user_input_grammar(self, win, *, word, translation, index, mode):
+        """Shared builder for the per-word Grammar UI. Does not start a mainloop.
+
+        Returns (win, ctx) where ctx exposes key widgets for callers to tweak.
+        mode in {"verse", "word"} controls small call-site differences (e.g., back button).
+        """
+        # Stash current mode so skip/advance chooses correct queue handler
+        try:
+            self._current_grammar_mode = mode
+        except Exception:
+            pass
+        win.configure(bg='light gray')
+        win.resizable(True, True)
+
+        # 1) Verse display + highlight (use Gurmukhi-safe font + metrics padding)
+        vf = tk.Frame(win, bg='light gray')
+        vf.pack(fill=tk.X, padx=20, pady=(20,10))
+
+        # Reuse or compute a Gurmukhi-safe font family (shared with translation input)
+        try:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                families = set(map(str, tkfont.families()))
+                candidates = [
+                    'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
+                    'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
+                    'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
+                ]
+                chosen = None
+                for name in candidates:
+                    if name in families:
+                        chosen = name
+                        break
+                if not chosen:
+                    chosen = tkfont.nametofont('TkDefaultFont').cget('family')
+                self._gurmukhi_font_family = chosen
+        except Exception:
+            if not hasattr(self, '_gurmukhi_font_family'):
+                try:
+                    self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
+                except Exception:
+                    self._gurmukhi_font_family = 'TkDefaultFont'
+
+        # Construct fonts for the verse and highlight (persist to avoid GC fallback)
+        if not hasattr(self, '_verse_font'):
+            self._verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
+        if not hasattr(self, '_verse_font_bold'):
+            self._verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
+
+        # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
+        try:
+            ascent = int(self._verse_font.metrics('ascent') or 0)
+            descent = int(self._verse_font.metrics('descent') or 0)
+        except Exception:
+            ascent = descent = 0
+        pad_top = int(math.ceil(ascent * 0.25))
+        pad_bottom = int(math.ceil(descent * 0.35))
+
+        # Text widget for the verse (centered, word-wrap), with internal padding and external pady
+        td = tk.Text(
+            vf,
+            wrap=tk.WORD,
+            bg='light gray',
+            font=self._verse_font,
+            height=1,
+            bd=0,
+            padx=4,
+            pady=max(2, int(math.ceil(max(ascent, descent) * 0.15)))
+        )
+        td.pack(fill=tk.X, pady=(pad_top, pad_bottom))
+        td.insert('1.0', self.selected_verse_text)
+        td.tag_add('center', '1.0', 'end')
+        td.tag_configure('center', justify='center')
+
+        # highlight the word
+        try:
+            words = self.selected_verse_text.split()
+            start = sum(len(w)+1 for w in words[:index])
+            end   = start + len(words[index])
+            td.tag_add('highlight', f'1.{start}', f'1.{end}')
+            td.tag_configure('highlight', font=self._verse_font_bold, foreground='blue')
+        except Exception:
+            pass
+        td.config(state=tk.DISABLED)
+
+        # Keep text wrapping responsive to window width
+        def _sync_text_width(evt):
             try:
-                self._word_driver_update_ui()
+                avg_px = max(1, int(self._verse_font.measure('0') or 8))
+                width_chars = max(20, int((evt.width - 40) / avg_px))
+                td.configure(width=width_chars)
+            except Exception:
+                pass
+        try:
+            win.bind('<Configure>', _sync_text_width, add='+')
+        except Exception:
+            pass
+
+        # 2) Translation LabelFrame (taller; expands with window)
+        tf = tk.LabelFrame(win, text="Darpan Translation",
+                           font=('Arial',16,'bold'),
+                           bg='light gray', fg='black',
+                           padx=10, pady=10)
+        tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
+        trans = tk.Text(tf, wrap=tk.WORD, font=('Arial',14), height=6, bd=0)
+        trans.insert('1.0', translation)
+        trans.config(state=tk.DISABLED)
+        trans.pack(fill=tk.BOTH, expand=True)
+
+        # Prepare vars for grammar options
+        if hasattr(self, '_derived_highlight_callbacks'):
+            for var, trace_id in getattr(self, '_derived_highlight_callbacks', []):
+                try:
+                    if isinstance(var, tk.Variable):
+                        var.trace_remove('write', trace_id)
+                except Exception:
+                    pass
+        self._derived_highlight_callbacks = []
+        self.number_var = tk.StringVar(value="NA")
+        self.gender_var = tk.StringVar(value="NA")
+        self.pos_var    = tk.StringVar(value="NA")
+
+        # 3+4) Stack: meanings (wide) above options (wide)
+        stack = tk.Frame(win, bg='light gray')
+        stack.pack(fill=tk.X, padx=20, pady=(0,15))
+
+        # Meanings
+        left = tk.LabelFrame(
+            stack,
+            text=f"Meanings for \u201c{word}\u201d",
+            font=('Arial',16,'bold'),
+            bg='light gray', fg='black',
+            padx=10, pady=10
+        )
+        left.pack(fill=tk.X, expand=False)
+        self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0)
+        scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
+        self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        self.meanings_canvas.pack(side='left', fill='both', expand=True)
+        self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
+        self.meanings_canvas.create_window((0,0), window=self.meanings_inner_frame, anchor='nw')
+        self.meanings_inner_frame.bind("<Configure>", lambda e: self.meanings_canvas.configure(scrollregion=self.meanings_canvas.bbox("all")))
+        self.current_word = word
+        threading.Thread(target=lambda: self.lookup_grammar_meanings_thread(word), daemon=True).start()
+
+        # Options
+        right = tk.LabelFrame(
+            stack,
+            text="Select Grammar Options",
+            font=("Arial", 16, "bold"),
+            bg="light gray", fg="black",
+            padx=10, pady=10
+        )
+        right.pack(fill=tk.X, expand=False, pady=(8, 0))
+        grp_row = tk.Frame(right, bg="light gray")
+        grp_row.pack(fill=tk.X)
+        for c in range(3):
+            grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
+
+        radio_groups = {
+            "Number / ਵਚਨ": {},
+            "Gender / ਲਿੰਗ": {},
+            "Type": {},
+        }
+        radio_base_bg = {}
+        highlight_base_color = "light gray"
+
+        # Number (2×2 grid)
+        num_frame = tk.LabelFrame(grp_row, text="Number",
+                                  font=("Arial", 14, "bold"),
+                                  bg=highlight_base_color, padx=8, pady=8)
+        num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
+        nums = [
+            ("Singular", "Singular / ਇਕ"),
+            ("Plural",   "Plural / ਬਹੁ"),
+            ("Unknown",  "NA"),
+        ]
+        for i, (txt, val) in enumerate(nums):
+            r = 0 if i < 2 else 1
+            c = i if i < 2 else 0
+            rb = tk.Radiobutton(
+                num_frame,
+                text=txt,
+                variable=self.number_var,
+                value=val,
+                bg=highlight_base_color,
+                activebackground=highlight_base_color,
+                font=("Arial", 12),
+                anchor="w",
+                justify="left"
+            )
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            radio_groups["Number / ਵਚਨ"][val] = rb
+            radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
+        num_frame.grid_columnconfigure(0, weight=1)
+        num_frame.grid_columnconfigure(1, weight=1)
+
+        # Gender (two columns using grid)
+        gend_frame = tk.LabelFrame(grp_row, text="Gender",
+                                   font=("Arial", 14, "bold"),
+                                   bg=highlight_base_color, padx=8, pady=8)
+        gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
+        gends = [
+            ("Masculine", "Masculine / ਪੁਲਿੰਗ"),
+            ("Feminine",  "Feminine / ਇਸਤਰੀ"),
+            ("Neuter",    "Trans / ਨਪੁਂਸਕ"),
+            ("Unknown",   "NA"),
+        ]
+        half = (len(gends) + 1) // 2
+        for i, (txt, val) in enumerate(gends):
+            c = 0 if i < half else 1
+            r = i if i < half else i - half
+            rb = tk.Radiobutton(
+                gend_frame,
+                text=txt,
+                variable=self.gender_var,
+                value=val,
+                bg=highlight_base_color,
+                activebackground=highlight_base_color,
+                font=("Arial", 12),
+                anchor="w",
+                justify="left"
+            )
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            radio_groups["Gender / ਲਿੰਗ"][val] = rb
+            radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
+        for c in range(2):
+            gend_frame.grid_columnconfigure(c, weight=1)
+
+        # POS
+        pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
+                                  font=("Arial", 14, "bold"),
+                                  bg=highlight_base_color, padx=8, pady=8)
+        pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
+        pos_choices = [
+            ("Noun", "Noun / ਨਾਂਵ"),
+            ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
+            ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
+            ("Verb", "Verb / ਕਿਰਿਆ"),
+            ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"),
+            ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
+            ("Conjunction", "Conjunction / ਯੋਜਕ"),
+            ("Interjection", "Interjection / ਵਿਸਮਿਕ"),
+            ("Unknown", "NA"),
+        ]
+        pos_rows = 2
+        pos_cols = -(-len(pos_choices) // pos_rows)
+        for i, (txt, val) in enumerate(pos_choices):
+            r = i % pos_rows
+            c = i // pos_rows
+            rb = tk.Radiobutton(
+                pos_frame,
+                text=txt,
+                variable=self.pos_var,
+                value=val,
+                bg=highlight_base_color,
+                activebackground=highlight_base_color,
+                font=("Arial", 12),
+                anchor="w",
+                justify="left"
+            )
+            rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
+            radio_groups["Type"][val] = rb
+            radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
+        for c in range(pos_cols):
+            pos_frame.grid_columnconfigure(c, weight=1)
+
+        highlight_bg = "#fff8c6"
+        suggestions = self.get_derived_suggestions_by_vowel_ending(word)
+        derived_fields = [
+            ("Number / ਵਚਨ", self.number_var),
+            ("Gender / ਲਿੰਗ", self.gender_var),
+            ("Type", self.pos_var),
+        ]
+        for column, var in derived_fields:
+            radios = radio_groups.get(column, {})
+            if not radios:
+                continue
+            suggestion = suggestions.get(column)
+            suggested_value = None
+            if suggestion:
+                suggested_value = suggestion[0]
+                if suggested_value in radios:
+                    try:
+                        var.set(suggested_value)
+                    except Exception:
+                        pass
+                else:
+                    suggested_value = None
+            if suggested_value:
+                def _make_highlight_callback(v=var, radio_map=radios, target_value=suggested_value):
+                    def _apply(*_):
+                        current = v.get()
+                        for value, widget in radio_map.items():
+                            base = radio_base_bg.get(widget, highlight_base_color)
+                            color = highlight_bg if (value == current and current == target_value) else base
+                            try:
+                                widget.configure(bg=color, activebackground=color)
+                            except Exception:
+                                try:
+                                    widget.configure(bg=color)
+                                except Exception:
+                                    pass
+                    return _apply
+                callback = _make_highlight_callback()
+                callback()
+                try:
+                    trace_id = var.trace_add("write", callback)
+                    self._derived_highlight_callbacks.append((var, trace_id))
+                except Exception:
+                    callback()
+            else:
+                for widget in radios.values():
+                    base = radio_base_bg.get(widget, highlight_base_color)
+                    try:
+                        widget.configure(bg=base, activebackground=base)
+                    except Exception:
+                        try:
+                            widget.configure(bg=base)
+                        except Exception:
+                            pass
+
+        # Rebalance translation/meanings heights after layout
+        def _rebalance_heights():
+            try:
+                win.update_idletasks()
+                line_px = tkfont.Font(font=('Arial', 14)).metrics('linespace') or 20
+                curr_lines = max(1, int(trans.winfo_height() / line_px))
+                trans.configure(height=curr_lines + 1)
+                canvas_h = self.meanings_canvas.winfo_height()
+                min_canvas = int(line_px * 8)
+                self.meanings_canvas.configure(height=max(min_canvas, int(canvas_h * 0.9)))
             except Exception:
                 pass
 
-        def _abw_on_translation_submitted(self, win):
-            # Equivalent to verse handler but ABW-only
-            text = self._translation_text.get("1.0", tk.END).strip()
-            if not text:
-                messagebox.showwarning("No Translation", "Please paste a translation before submitting.")
-                return
-            self.current_translation = text
-            selected_idxs = [idx for idx, (var, _) in enumerate(self._word_selection_vars) if var.get()]
-            if not selected_idxs:
-                messagebox.showwarning("Nothing Selected", "Please select at least one word to assess.")
-                return
-            self._selected_word_indices = selected_idxs
+        try:
+            win.after(100, _rebalance_heights)
+        except Exception:
+            pass
+
+        # Expert-prompt builder
+        def ask_suggestion():
+            verse = self.selected_verse_text
+            trans = self.current_translation
+            w     = self.current_word
+            num   = self.number_var.get() or "-"
+            gen   = self.gender_var.get() or "-"
+            pos   = self.pos_var.get()    or "-"
+            prior = ""
             try:
-                self._abw_suppress_driver_cancel_once = True
+                search_num = self.number_var.get(); search_gen = self.gender_var.get(); search_pos = self.pos_var.get()
+                if search_num == "NA" and search_gen == "NA" and search_pos == "NA":
+                    matches = self.search_by_inflections(w)
+                else:
+                    matches = self.search_by_criteria(w, search_num, search_gen, search_pos) or self.search_by_inflections(w)
+                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
+                rows = []
+                for result, _count, _perc in matches:
+                    parts = [p.strip() for p in result.split("|")]
+                    if len(parts) < 7: parts += [""] * (7 - len(parts))
+                    try:
+                        key = tuple((parts[i] or "").strip() for i in (2,3,4,5,6))
+                    except Exception:
+                        key = ("") * 5
+                    if key not in pre_keys: continue
+                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
+                    if highlight:
+                        parts = [f"**{p}**" for p in parts]
+                        parts[0] = "? " + parts[0]
+                    rows.append(
+                        "| " + " | ".join(parts + [str(_count), f"{_perc:.1f}%"]) + " |"
+                    )
+                    if len(rows) >= 5: break
+                if rows:
+                    prior = (
+                        "\n\n**Top Predefined Grammar Matches (from Birha CSV):**\n\n"
+                        "| Word | Matched Token | Number | Gender | Grammar | Root | Type | Count | Frequency |\n"
+                        "|------|----------------|--------|--------|---------|------|------|-------:|----------:|\n"
+                        + "\n".join(rows) + "\n\n"
+                    )
+            except Exception:
+                prior = ""
+            prompt = f"""
+            You are a Gurbani grammar expert. Given the verse and Darpan translation, help decide the grammar for the highlighted word.
+
+            ### Verse
+            {verse}
+
+            ### Darpan Translation
+            {trans}
+
+            ### Target Word
+            - Word: {w}
+            - Number: {num}
+            - Gender: {gen}
+            - Part of Speech: {pos}
+
+            {prior}
+
+            ### Guidance
+            1. Consider whether the word is a Noun, Pronoun, Adjective, Adverb, Verb, Postposition, Conjunction, or Interjection.
+            2. If Noun/Pronoun: infer the correct case (e.g., genitive, instrumental, dative, locative, ablative) from gloss clues like "of", "by/with", "to/for", "in/on/at", "from".
+            3. If Adjective: ensure it matches the qualified noun/pronoun in Number and Gender; avoid misclassification of indeclinable nouns.
+            4. Keep output concise and evidence-based from the gloss.
+            """.strip()
+            self.root.clipboard_clear(); self.root.clipboard_append(prompt)
+            messagebox.showinfo(
+                "Prompt Ready",
+                "Expert-level prompt (with secondary dictionary meanings) has been copied to your clipboard.\n"
+                "Paste it into ChatGPT for its recommendation."
+            )
+
+        # Bottom separator + buttons
+        sep = tk.Frame(win, bg='#cccccc', height=2)
+        sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
+        btns = tk.Frame(win, bg='light gray')
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+        back_btn_text = "< Back to Translation" if mode == "verse" else "< Back to ABW Translation"
+        back_cmd = (lambda: [win.destroy(), self.show_translation_input()]) if mode == "verse" else (lambda: [win.destroy(), self.show_word_translation_input()])
+        back_btn = tk.Button(btns, text=back_btn_text, font=('Arial',12), bg='gray', fg='white', padx=20, pady=8, command=back_cmd)
+        back_btn.pack(side=tk.LEFT)
+        skip_btn = tk.Button(btns, text="Skip Word", font=('Arial',12), bg='orange', fg='white', padx=20, pady=8, command=lambda: self.skip_word_grammar(win))
+        skip_btn.pack(side=tk.LEFT, padx=10)
+        prompt_btn = tk.Button(btns, text="📋 Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
+        prompt_btn.pack(side=tk.LEFT, padx=10)
+        # Route submit to the appropriate handler per mode to avoid Verse dependencies in ABW
+        submit_handler = (lambda: self.submit_input_grammar(word, index)) if mode == "verse" else (lambda: self.submit_input_grammar_for_word(word, index))
+        submit_btn = tk.Button(btns, text="Submit", font=('Arial',12,'bold'), bg='dark cyan', fg='white', padx=20, pady=8, command=submit_handler)
+        submit_btn.pack(side=tk.RIGHT)
+
+        ctx = {"verse_text": td, "translation_text": trans, "back_button": back_btn, "skip_button": skip_btn,
+               "prompt_button": prompt_btn, "submit_button": submit_btn, "mode": mode}
+        return win, ctx
+
+    def user_input_grammar(self, word, translation, index):
+        """Verse entry: build shared UI and run modally (unchanged behavior)."""
+        win = tk.Toplevel(self.root)
+        win.title(f"Assess Grammar: {word}")
+        self._wm_apply(win, margin_px=0, defer=True)
+        try:
+            self.current_translation = translation
+        except Exception:
+            pass
+        self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="verse")
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        self.root.wait_window(win)
+
+    def user_input_grammar_for_word(self, word, translation, index):
+        """ABW entry point: build and show per-word grammar UI as a modal.
+
+        - Sets ABW-specific title
+        - Taskbar-safe maximize + F11 toggle
+        - Modal via transient + grab_set
+        - Self-contained; does not call Verse UI handlers
+        """
+        win = tk.Toplevel(self.root)
+        win.title(f"Assess by Word – Grammar: {word}")
+        self._wm_apply(win, margin_px=0, defer=True)
+        try:
+            self.current_translation = translation
+        except Exception:
+            pass
+        self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="word")
+        win.transient(self.root)
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+        def _on_close():
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
                 win.destroy()
             except Exception:
                 pass
-            self.abw_initialize_grammar_queue()
+        try:
+            win.protocol('WM_DELETE_WINDOW', _on_close)
+        except Exception:
+            pass
+        self.root.wait_window(win)
 
-        def proceed_to_word_assessment(self, idx):
-            """Proceed only if there are results and a valid selected index; otherwise prompt the user."""
-            results = getattr(self, "_last_filtered", [])
-            try:
-                if not results or idx is None or idx < 0 or idx >= len(results):
-                    messagebox.showinfo("Select a Verse", "Please search and select a verse first")
-                    return
-            except Exception:
-                # Even if messagebox fails for any reason, do not crash
+    def skip_word_grammar(self, win):
+        """Skip grammar assessment for the current word and advance to the next."""
+        try:
+            confirm_skip = messagebox.askyesno("Confirm Skip", "Are you sure you want to skip this word?")
+            if not confirm_skip:
                 return
+        except Exception:
+            # If the confirmation dialog fails for any reason, proceed with skipping.
+            pass
 
-            # grab the metadata dict from the last search
-            self.selected_verse_meta = results[idx]
-            self.selected_verse_text = self.selected_verse_meta["Verse"]
-            # now pop up the translation-paste window
-            self.show_translation_input()
+        try:
+            if win and win.winfo_exists():
+                win.destroy()
+        except Exception:
+            pass
 
-        def process_next_word_assessment(self):
-            if self.current_queue_pos >= len(self.grammar_queue):
-                return self.finish_and_prompt_save()
-
-            idx, word = self.grammar_queue[self.current_queue_pos]
-            self.current_word_index = idx
-            self.user_input_grammar(word, self.current_translation, idx)
-
-        def finish_and_prompt_save(self):
-            """Finalize grammar assessment and prompt to save results."""
-            try:
-                if hasattr(self, "save_results_btn") and self.save_results_btn.winfo_exists():
-                    self.save_results_btn.config(state=tk.NORMAL)
-            except Exception:
-                pass
-
-            detailed_saved = getattr(self, "detailed_grammar_entries_saved", 0)
-
-            if detailed_saved:
-                try:
-                    noun = "entry" if detailed_saved == 1 else "entries"
-                    messagebox.showinfo("Saved", f"Saved {detailed_saved} detailed grammar {noun} to 1.1.1_birha.csv.")
-                except Exception:
-                    pass
-            elif self.all_new_entries:
-                try:
-                    self.prompt_save_results(self.all_new_entries)
-                except Exception as e:
-                    messagebox.showerror("Error", f"An error occurred while saving: {e}")
+        try:
+            self.current_queue_pos += 1
+            is_abw = (getattr(self, '_current_grammar_mode', 'verse') == 'word') or (getattr(self, '_current_detailed_mode', 'verse') == 'word')
+            if is_abw:
+                self.abw_process_next_word_assessment()
             else:
-                try:
-                    messagebox.showinfo("No Entries", "No grammar assessments were recorded.")
-                except Exception:
-                    pass
+                self.process_next_word_assessment()
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred while skipping: {e}")
 
-            # Word-driver hook: after a verse completes, advance and update tracker
-            try:
-                if getattr(self, "_word_driver_active", False) and getattr(self, "_word_driver_in_progress", False):
-                    self._word_driver_after_verse_finished()
-            except Exception:
-                pass
+    def lookup_grammar_meanings_thread(self, word):
+        """
+        Look up dictionary meanings for ‘word’ on a background thread,
+        then schedule update into the grammar UI.
+        """
+        meanings = self.lookup_word_in_dictionary(word)
+        # schedule into mainloop
+        self.root.after(0, lambda: self.update_grammar_meanings_ui(meanings))
 
-        def _on_translation_submitted(self, win):
-            # 1) grab and validate the translation itself
-            text = self._translation_text.get("1.0", tk.END).strip()
-            if not text:
-                messagebox.showwarning("No Translation", "Please paste a translation before submitting.")
-                return
-            self.current_translation = text
+    def update_grammar_meanings_ui(self, meanings):
+        """
+        Populate the meanings_inner_frame into N columns (now 7).
+        """
+        # 1) Clear any old widgets
+        for w in self.meanings_inner_frame.winfo_children():
+            w.destroy()
 
-            # 2) capture exactly which indices the user checked
-            #    (you built self._word_selection_vars = [(var, word), ...] in show_translation_input)
-            selected_idxs = [
-                idx for idx, (var, _) in enumerate(self._word_selection_vars)
-                if var.get()
-            ]
-            if not selected_idxs:
-                messagebox.showwarning("Nothing Selected", "Please select at least one word to assess.")
-                return
-            self._selected_word_indices = selected_idxs
+        # 2) Decide on how many columns (wider, denser layout across the canvas width)
+        try:
+            # Try to infer available width for meaning columns
+            self.meanings_canvas.update_idletasks()
+            avail_w = max(800, int(self.meanings_canvas.winfo_width() or 0))
+        except Exception:
+            avail_w = 1000
+        col_w = 240  # approximate width per column incl. padding (slightly narrower to fit more)
+        num_cols = max(6, min(12, avail_w // col_w))
+        total   = len(meanings)
+        # Ceil division so each column has at most ceil(total/num_cols) entries
+        per_col = -(-total // num_cols)
 
-            # 3) tear down and hand off to your queue initializer
-            win.destroy()
-            self.initialize_grammar_queue()
-            # ← NO MORE direct call to process_next_word_assessment() here,
-            #     initialize_grammar_queue() will immediately invoke it.
-
-        def initialize_grammar_queue(self):
-            """
-            After the user has pasted their translation, split the verse
-            into words and build the queue of those words the user selected
-            for grammar assessment. Then immediately start the first word.
-            """
-            # Use the same trimmed verse text that powered the selection UI so indices line up
-            verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
-            words = verse_text.split()
-
-            # collect exactly those indices the user checked in show_translation_input()
-            # (you should have created a tk.BooleanVar list self._word_vars there)
-            selected_indices = self._selected_word_indices
-
-            self.detailed_grammar_entries_saved = 0
-
-            # build the queue using only valid indices to avoid out-of-range lookups
-            self.grammar_queue = [
-                (i, words[i]) for i in selected_indices if 0 <= i < len(words)
-            ]
-            self.grammar_meanings = []        # ← NEW: clear out any old entries
-            self.current_queue_pos = 0
-
-            if not self.grammar_queue:
-                messagebox.showinfo("Nothing Selected",
-                    "You didn’t select any words for grammar assessment.")
-                return
-
-            # **IMMEDIATELY** start your per-word flow
-            self.process_next_word_assessment()
-
-        # ABW-only: queue initializer and driver
-        def abw_initialize_grammar_queue(self):
-            """ABW: Build grammar queue from selected word indices and start first word (ABW UI only)."""
-            verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
-            words = verse_text.split()
-            selected_indices = getattr(self, '_selected_word_indices', [])
-            self.detailed_grammar_entries_saved = 0
-            self.grammar_queue = [(i, words[i]) for i in selected_indices if 0 <= i < len(words)]
-            self.grammar_meanings = []
-            self.current_queue_pos = 0
-            if not self.grammar_queue:
-                messagebox.showinfo("Nothing Selected", "You didn't select any words for grammar assessment.")
-                return
-            self.abw_process_next_word_assessment()
-
-        def abw_process_next_word_assessment(self):
-            if self.current_queue_pos >= len(self.grammar_queue):
-                return self.finish_and_prompt_save()
-            idx, word = self.grammar_queue[self.current_queue_pos]
-            self.current_word_index = idx
-            self.user_input_grammar_for_word(word, self.current_translation, idx)
-
-        def _toggle_all_word_selection(self):
-            """Called by the top ‘Select/Deselect All Words’ checkbox."""
-            val = self._select_all_words_var.get()
-            locked = set(getattr(self, '_word_selection_locked_vars', []))
-            for var, _ in getattr(self, '_word_selection_vars', []):
-                if var in locked:
-                    var.set(True)
-                    continue
-                var.set(val)
-        def _build_user_input_grammar(self, win, *, word, translation, index, mode):
-            """Shared builder for the per-word Grammar UI. Does not start a mainloop.
-
-            Returns (win, ctx) where ctx exposes key widgets for callers to tweak.
-            mode in {"verse", "word"} controls small call-site differences (e.g., back button).
-            """
-            # Stash current mode so skip/advance chooses correct queue handler
-            try:
-                self._current_grammar_mode = mode
-            except Exception:
-                pass
-            win.configure(bg='light gray')
-            win.resizable(True, True)
-
-            # 1) Verse display + highlight (use Gurmukhi-safe font + metrics padding)
-            vf = tk.Frame(win, bg='light gray')
-            vf.pack(fill=tk.X, padx=20, pady=(20,10))
-
-            # Reuse or compute a Gurmukhi-safe font family (shared with translation input)
-            try:
-                if not hasattr(self, '_gurmukhi_font_family'):
-                    families = set(map(str, tkfont.families()))
-                    candidates = [
-                        'Nirmala UI', 'Raavi', 'Noto Sans Gurmukhi', 'Noto Serif Gurmukhi',
-                        'GurbaniAkhar', 'GurbaniAkhar-Thick', 'AnmolLipi', 'AnmolUni',
-                        'Lohit Gurmukhi', 'Mukta Mahee', 'Saab', 'Gurmukhi MN'
-                    ]
-                    chosen = None
-                    for name in candidates:
-                        if name in families:
-                            chosen = name
-                            break
-                    if not chosen:
-                        chosen = tkfont.nametofont('TkDefaultFont').cget('family')
-                    self._gurmukhi_font_family = chosen
-            except Exception:
-                if not hasattr(self, '_gurmukhi_font_family'):
-                    try:
-                        self._gurmukhi_font_family = tkfont.nametofont('TkDefaultFont').cget('family')
-                    except Exception:
-                        self._gurmukhi_font_family = 'TkDefaultFont'
-
-            # Construct fonts for the verse and highlight (persist to avoid GC fallback)
-            if not hasattr(self, '_verse_font'):
-                self._verse_font = tkfont.Font(family=self._gurmukhi_font_family, size=24)
-            if not hasattr(self, '_verse_font_bold'):
-                self._verse_font_bold = tkfont.Font(family=self._gurmukhi_font_family, size=24, weight='bold')
-
-            # Compute top/bottom padding from font metrics to avoid clipping of shirorekha/matras
-            try:
-                ascent = int(self._verse_font.metrics('ascent') or 0)
-                descent = int(self._verse_font.metrics('descent') or 0)
-            except Exception:
-                ascent = descent = 0
-            pad_top = int(math.ceil(ascent * 0.25))
-            pad_bottom = int(math.ceil(descent * 0.35))
-
-            # Text widget for the verse (centered, word-wrap), with internal padding and external pady
-            td = tk.Text(
-                vf,
-                wrap=tk.WORD,
+        # 3) Grid each meaning into (row, column)
+        for idx, m in enumerate(meanings):
+            col = idx // per_col
+            row = idx % per_col
+            tk.Label(
+                self.meanings_inner_frame,
+                text=f"• {m}",
                 bg='light gray',
-                font=self._verse_font,
-                height=1,
-                bd=0,
-                padx=4,
-                pady=max(2, int(math.ceil(max(ascent, descent) * 0.15)))
+                font=('Arial', 12),
+                wraplength=max(140, col_w - 20),
+                justify='left'
+            ).grid(
+                row=row,
+                column=col,
+                sticky='nw',
+                padx=8, pady=2
             )
-            td.pack(fill=tk.X, pady=(pad_top, pad_bottom))
-            td.insert('1.0', self.selected_verse_text)
-            td.tag_add('center', '1.0', 'end')
-            td.tag_configure('center', justify='center')
+    
+        # 4) NEW: stash into a growing list of dicts:
+        entry = {
+            "word": getattr(self, "current_word", None),
+            "meanings": meanings
+        }
+        self.grammar_meanings.append(entry)
 
-            # highlight the word
-            try:
-                words = self.selected_verse_text.split()
-                start = sum(len(w)+1 for w in words[:index])
-                end   = start + len(words[index])
-                td.tag_add('highlight', f'1.{start}', f'1.{end}')
-                td.tag_configure('highlight', font=self._verse_font_bold, foreground='blue')
-            except Exception:
-                pass
-            td.config(state=tk.DISABLED)
+    def submit_input_grammar(self, word, index):
+        """
+        Collects grammar input and transitions to the dropdown step.
+        """
+        # 1) Extract the basic Number/Gender/POS the user just picked:
+        number = self.number_var.get()
+        gender = self.gender_var.get()
+        pos    = self.pos_var.get()
 
-            # Keep text wrapping responsive to window width
-            def _sync_text_width(evt):
+        # 2) Gather verse + translation context:
+        verse                   = self.selected_verse_text
+        raw_translation         = self.current_translation
+        translation_condensed   = extract_darpan_translation(raw_translation)
+
+        # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
+        meanings = next(
+            (e["meanings"] for e in self.grammar_meanings if e["word"] == word),
+            []
+        )
+
+        # 4) Build the initial "detailed" entry dict:
+        entry = {
+            "Vowel Ending":       word,
+            "Number / ਵਚਨ":       number,
+            "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
+            "Gender / ਲਿੰਗ":       gender,
+            "Word Root":           "",   # to be filled next
+            "Type":                pos,
+            "Evaluation":          "Derived",
+            "Reference Verse":     verse,
+            "Darpan Translation":  translation_condensed,
+            "Darpan Translation (Raw)": raw_translation,
+            "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
+            "ChatGPT Commentary":  "",    # to be pasted later
+            # Ensure each saved word within the same verse is uniquely identified
+            "Word Index":          int(index) if index is not None else ""
+        }
+
+        # 5) Store it so the next window can read & update it:
+        self.current_detailed_entry = entry
+
+        # 6) Hand off to your dropdown-UI (Verse wrapper):
+        self.open_final_grammar_dropdown(word, entry["Type"], index)
+
+    def submit_input_grammar_for_word(self, word, index):
+        """ABW: Collect grammar input and transition to ABW dropdown (no Verse dependency)."""
+        number = self.number_var.get()
+        gender = self.gender_var.get()
+        pos    = self.pos_var.get()
+        verse                   = self.selected_verse_text
+        raw_translation         = self.current_translation
+        translation_condensed   = extract_darpan_translation(raw_translation)
+        meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
+        entry = {
+            "Vowel Ending":       word,
+            COL_NUMBER:            number,
+            COL_GRAMMAR:           "",
+            COL_GENDER:            gender,
+            "Word Root":           "",
+            "Type":                pos,
+            "Evaluation":          "Derived",
+            "Reference Verse":     verse,
+            "Darpan Translation":  translation_condensed,
+            "Darpan Translation (Raw)": raw_translation,
+            "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
+            "ChatGPT Commentary":  "",
+            "Word Index":          int(index) if index is not None else ""
+        }
+        self.current_detailed_entry = entry
+        self.open_final_grammar_dropdown_for_word(word, entry["Type"], index)
+
+    # ────────────────────────────────────────────────────────────────
+    # MAIN METHOD  –  drop-in replacement
+    # ────────────────────────────────────────────────────────────────
+    def _open_final_grammar_dropdown_common(self, word, pos, index, mode: str = "verse"):
+        """
+        After the user has chosen a Part-of-Speech, pop up a Toplevel
+        with dropdowns for the detailed grammar fields _and_ a place
+        to paste ChatGPT's commentary.
+        """
+        # Stash mode for save-phase routing (ABW vs Verse)
+        try:
+            self._current_detailed_mode = mode
+        except Exception:
+            pass
+
+        # 1) --------------  Load & filter your CSV  -----------------
+        self.grammar_db = pd.read_csv("1.1.1_birha.csv")
+        df = self.grammar_db[self.grammar_db["Type"] == pos]
+
+        # option lists
+        # option lists (resolve actual headers robustly)
+        _num_col  = _resolve_col(df, COL_NUMBER, 'Number / ਵਚਨ', 'Number')
+        _gram_col = _resolve_col(df, COL_GRAMMAR, 'Grammar / ਵਯਾਕਰਣ', 'Grammar Case / ਵਯਾਕਰਣ', 'Grammar')
+        _gen_col  = _resolve_col(df, COL_GENDER, 'Gender / ਲਿੰਗ', 'Gender')
+        num_opts  = sorted(df[_num_col].dropna().unique().tolist()) if _num_col else []
+        gram_opts = sorted(df[_gram_col].dropna().unique().tolist()) if _gram_col else []
+        gen_opts  = sorted(df[_gen_col].dropna().unique().tolist()) if _gen_col else []
+        entry = getattr(self, "current_detailed_entry", {}) or {}
+        pos_type = str((entry.get("Type") if isinstance(entry, dict) else None) or pos or "")
+
+        # Choose how to build root_opts based on whether it's a Noun
+        if pos_type == "Noun / ਨਾਂਵ":
+            # Option-1: For Nouns, use hard-wired canonical endings
+            root_opts = CANONICAL_ENDINGS.copy()
+            for lst in (num_opts, gram_opts, gen_opts):
+                if "NA" not in lst:
+                    lst.insert(0, "NA")
+        else:
+            # Option-2: For all other types (e.g., Pronoun), use actual values from database
+            root_opts = sorted(df["Word Root"].dropna().unique().tolist())
+            for lst in (num_opts, gram_opts, gen_opts, root_opts):
+                if "NA" not in lst:
+                    lst.insert(0, "NA")
+
+        # ---- Repeat-word banner bookkeeping ----
+        verse_text = getattr(self, "current_pankti", "")
+        verse_key = self._verse_key(verse_text)
+        if getattr(self, "_last_dropdown_verse_key", None) != verse_key:
+            self._repeat_note_shown = set()
+            self._first_repeat_token = None
+            self._last_dropdown_verse_key = verse_key
+            self._suppress_repeat_notes_for_verse = False
+            # kill any stale frame
+            if hasattr(self, "literal_note_frame") and self.literal_note_frame:
                 try:
-                    avg_px = max(1, int(self._verse_font.measure('0') or 8))
-                    width_chars = max(20, int((evt.width - 40) / avg_px))
-                    td.configure(width=width_chars)
+                    if self.literal_note_frame.winfo_exists():
+                        self.literal_note_frame.destroy()
                 except Exception:
                     pass
-            try:
-                win.bind('<Configure>', _sync_text_width, add='+')
-            except Exception:
-                pass
+                self.literal_note_frame = None
+                self.literal_note_title = None
+                self.literal_note_body = None
 
-            # 2) Translation LabelFrame (taller; expands with window)
-            tf = tk.LabelFrame(win, text="Darpan Translation",
-                               font=('Arial',16,'bold'),
-                               bg='light gray', fg='black',
-                               padx=10, pady=10)
-            tf.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
-            trans = tk.Text(tf, wrap=tk.WORD, font=('Arial',14), height=6, bd=0)
-            trans.insert('1.0', translation)
-            trans.config(state=tk.DISABLED)
-            trans.pack(fill=tk.BOTH, expand=True)
+        words = list(getattr(self, "pankti_words", []))
+        if not words and verse_text:
+            words = verse_text.split()
+        cached_words = getattr(self, "_raw_words_cache", None)
+        if cached_words != words:
+            norm_words = [self._norm_tok(w) for w in words]
+            self._norm_words_cache = norm_words
+            self._raw_words_cache = words
+        else:
+            norm_words = getattr(self, "_norm_words_cache", []) or [self._norm_tok(w) for w in words]
 
-            # Prepare vars for grammar options
-            if hasattr(self, '_derived_highlight_callbacks'):
-                for var, trace_id in getattr(self, '_derived_highlight_callbacks', []):
-                    try:
-                        if isinstance(var, tk.Variable):
-                            var.trace_remove('write', trace_id)
-                    except Exception:
-                        pass
-            self._derived_highlight_callbacks = []
-            self.number_var = tk.StringVar(value="NA")
-            self.gender_var = tk.StringVar(value="NA")
-            self.pos_var    = tk.StringVar(value="NA")
+        idx = index
+        display_word = words[idx] if idx < len(words) else word
+        word_norm = norm_words[idx] if idx < len(norm_words) else self._norm_tok(display_word)
+        # guard empty tokens; ignore vanished punctuation/ZW chars
+        has_repeat = bool(word_norm) and norm_words.count(word_norm) >= 2
+        if has_repeat and self._first_repeat_token is None and word_norm:
+            self._first_repeat_token = word_norm
+        seen_before = norm_words[:idx].count(word_norm) if word_norm else 0
+        key = (verse_key, word_norm, "second")
+        is_special_hit = (
+            has_repeat
+            and word_norm == self._first_repeat_token
+            and seen_before == 1
+            and key not in self._repeat_note_shown
+        )
 
-            # 3+4) Stack: meanings (wide) above options (wide)
-            stack = tk.Frame(win, bg='light gray')
-            stack.pack(fill=tk.X, padx=20, pady=(0,15))
+        inline_allowed = (
+            getattr(self, "_use_inline_literal_banner", True)
+            and not getattr(self, "_suppress_repeat_notes_for_verse", False)
+        )
 
-            # Meanings
-            left = tk.LabelFrame(
-                stack,
-                text=f"Meanings for \u201c{word}\u201d",
-                font=('Arial',16,'bold'),
-                bg='light gray', fg='black',
-                padx=10, pady=10
+        suppress_first_occurrence_of_first_token = (
+            has_repeat
+            and self._first_repeat_token is not None
+            and word_norm == self._first_repeat_token
+            and seen_before == 0
+        )
+
+        if inline_allowed and is_special_hit:
+            self._repeat_note_shown.add(key)
+            special_text = (
+                f"In literal analysis: The word “{display_word}” appears multiple times in this verse. "
+                "The highlighted grammar options reflect your past selections for this word (or close matches) "
+                "to encourage consistency. They’re suggestions, not mandates—adjust if the current context differs."
             )
-            left.pack(fill=tk.X, expand=False)
-            self.meanings_canvas = tk.Canvas(left, bg='light gray', borderwidth=0)
-            scrollbar = tk.Scrollbar(left, orient=tk.VERTICAL, command=self.meanings_canvas.yview)
-            self.meanings_canvas.configure(yscrollcommand=scrollbar.set)
-            scrollbar.pack(side='right', fill='y')
-            self.meanings_canvas.pack(side='left', fill='both', expand=True)
-            self.meanings_inner_frame = tk.Frame(self.meanings_canvas, bg='light gray')
-            self.meanings_canvas.create_window((0,0), window=self.meanings_inner_frame, anchor='nw')
-            self.meanings_inner_frame.bind("<Configure>", lambda e: self.meanings_canvas.configure(scrollregion=self.meanings_canvas.bbox("all")))
-            self.current_word = word
-            threading.Thread(target=lambda: self.lookup_grammar_meanings_thread(word), daemon=True).start()
-
-            # Options
-            right = tk.LabelFrame(
-                stack,
-                text="Select Grammar Options",
-                font=("Arial", 16, "bold"),
-                bg="light gray", fg="black",
-                padx=10, pady=10
-            )
-            right.pack(fill=tk.X, expand=False, pady=(8, 0))
-            grp_row = tk.Frame(right, bg="light gray")
-            grp_row.pack(fill=tk.X)
-            for c in range(3):
-                grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
-
-            radio_groups = {
-                "Number / ਵਚਨ": {},
-                "Gender / ਲਿੰਗ": {},
-                "Type": {},
-            }
-            radio_base_bg = {}
-            highlight_base_color = "light gray"
-
-            # Number (2×2 grid)
-            num_frame = tk.LabelFrame(grp_row, text="Number",
-                                      font=("Arial", 14, "bold"),
-                                      bg=highlight_base_color, padx=8, pady=8)
-            num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
-            nums = [
-                ("Singular", "Singular / ਇਕ"),
-                ("Plural",   "Plural / ਬਹੁ"),
-                ("Unknown",  "NA"),
-            ]
-            for i, (txt, val) in enumerate(nums):
-                r = 0 if i < 2 else 1
-                c = i if i < 2 else 0
-                rb = tk.Radiobutton(
-                    num_frame,
-                    text=txt,
-                    variable=self.number_var,
-                    value=val,
-                    bg=highlight_base_color,
-                    activebackground=highlight_base_color,
-                    font=("Arial", 12),
-                    anchor="w",
-                    justify="left"
-                )
-                rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-                radio_groups["Number / ਵਚਨ"][val] = rb
-                radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
-            num_frame.grid_columnconfigure(0, weight=1)
-            num_frame.grid_columnconfigure(1, weight=1)
-
-            # Gender (two columns using grid)
-            gend_frame = tk.LabelFrame(grp_row, text="Gender",
-                                       font=("Arial", 14, "bold"),
-                                       bg=highlight_base_color, padx=8, pady=8)
-            gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
-            gends = [
-                ("Masculine", "Masculine / ਪੁਲਿੰਗ"),
-                ("Feminine",  "Feminine / ਇਸਤਰੀ"),
-                ("Neuter",    "Trans / ਨਪੁਂਸਕ"),
-                ("Unknown",   "NA"),
-            ]
-            half = (len(gends) + 1) // 2
-            for i, (txt, val) in enumerate(gends):
-                c = 0 if i < half else 1
-                r = i if i < half else i - half
-                rb = tk.Radiobutton(
-                    gend_frame,
-                    text=txt,
-                    variable=self.gender_var,
-                    value=val,
-                    bg=highlight_base_color,
-                    activebackground=highlight_base_color,
-                    font=("Arial", 12),
-                    anchor="w",
-                    justify="left"
-                )
-                rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-                radio_groups["Gender / ਲਿੰਗ"][val] = rb
-                radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
-            for c in range(2):
-                gend_frame.grid_columnconfigure(c, weight=1)
-
-            # POS
-            pos_frame = tk.LabelFrame(grp_row, text="Part of Speech",
-                                      font=("Arial", 14, "bold"),
-                                      bg=highlight_base_color, padx=8, pady=8)
-            pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
-            pos_choices = [
-                ("Noun", "Noun / ਨਾਂਵ"),
-                ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
-                ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
-                ("Verb", "Verb / ਕਿਰਿਆ"),
-                ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"),
-                ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
-                ("Conjunction", "Conjunction / ਯੋਜਕ"),
-                ("Interjection", "Interjection / ਵਿਸਮਿਕ"),
-                ("Unknown", "NA"),
-            ]
-            pos_rows = 2
-            pos_cols = -(-len(pos_choices) // pos_rows)
-            for i, (txt, val) in enumerate(pos_choices):
-                r = i % pos_rows
-                c = i // pos_rows
-                rb = tk.Radiobutton(
-                    pos_frame,
-                    text=txt,
-                    variable=self.pos_var,
-                    value=val,
-                    bg=highlight_base_color,
-                    activebackground=highlight_base_color,
-                    font=("Arial", 12),
-                    anchor="w",
-                    justify="left"
-                )
-                rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-                radio_groups["Type"][val] = rb
-                radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
-            for c in range(pos_cols):
-                pos_frame.grid_columnconfigure(c, weight=1)
-
-            highlight_bg = "#fff8c6"
-            suggestions = self.get_derived_suggestions_by_vowel_ending(word)
-            derived_fields = [
-                ("Number / ਵਚਨ", self.number_var),
-                ("Gender / ਲਿੰਗ", self.gender_var),
-                ("Type", self.pos_var),
-            ]
-            for column, var in derived_fields:
-                radios = radio_groups.get(column, {})
-                if not radios:
-                    continue
-                suggestion = suggestions.get(column)
-                suggested_value = None
-                if suggestion:
-                    suggested_value = suggestion[0]
-                    if suggested_value in radios:
-                        try:
-                            var.set(suggested_value)
-                        except Exception:
-                            pass
-                    else:
-                        suggested_value = None
-                if suggested_value:
-                    def _make_highlight_callback(v=var, radio_map=radios, target_value=suggested_value):
-                        def _apply(*_):
-                            current = v.get()
-                            for value, widget in radio_map.items():
-                                base = radio_base_bg.get(widget, highlight_base_color)
-                                color = highlight_bg if (value == current and current == target_value) else base
-                                try:
-                                    widget.configure(bg=color, activebackground=color)
-                                except Exception:
-                                    try:
-                                        widget.configure(bg=color)
-                                    except Exception:
-                                        pass
-                        return _apply
-                    callback = _make_highlight_callback()
-                    callback()
-                    try:
-                        trace_id = var.trace_add("write", callback)
-                        self._derived_highlight_callbacks.append((var, trace_id))
-                    except Exception:
-                        callback()
-                else:
-                    for widget in radios.values():
-                        base = radio_base_bg.get(widget, highlight_base_color)
-                        try:
-                            widget.configure(bg=base, activebackground=base)
-                        except Exception:
-                            try:
-                                widget.configure(bg=base)
-                            except Exception:
-                                pass
-
-            # Rebalance translation/meanings heights after layout
-            def _rebalance_heights():
-                try:
-                    win.update_idletasks()
-                    line_px = tkfont.Font(font=('Arial', 14)).metrics('linespace') or 20
-                    curr_lines = max(1, int(trans.winfo_height() / line_px))
-                    trans.configure(height=curr_lines + 1)
-                    canvas_h = self.meanings_canvas.winfo_height()
-                    min_canvas = int(line_px * 8)
-                    self.meanings_canvas.configure(height=max(min_canvas, int(canvas_h * 0.9)))
-                except Exception:
-                    pass
-
-            try:
-                win.after(100, _rebalance_heights)
-            except Exception:
-                pass
-
-            # Expert-prompt builder
-            def ask_suggestion():
-                verse = self.selected_verse_text
-                trans = self.current_translation
-                w     = self.current_word
-                num   = self.number_var.get() or "-"
-                gen   = self.gender_var.get() or "-"
-                pos   = self.pos_var.get()    or "-"
-                prior = ""
-                try:
-                    search_num = self.number_var.get(); search_gen = self.gender_var.get(); search_pos = self.pos_var.get()
-                    if search_num == "NA" and search_gen == "NA" and search_pos == "NA":
-                        matches = self.search_by_inflections(w)
-                    else:
-                        matches = self.search_by_criteria(w, search_num, search_gen, search_pos) or self.search_by_inflections(w)
-                    pre_keys = load_predefined_keyset("1.1.1_birha.csv")
-                    rows = []
-                    for result, _count, _perc in matches:
-                        parts = [p.strip() for p in result.split("|")]
-                        if len(parts) < 7: parts += [""] * (7 - len(parts))
-                        try:
-                            key = tuple((parts[i] or "").strip() for i in (2,3,4,5,6))
-                        except Exception:
-                            key = ("") * 5
-                        if key not in pre_keys: continue
-                        highlight = parts[0] == parts[1] and is_full_word(parts[0])
-                        if highlight:
-                            parts = [f"**{p}**" for p in parts]
-                            parts[0] = "? " + parts[0]
-                        rows.append(
-                            "| " + " | ".join(parts + [str(_count), f"{_perc:.1f}%"]) + " |"
-                        )
-                        if len(rows) >= 5: break
-                    if rows:
-                        prior = (
-                            "\n\n**Top Predefined Grammar Matches (from Birha CSV):**\n\n"
-                            "| Word | Matched Token | Number | Gender | Grammar | Root | Type | Count | Frequency |\n"
-                            "|------|----------------|--------|--------|---------|------|------|-------:|----------:|\n"
-                            + "\n".join(rows) + "\n\n"
-                        )
-                except Exception:
-                    prior = ""
-                prompt = f"""
-                You are a Gurbani grammar expert. Given the verse and Darpan translation, help decide the grammar for the highlighted word.
-
-                ### Verse
-                {verse}
-
-                ### Darpan Translation
-                {trans}
-
-                ### Target Word
-                - Word: {w}
-                - Number: {num}
-                - Gender: {gen}
-                - Part of Speech: {pos}
-
-                {prior}
-
-                ### Guidance
-                1. Consider whether the word is a Noun, Pronoun, Adjective, Adverb, Verb, Postposition, Conjunction, or Interjection.
-                2. If Noun/Pronoun: infer the correct case (e.g., genitive, instrumental, dative, locative, ablative) from gloss clues like "of", "by/with", "to/for", "in/on/at", "from".
-                3. If Adjective: ensure it matches the qualified noun/pronoun in Number and Gender; avoid misclassification of indeclinable nouns.
-                4. Keep output concise and evidence-based from the gloss.
-                """.strip()
-                self.root.clipboard_clear(); self.root.clipboard_append(prompt)
-                messagebox.showinfo(
-                    "Prompt Ready",
-                    "Expert-level prompt (with secondary dictionary meanings) has been copied to your clipboard.\n"
-                    "Paste it into ChatGPT for its recommendation."
-                )
-
-            # Bottom separator + buttons
-            sep = tk.Frame(win, bg='#cccccc', height=2)
-            sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0,5))
-            btns = tk.Frame(win, bg='light gray')
-            btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
-            back_btn_text = "< Back to Translation" if mode == "verse" else "< Back to ABW Translation"
-            back_cmd = (lambda: [win.destroy(), self.show_translation_input()]) if mode == "verse" else (lambda: [win.destroy(), self.show_word_translation_input()])
-            back_btn = tk.Button(btns, text=back_btn_text, font=('Arial',12), bg='gray', fg='white', padx=20, pady=8, command=back_cmd)
-            back_btn.pack(side=tk.LEFT)
-            skip_btn = tk.Button(btns, text="Skip Word", font=('Arial',12), bg='orange', fg='white', padx=20, pady=8, command=lambda: self.skip_word_grammar(win))
-            skip_btn.pack(side=tk.LEFT, padx=10)
-            prompt_btn = tk.Button(btns, text="📋 Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
-            prompt_btn.pack(side=tk.LEFT, padx=10)
-            # Route submit to the appropriate handler per mode to avoid Verse dependencies in ABW
-            submit_handler = (lambda: self.submit_input_grammar(word, index)) if mode == "verse" else (lambda: self.submit_input_grammar_for_word(word, index))
-            submit_btn = tk.Button(btns, text="Submit", font=('Arial',12,'bold'), bg='dark cyan', fg='white', padx=20, pady=8, command=submit_handler)
-            submit_btn.pack(side=tk.RIGHT)
-
-            ctx = {"verse_text": td, "translation_text": trans, "back_button": back_btn, "skip_button": skip_btn,
-                   "prompt_button": prompt_btn, "submit_button": submit_btn, "mode": mode}
-            return win, ctx
-
-        def user_input_grammar(self, word, translation, index):
-            """Verse entry: build shared UI and run modally (unchanged behavior)."""
-            win = tk.Toplevel(self.root)
-            win.title(f"Assess Grammar: {word}")
-            self._wm_apply(win, margin_px=0, defer=True)
-            try:
-                self.current_translation = translation
-            except Exception:
-                pass
-            self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="verse")
-            win.transient(self.root)
-            try:
-                win.grab_set()
-            except Exception:
-                pass
-            self.root.wait_window(win)
-
-        def user_input_grammar_for_word(self, word, translation, index):
-            """ABW entry point: build and show per-word grammar UI as a modal.
-
-            - Sets ABW-specific title
-            - Taskbar-safe maximize + F11 toggle
-            - Modal via transient + grab_set
-            - Self-contained; does not call Verse UI handlers
-            """
-            win = tk.Toplevel(self.root)
-            win.title(f"Assess by Word – Grammar: {word}")
-            self._wm_apply(win, margin_px=0, defer=True)
-            try:
-                self.current_translation = translation
-            except Exception:
-                pass
-            self._build_user_input_grammar(win, word=word, translation=translation, index=index, mode="word")
-            win.transient(self.root)
-            try:
-                win.grab_set()
-            except Exception:
-                pass
-            def _on_close():
-                try:
-                    win.grab_release()
-                except Exception:
-                    pass
-                try:
-                    win.destroy()
-                except Exception:
-                    pass
-            try:
-                win.protocol('WM_DELETE_WINDOW', _on_close)
-            except Exception:
-                pass
-            self.root.wait_window(win)
-
-        def skip_word_grammar(self, win):
-            """Skip grammar assessment for the current word and advance to the next."""
-            try:
-                confirm_skip = messagebox.askyesno("Confirm Skip", "Are you sure you want to skip this word?")
-                if not confirm_skip:
-                    return
-            except Exception:
-                # If the confirmation dialog fails for any reason, proceed with skipping.
-                pass
-
-            try:
-                if win and win.winfo_exists():
-                    win.destroy()
-            except Exception:
-                pass
-
-            try:
-                self.current_queue_pos += 1
-                is_abw = (getattr(self, '_current_grammar_mode', 'verse') == 'word') or (getattr(self, '_current_detailed_mode', 'verse') == 'word')
-                if is_abw:
-                    self.abw_process_next_word_assessment()
-                else:
-                    self.process_next_word_assessment()
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred while skipping: {e}")
-
-        def lookup_grammar_meanings_thread(self, word):
-            """
-            Look up dictionary meanings for ‘word’ on a background thread,
-            then schedule update into the grammar UI.
-            """
-            meanings = self.lookup_word_in_dictionary(word)
-            # schedule into mainloop
-            self.root.after(0, lambda: self.update_grammar_meanings_ui(meanings))
-
-        def update_grammar_meanings_ui(self, meanings):
-            """
-            Populate the meanings_inner_frame into N columns (now 7).
-            """
-            # 1) Clear any old widgets
-            for w in self.meanings_inner_frame.winfo_children():
-                w.destroy()
-
-            # 2) Decide on how many columns (wider, denser layout across the canvas width)
-            try:
-                # Try to infer available width for meaning columns
-                self.meanings_canvas.update_idletasks()
-                avail_w = max(800, int(self.meanings_canvas.winfo_width() or 0))
-            except Exception:
-                avail_w = 1000
-            col_w = 240  # approximate width per column incl. padding (slightly narrower to fit more)
-            num_cols = max(6, min(12, avail_w // col_w))
-            total   = len(meanings)
-            # Ceil division so each column has at most ceil(total/num_cols) entries
-            per_col = -(-total // num_cols)
-
-            # 3) Grid each meaning into (row, column)
-            for idx, m in enumerate(meanings):
-                col = idx // per_col
-                row = idx % per_col
-                tk.Label(
-                    self.meanings_inner_frame,
-                    text=f"• {m}",
-                    bg='light gray',
-                    font=('Arial', 12),
-                    wraplength=max(140, col_w - 20),
-                    justify='left'
-                ).grid(
-                    row=row,
-                    column=col,
-                    sticky='nw',
-                    padx=8, pady=2
-                )
-        
-            # 4) NEW: stash into a growing list of dicts:
-            entry = {
-                "word": getattr(self, "current_word", None),
-                "meanings": meanings
-            }
-            self.grammar_meanings.append(entry)
-
-        def submit_input_grammar(self, word, index):
-            """
-            Collects grammar input and transitions to the dropdown step.
-            """
-            # 1) Extract the basic Number/Gender/POS the user just picked:
-            number = self.number_var.get()
-            gender = self.gender_var.get()
-            pos    = self.pos_var.get()
-
-            # 2) Gather verse + translation context:
-            verse                   = self.selected_verse_text
-            raw_translation         = self.current_translation
-            translation_condensed   = extract_darpan_translation(raw_translation)
-
-            # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
-            meanings = next(
-                (e["meanings"] for e in self.grammar_meanings if e["word"] == word),
-                []
-            )
-
-            # 4) Build the initial "detailed" entry dict:
-            entry = {
-                "Vowel Ending":       word,
-                "Number / ਵਚਨ":       number,
-                "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
-                "Gender / ਲਿੰਗ":       gender,
-                "Word Root":           "",   # to be filled next
-                "Type":                pos,
-                "Evaluation":          "Derived",
-                "Reference Verse":     verse,
-                "Darpan Translation":  translation_condensed,
-                "Darpan Translation (Raw)": raw_translation,
-                "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
-                "ChatGPT Commentary":  "",    # to be pasted later
-                # Ensure each saved word within the same verse is uniquely identified
-                "Word Index":          int(index) if index is not None else ""
-            }
-
-            # 5) Store it so the next window can read & update it:
-            self.current_detailed_entry = entry
-
-            # 6) Hand off to your dropdown-UI (Verse wrapper):
-            self.open_final_grammar_dropdown(word, entry["Type"], index)
-
-        def submit_input_grammar_for_word(self, word, index):
-            """ABW: Collect grammar input and transition to ABW dropdown (no Verse dependency)."""
-            number = self.number_var.get()
-            gender = self.gender_var.get()
-            pos    = self.pos_var.get()
-            verse                   = self.selected_verse_text
-            raw_translation         = self.current_translation
-            translation_condensed   = extract_darpan_translation(raw_translation)
-            meanings = next((e["meanings"] for e in self.grammar_meanings if e["word"] == word), [])
-            entry = {
-                "Vowel Ending":       word,
-                COL_NUMBER:            number,
-                COL_GRAMMAR:           "",
-                COL_GENDER:            gender,
-                "Word Root":           "",
-                "Type":                pos,
-                "Evaluation":          "Derived",
-                "Reference Verse":     verse,
-                "Darpan Translation":  translation_condensed,
-                "Darpan Translation (Raw)": raw_translation,
-                "Darpan Meaning":      "| ".join(m.strip() for m in meanings),
-                "ChatGPT Commentary":  "",
-                "Word Index":          int(index) if index is not None else ""
-            }
-            self.current_detailed_entry = entry
-            self.open_final_grammar_dropdown_for_word(word, entry["Type"], index)
-
-        # ────────────────────────────────────────────────────────────────
-        # MAIN METHOD  –  drop-in replacement
-        # ────────────────────────────────────────────────────────────────
-        def _open_final_grammar_dropdown_common(self, word, pos, index, mode: str = "verse"):
-            """
-            After the user has chosen a Part-of-Speech, pop up a Toplevel
-            with dropdowns for the detailed grammar fields _and_ a place
-            to paste ChatGPT's commentary.
-            """
-            # Stash mode for save-phase routing (ABW vs Verse)
-            try:
-                self._current_detailed_mode = mode
-            except Exception:
-                pass
-
-            # 1) --------------  Load & filter your CSV  -----------------
-            self.grammar_db = pd.read_csv("1.1.1_birha.csv")
-            df = self.grammar_db[self.grammar_db["Type"] == pos]
-
-            # option lists
-            # option lists (resolve actual headers robustly)
-            _num_col  = _resolve_col(df, COL_NUMBER, 'Number / ਵਚਨ', 'Number')
-            _gram_col = _resolve_col(df, COL_GRAMMAR, 'Grammar / ਵਯਾਕਰਣ', 'Grammar Case / ਵਯਾਕਰਣ', 'Grammar')
-            _gen_col  = _resolve_col(df, COL_GENDER, 'Gender / ਲਿੰਗ', 'Gender')
-            num_opts  = sorted(df[_num_col].dropna().unique().tolist()) if _num_col else []
-            gram_opts = sorted(df[_gram_col].dropna().unique().tolist()) if _gram_col else []
-            gen_opts  = sorted(df[_gen_col].dropna().unique().tolist()) if _gen_col else []
-            entry = getattr(self, "current_detailed_entry", {}) or {}
-            pos_type = str((entry.get("Type") if isinstance(entry, dict) else None) or pos or "")
-
-            # Choose how to build root_opts based on whether it's a Noun
-            if pos_type == "Noun / ਨਾਂਵ":
-                # Option-1: For Nouns, use hard-wired canonical endings
-                root_opts = CANONICAL_ENDINGS.copy()
-                for lst in (num_opts, gram_opts, gen_opts):
-                    if "NA" not in lst:
-                        lst.insert(0, "NA")
-            else:
-                # Option-2: For all other types (e.g., Pronoun), use actual values from database
-                root_opts = sorted(df["Word Root"].dropna().unique().tolist())
-                for lst in (num_opts, gram_opts, gen_opts, root_opts):
-                    if "NA" not in lst:
-                        lst.insert(0, "NA")
-
-            # ---- Repeat-word banner bookkeeping ----
-            verse_text = getattr(self, "current_pankti", "")
-            verse_key = self._verse_key(verse_text)
-            if getattr(self, "_last_dropdown_verse_key", None) != verse_key:
-                self._repeat_note_shown = set()
-                self._first_repeat_token = None
-                self._last_dropdown_verse_key = verse_key
-                self._suppress_repeat_notes_for_verse = False
-                # kill any stale frame
+            self._ensure_literal_banner(special_text)
+        elif inline_allowed and has_repeat and not suppress_first_occurrence_of_first_token:
+            self._ensure_literal_banner(self._LITERAL_NOTE_TEXT)
+        else:
+            if not inline_allowed or not has_repeat:
                 if hasattr(self, "literal_note_frame") and self.literal_note_frame:
                     try:
                         if self.literal_note_frame.winfo_exists():
@@ -6549,1599 +6610,1572 @@ class GrammarApp:
                     self.literal_note_title = None
                     self.literal_note_body = None
 
-            words = list(getattr(self, "pankti_words", []))
-            if not words and verse_text:
-                words = verse_text.split()
-            cached_words = getattr(self, "_raw_words_cache", None)
-            if cached_words != words:
-                norm_words = [self._norm_tok(w) for w in words]
-                self._norm_words_cache = norm_words
-                self._raw_words_cache = words
-            else:
-                norm_words = getattr(self, "_norm_words_cache", []) or [self._norm_tok(w) for w in words]
+        # 2) --------------  Build the window  -----------------------
+        win = tk.Toplevel(self.root)
+        win.title(f"Detail Grammar for ‘{word}’")
+        win.configure(bg="light gray")
+        # Exact per-monitor work-area maximize, deferred to avoid 1x1 restores
+        try:
+            self._wm_apply(win, margin_px=0, defer=True)
+        except Exception:
+            pass
 
-            idx = index
-            display_word = words[idx] if idx < len(words) else word
-            word_norm = norm_words[idx] if idx < len(norm_words) else self._norm_tok(display_word)
-            # guard empty tokens; ignore vanished punctuation/ZW chars
-            has_repeat = bool(word_norm) and norm_words.count(word_norm) >= 2
-            if has_repeat and self._first_repeat_token is None and word_norm:
-                self._first_repeat_token = word_norm
-            seen_before = norm_words[:idx].count(word_norm) if word_norm else 0
-            key = (verse_key, word_norm, "second")
-            is_special_hit = (
-                has_repeat
-                and word_norm == self._first_repeat_token
-                and seen_before == 1
-                and key not in self._repeat_note_shown
-            )
+        frm = tk.LabelFrame(
+            win, text="Finalize Detailed Grammar",
+            font=("Arial", 16, "bold"), bg="light gray",
+            padx=10, pady=10
+        )
+        frm.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        frm.grid_columnconfigure(1, weight=1)
 
-            inline_allowed = (
-                getattr(self, "_use_inline_literal_banner", True)
-                and not getattr(self, "_suppress_repeat_notes_for_verse", False)
-            )
+        def _add_dropdown(row, label, var, options, colspan=1):
+            ttk.Label(frm, text=label, font=("Arial", 12),
+                    background="light gray").grid(
+                row=row, column=0, sticky="w", padx=5, pady=8)
+            cb = ttk.Combobox(
+                frm, textvariable=var, values=options,
+                state="readonly", font=("Arial", 12))
+            cb.grid(row=row, column=1, columnspan=colspan,
+                    sticky="ew", padx=5, pady=8)
+            return cb
 
-            suppress_first_occurrence_of_first_token = (
-                has_repeat
-                and self._first_repeat_token is not None
-                and word_norm == self._first_repeat_token
-                and seen_before == 0
-            )
+        # 3) --------------  Five dropdowns  -------------------------
+        self.detailed_ve_var      = tk.StringVar(value=self._norm_get(entry, "\ufeffVowel Ending"))
+        self.detailed_number_var  = tk.StringVar(value=(entry.get(COL_NUMBER)  if isinstance(entry, dict) else None) or "NA")
+        self.detailed_grammar_var = tk.StringVar(value=(entry.get(COL_GRAMMAR) if isinstance(entry, dict) else None) or "")
+        self.detailed_gender_var  = tk.StringVar(value=(entry.get(COL_GENDER)  if isinstance(entry, dict) else None) or "NA")
+        self.detailed_root_var    = tk.StringVar(value=entry["Word Root"])
 
-            if inline_allowed and is_special_hit:
-                self._repeat_note_shown.add(key)
-                special_text = (
-                    f"In literal analysis: The word “{display_word}” appears multiple times in this verse. "
-                    "The highlighted grammar options reflect your past selections for this word (or close matches) "
-                    "to encourage consistency. They’re suggestions, not mandates—adjust if the current context differs."
+        _add_dropdown(0, "Word Under Analysis:", self.detailed_ve_var, [word], colspan=2)
+        _add_dropdown(1, "Number / ਵਚਨ:",        self.detailed_number_var,  num_opts)
+        _add_dropdown(2, "Grammar Case / ਵਯਾਕਰਣ:", self.detailed_grammar_var, gram_opts)
+        _add_dropdown(3, "Gender / ਲਿੰਗ:",        self.detailed_gender_var,   gen_opts)
+        _add_dropdown(4, "Word Root:",            self.detailed_root_var,     root_opts)
+
+        # 4) --------------  Commentary box  -------------------------
+        cm_frame = tk.LabelFrame(
+            frm, text="ChatGPT Commentary", font=("Arial", 14, "bold"),
+            bg="light gray", padx=8, pady=8
+        )
+        cm_frame.grid(row=5, column=0, columnspan=2,
+                    sticky="nsew", padx=5, pady=(10, 0))
+        self.detailed_commentary = tk.Text(
+            cm_frame, wrap=tk.WORD, font=("Arial", 12),
+            height=6, bd=1, relief="sunken", padx=5, pady=5
+        )
+        self.detailed_commentary.pack(fill=tk.BOTH, expand=True)
+
+        # ---------- dynamic noun-map in self ----------
+        if not hasattr(self, "noun_map"):
+            self.noun_map = build_noun_map()
+
+        def build_examples_footer():
+            """
+            Return a Markdown block that lists every ending-class with its full word,
+            base form, and detachable suffix, taken from EXAMPLE_BASES.
+            """
+            lines = ["*Ending-class examples*"]
+            for label in CANONICAL_ENDINGS:
+                if label == "NA":
+                    continue
+
+                triples = EXAMPLE_BASES.get(label, [])
+                if not triples:
+                    continue
+
+                # Build “ਉਦਿਆਨੈ → ਉਦਿਆਨ + ੈ” style strings
+                rendered = [
+                    f"{full} → {base}{' + ' + suf if suf else ''}"
+                    for full, base, suf in triples
+                ]
+                lines.append(f"- **{label}** → " + ", ".join(rendered))
+
+            return "\n".join(lines)
+
+        # helper – build cheat-sheet table from noun_map
+        def make_cheat_sheet(word: str, gender: str, number: str) -> str:
+            """
+            Progressive right-edge matcher, now bounded by len(word):
+            • For L = 1 … len(word):
+                    slice_w = word[-L:]
+                    for every ending key E in noun_map:
+                        if E[-L:] == slice_w  → collect E
+            • Merge all collected endings’ case tables (deduped), build Markdown.
+            """
+
+            word_len = len(word)                              # new upper bound
+            matched: list[str] = []
+
+            # 1) -------- gather every ending with the same right-edge ------------
+            for L in range(1, word_len + 1):                  # 1 … len(word)
+                slice_w = word[-L:]
+                for ending in self.noun_map:
+                    if ending[-L:] == slice_w and ending not in matched:
+                        matched.append(ending)
+
+            if not matched:
+                return ""                                     # nothing found
+
+            # 2) -------- merge case → suffix lists for gender & number ----------
+            merged: dict[str, list[str]] = {}
+            for end in matched:
+                cases = (
+                    self.noun_map[end]
+                        .get(gender or "NA", {})
+                        .get(number or "NA", {})
                 )
-                self._ensure_literal_banner(special_text)
-            elif inline_allowed and has_repeat and not suppress_first_occurrence_of_first_token:
-                self._ensure_literal_banner(self._LITERAL_NOTE_TEXT)
-            else:
-                if not inline_allowed or not has_repeat:
-                    if hasattr(self, "literal_note_frame") and self.literal_note_frame:
-                        try:
-                            if self.literal_note_frame.winfo_exists():
-                                self.literal_note_frame.destroy()
-                        except Exception:
-                            pass
-                        self.literal_note_frame = None
-                        self.literal_note_title = None
-                        self.literal_note_body = None
+                for case, forms in cases.items():
+                    merged.setdefault(case, []).extend(forms)
 
-            # 2) --------------  Build the window  -----------------------
-            win = tk.Toplevel(self.root)
-            win.title(f"Detail Grammar for ‘{word}’")
-            win.configure(bg="light gray")
-            # Exact per-monitor work-area maximize, deferred to avoid 1x1 restores
+            if not merged:
+                return ""                                     # no data for this combo
+
+            # Deduplicate each list while preserving order
+            for case, forms in merged.items():
+                seen = set()
+                merged[case] = [f for f in forms if not (f in seen or seen.add(f))]
+
+            # 3) -------- build the mini-table -----------------------------------
+            rows = [
+                f"| {case:11} | {', '.join(forms)} |"
+                for case, forms in merged.items()
+            ]
+            ending_list = ", ".join(matched)
+
+            # build the core table but DON’T return yet
+            table_rows = "\n".join(rows)
+            table_markdown = textwrap.dedent(f"""
+                **Morphology map – endings matched: {ending_list}
+                ({gender.split()[0]}/{number.split()[0]})**
+                | Case         | Attested suffix(es) |
+                |--------------|----------------------|
+                {table_rows}
+                _Table shows **attested** suffixes.
+                If you need an unlisted case, propose a plausible form and justify._
+            """).strip()
+
+            # --- build a footer that shows EVERY ending-class with examples -------------
+            footer = "\n" + build_examples_footer()
+            return table_markdown + footer + "\n\n"
+
+        # 5) --------------  Prompt-builder button  ------------------
+        def build_detailed_prompt(num_opts=num_opts,
+                                gram_opts=gram_opts,
+                                gen_opts=gen_opts,
+                                root_opts=root_opts):
+
+            ve    = self.detailed_ve_var.get()      or "(please choose)"
+            num   = self.detailed_number_var.get()  or "(please choose)"
+            gram  = self.detailed_grammar_var.get() or "(please choose)"
+            gen   = self.detailed_gender_var.get()  or "(please choose)"
+            root  = self.detailed_root_var.get()    or "(please choose)"
+            verse = entry["Reference Verse"]
+            trans = entry.get("Darpan Translation (Raw)", entry.get("Darpan Translation", ""))
+            dm    = entry["Darpan Meaning"]
+
+            def make_block(title, items):
+                lines = [f"- **{title}**"]
+                for it in items:
+                    lines.append(f"  – {it}")
+                return "\n".join(lines)
+
+            # ------------------------------------------------------------------
+            # Use the existing search_by_criteria helper to surface any grammar
+            # matches that align with the current selections.  This gives the
+            # language model extra context about how the form appears in the
+            # database.  If no match is found or the search fails, we simply
+            # omit the block from the prompt.
+            # ------------------------------------------------------------------
             try:
-                self._wm_apply(win, margin_px=0, defer=True)
+                crit_num = num if num != "(please choose)" else "NA"
+                crit_gen = gen if gen != "(please choose)" else "NA"
+                crit_matches = self.search_by_criteria(word, crit_num, crit_gen, pos)
+
+                # Predefined-only filter keyset from CSV
+                pre_keys = load_predefined_keyset("1.1.1_birha.csv")
+                rows = []
+                for result, _count, _perc in crit_matches:
+                    parts = [p.strip() for p in result.split("|")]
+                    if len(parts) < 7:
+                        parts += [""] * (7 - len(parts))
+
+                    # Skip if the match does not map to a Predefined row in CSV
+                    try:
+                        key = tuple((parts[i] or "").strip() for i in (2, 3, 4, 5, 6))
+                    except Exception:
+                        key = ("") * 5
+                    if key not in pre_keys:
+                        continue
+
+                    highlight = parts[0] == parts[1] and is_full_word(parts[0])
+                    if highlight:
+                        parts = [f"**{p}**" for p in parts]
+                        parts[0] = "✅ " + parts[0]
+
+                    rows.append("| " + " | ".join(
+                        parts + [str(_count), f"{_perc:.1f}%"]
+                    ) + " |")
+                    if len(rows) >= 5:
+                        break
+
+                if rows:
+                    headers = [
+                        "Word under Analysis",
+                        "Vowel Ending / Word Matches",
+                        "Number / ਵਚਨ",
+                        "Grammar / ਵਯਾਕਰਣ",
+                        "Gender / ਲਿੰਗ",
+                        "Word Root",
+                        "Type",
+                        "Match Count",
+                        "Match %",
+                    ]
+                    table_lines = [
+                        "**Top Grammar Matches**",
+                        "| " + " | ".join(headers) + " |",
+                        "| " + " | ".join(["---"] * len(headers)) + " |",
+                        *rows,
+                    ]
+                    matches_block = "\n".join(table_lines)
+                else:
+                    matches_block = "**Top Grammar Matches**\nNo predefined examples found"
+            except Exception as exc:
+                print(f"search_by_criteria failed: {exc}")
+                matches_block = ""
+
+            opts_block = "\n\n".join([
+                make_block("Word Under Analysis", [ve]),
+                make_block("Number / ਵਚਨ options",   num_opts),
+                make_block("Grammar Case / ਵਯਾਕਰਣ options", gram_opts),
+                make_block("Gender / ਲਿੰਗ options",  gen_opts),
+                make_block("Word-Root options",      root_opts),
+            ])
+
+            # noun-specific notes
+            ending_cheat_sheet = ""
+            implicit_note      = ""
+            common_sense_note  = ""
+
+            if entry["Type"] == "Noun / ਨਾਂਵ":
+                ending_cheat_sheet = make_cheat_sheet(ve, gen, num)
+
+                implicit_note = textwrap.dedent("""\
+                    **IMPLICIT POST-POSITIONS & CASE DECLENSIONS**  
+                    In Gurbāṇī, relationships such as *to, from, with, of, in* are conveyed
+                    by **inflected endings** rather than modern post-positions (`ਨੂੰ`, `ਨਾਲ`
+                    …). A noun may appear unmarked while the Darpan gloss supplies a helper.
+
+                    **How to read the gloss**  
+                    • If the gloss inserts **to / for / of / by / with / from / in / on / at / O / Hey**
+                    that is absent in the verse, treat it as an **implicit post-position**
+                    and pick the matching **case**.  
+                    • If the gloss repeats the word without a helper, default to
+                    **Nominative / Accusative** and let context refine the choice.
+
+                    | Helper | Punjabi marker | Case |
+                    |--------|----------------|------|
+                    | to / for   | `ਨੂੰ`, `ਲਈ`     | **Dative** |
+                    | of         | `ਦਾ/ਦੇ/ਦੀ`      | **Genitive** |
+                    | by / with  | `ਨਾਲ`, `ਨਾਲੋਂ`  | **Instrumental** |
+                    | from / out of | `ਤੋਂ`, `ਉਤੋਂ` | **Ablative** |
+                    | in / on / at | `ਵਿੱਚ`, `ਉੱਤੇ`, `ਤੇ` | **Locative** |
+                    | O / Hey    | *(address)*     | **Vocative** |
+
+                    _Endings overlap: Nom≈Acc, Gen≈Dat, Inst≈Loc – use semantics to decide._
+                """).strip() + "\n\n"
+
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – DOES THE LABEL REALLY FIT?**  
+                    Match the case to the *role* the noun plays.
+
+                    **Quick Meanings**  Nom=subject | Acc=object | Inst=by/with | Dat=to/for |
+                    Gen=of | Abl=from | Loc=in/on | Voc=address
+
+                    • Instrumental – means, agency, tool  
+                    • Locative     – spatial/temporal setting  
+                    • Dative       – recipient, purpose  
+                    • Genitive     – ownership, relation  
+                    • Ablative     – source, cause  
+                    • Nom / Acc    – subject vs. direct object (no helper)  
+                    • Vocative     – direct address
+
+                    **Ambiguity reminder** – If **one suffix stands for two cases**
+                    (e.g., –ਈ = Nom *and* Acc), *explain your semantic reason* for choosing.
+
+                    **Oblique + Post-position lines** – Gurbāṇī occasionally stacks a
+                    post-position **after** an oblique form **and** after a direct form
+                    (see examples with *ਨਇਆਂ*, *ਸਬਦੈ*).  Either is valid—choose the case
+                    that best reflects the combined meaning.
+                """).strip() + "\n\n"
+            
+            elif entry["Type"] == "Pronoun / ਪੜਨਾਂਵ":
+                # ─── Pronoun block with enriched cross-category logic ─────────────────────────────
+                implicit_note = textwrap.dedent("""\
+                    **PRONOUNS – INFLECTIONS, IDENTITY & IMPLIED MEANINGS**  
+                    In Gurbāṇī, pronouns diverge from noun patterns and inflect by **person, number, and gender**.  
+                    Their meaning is sometimes explicit (like ਮੈਂ = I), but often **derived from Darpan's gloss**.
+
+                    **Core Steps to Identify the Case**  
+                    1. **Read the gloss literally.**  
+                    If it adds a helper like *to, from, with, in*, this signals an **implicit post-position**.  
+                    Match it with:  
+                    • `ਨੂੰ`, `ਲਈ` → Dative  
+                    • `ਦਾ/ਦੀ/ਦੇ`, `ਕਾ/ਕੀ/ਕੇ` → Genitive  
+                    • `ਤੋਂ`, `ਉਤੋਂ`, `ਸੇ`, `ਅਤੇ` → Ablative  
+                    • `ਨਾਲ`, `ਵਿੱਚ`, `ਉੱਤੇ`, `ਕੋਲ`, `ਅੰਦਰ`, etc. → Instrumental / Locative  
+                    • `O`, `Hey` → Vocative
+
+                    2. **Check form compatibility.**  
+                    Every person/gender/number has a finite set of endings (see below).  
+                    Match the surface form to a standard **canonical pronoun**.
+
+                    3. **For Relative / Interrogative / Reflexive / Indefinite types**,  
+                    blend case logic with **semantic roles**: e.g.,  
+                    • ਕਿਸ ਨੂੰ → “to whom” → Dative  
+                    • ਜਿਸ ਤੇ → “on whom” → Locative  
+                    • ਆਪਣੇ ਹੀ ਆਪ → Reflexive emphatic  
+                    • ਜਿਸ ਦੀ, ਜਿਸ ਦਾ → Genitive relative
+
+                    _Postpositions are often absent but implied—your judgment is key._  
+                    Also note: **Gurbāṇī often uses plural pronouns to show respect.**
+                """).strip() + "\n\n"
+
+                common_sense_note = textwrap.dedent("""\
+                    **PRONOUN SEMANTIC CHECK – ROLE IN MEANINGFUL CONTEXT**  
+                    Pronouns are **not just replacements for nouns**—they carry personhood, humility, or divinity.
+
+                    ✅ Use this test logic:  
+                    - **Is the pronoun the subject?** → Nom  
+                    - **Receiving the action?** → Acc  
+                    - **Belonging to someone?** → Gen  
+                    - **Given to someone?** → Dat  
+                    - **Means or tool or “with” sense?** → Inst  
+                    - **Place or inner state?** → Loc  
+                    - **Directly addressed?** → Voc  
+
+                    ⚠️ For overlapping forms:  
+                    - Use the Darpan helper (e.g., "to me", "from them", "by whom")  
+                    - Ask what semantic role the pronoun plays **in that line**  
+                    - e.g., “ਮੈ” may be Nom or Acc depending on meaning
+
+                    **Special Guidance per Category**  
+                    - **Reflexive** (ਆਪ, ਆਪਣੇ): Self-reference or emphasis  
+                    - **Relative/Correlative** (ਜੋ...ਸੋ): Link two ideas (doer/result, condition/result)  
+                    - **Interrogative** (ਕੌਣ, ਕਿਸ): Structure question  
+                    - **Indefinite** (ਕੋਈ, ਸਭ): Ambiguous subject  
+                    - **Honorific 2nd Person** (ਤੁਸੀਂ, ਤੁਮ): May appear plural but refer to one Divine
+
+                    **Final Tip**: Plural/oblique/abstract usage may reflect poetic or spiritual nuance more than grammar. Follow meaning.
+                """).strip() + "\n\n"
+
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **PRONOUN CASE ENDINGS – EXAMPLES ACROSS CATEGORIES**
+
+                    🔹 **Valid Number / Gender Combinations per Category**  
+                    *(Use this to cross-check if your feature choices are logically possible)*
+
+                    - **1st Person / ਉੱਤਮ ਪੁਰਖ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Trans / ਨਪੁਂਸਕ
+
+                    - **2nd Person / ਮਧਮ ਪੁਰਖ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Trans / ਨਪੁਂਸਕ
+
+                    - **3rd Person / ਅਨਯ ਪੁਰਖ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+
+                    - **CoRelative / ਅਨੁਸੰਬੰਧ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+
+                    - **Relative / ਸੰਬੰਧ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+
+                    - **Interrogative / ਪ੍ਰਸ਼ਨ ਵਾਚਕ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+
+                    - **Reflexive / ਨਿਜ ਵਾਚਕ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+
+                    - **Indefinite / ਅਨਿਸਚੇ ਵਾਚਕ**  
+                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
+                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+
+                    _✳ Note: “Trans” (ਨਪੁਂਸਕ) appears for most categories due to universal/neutral references or poetic plurality._
+
+                    **1st Person / ਉੱਤਮ ਪੁਰਖ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਮੈ / ਮੰਝਹੁ / ਹਮ ਤੇ
+                    - Accusative ਕਰਮ: ਮੈ / ਮੈਨੋ / ਮੋ ਕਉ / ਮੋਕਉ / ਮੋਹਿ / ਮੰਞੁ / ਹਮ / ਹਮਹਿ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਮਾਝੈ / ਮੁਝਹਿ / ਮੁਝੈ / ਮੁਹਿ / ਮੂ / ਮੈ / ਮੈਨੋ / ਮੋ ਕਉ / ਮੋਹਿ / ਹਮ (ਕਉ) / ਹਮਹੁ / ਹਮਾਰੈ
+                    - Genitive ਸੰਬੰਧ: ਅਸਾ / ਅਸਾਡੜਾ / ਅਸਾਹ / ਅਸਾੜਾ / ਮਹਿੰਜਾ / ਮਹਿੰਡਾ / ਮਾ / ਮੂ / ਮੇਰਉ / ਮੇਰਾ / ਮੇਰੀ / ਮੈ / ਮੈਡਾ / ਮੋਰ / ਮੋਰਲਾ / ਮੋਰਲੋ / ਮੋਰਾ / ਮੋਰੀ / ਮੋਰੇ / ਮੋਹਿ / ਮੰਞੁ / ਹਮਰਾ / ਹਮਰੈ / ਹਮਰੋ / ਹਮਾਰਾ
+                    - Locative ਅਧਿਕਰਣ: ਮੁਝ ਮਹਿ / ਮੁਝਹਿ ਪਹਿ / ਮੁਝੁ / ਮੁਝੈ / ਮੇਰੈ / ਮੈ ਅੰਤਰਿ / ਮੈ ਵਿਚਿ / ਮੋ ਮਹਿ / ਮੰਝੁ / ਹਮ / ਹਮਰੈ / ਹਮਾਰੈ
+                    - Nominative ਕਰਤਾ: ਅਸਾ / ਅਸੀ / ਮੂ / ਮੂਂ / ਮੈ / ਮੋਹਿ / ਹਉ / ਹਮ / ਹਮਹੁ
+
+                    **2nd Person / ਮਧਮ ਪੁਰਖ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਤੁਝ ਤੇ / ਤੁਝੈ / ਤੁਝੈ ਤੇ / ਤੁਝੈ ਪਹਿ / ਤੁਧਹੁ / ਤੁਧੈ ਤੇ / ਤੁਮ ਤੇ
+                    - Accusative ਕਰਮ: ਤਉ / ਤੁਝ / ਤੁਝਹਿ / ਤੁਝੁ / ਤੁਝੈ / ਤੁਧ / ਤੁਧ ਨੋ / ਤੁਧੁ / ਤੁਧੁਨੋ / ਤੁਧੈ / ਤੁਮ / ਤੁਮਹਿ / ਤੁਹਨੋ / ਤੁਹਿ / ਤੂ / ਤੂੰ / ਤੋਹਿ / ਤੋਹੀ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਤਉ / ਤੁਝਹਿ / ਤੁਝੁ / ਤੁਝੈ / ਤੁਧ / ਤੁਧੁ / ਤੁਮ / ਤੁਮ ਕਉ / ਤੁਸਾ / ਤੁਹਿ / ਤੈ / ਤੈ ਕੂੰ / ਤੋਹਿ / ਥੇ / ਥੈਂ
+                    - Genitive ਸੰਬੰਧ: ਤਉ / ਤਵ / ਤਹਿੰਜੀ / ਤਿਹਾਰੈ / ਤੁ / ਤੁਅ / ਤੁਝਹਿ / ਤੁਮਰਾ / ਤੁਮਰੀ / ਤੁਮਰੇ / ਤੁਮਾਰੀ / ਤੁਹਾਰੇ / ਤੂ / ਤੇਰਉ / ਤੇਰਾ / ਤੇਰਿਆ / ਤੇਰੀ / ਤੇਰੇ / ਤੇਰੋ / ਤੈਡਾ / ਤੋਰ / ਤੋਹਿ / ਥਾਰੀ / ਥਾਰੇ
+                    - Locative ਅਧਿਕਰਣ: ਤੁਝ / ਤੁਝ ਹੀ / ਤੁਝਹਿ / ਤੁਝੈ / ਤੁਝੈ ਸਾਝਰਿ / ਤੁਧੁ / ਤੁਧੈ / ਤੁਮ / ਤੁਮਹਿ / ਤੋਹਿ
+                    - Nominative ਕਰਤਾ: ਤਉ / ਤੁ ਹੀ / ਤੁਝ / ਤੁਝਹਿ / ਤੁਝੈ / ਤੁਧੁ / ਤੁਧੈ / ਤੁਮ / ਤੁਮ ਹੀ / ਤੁਮਹਿ / ਤੁਮੈ / ਤੁਸੀ / ਤੁਹੀ / ਤੂ / ਤੂ ਹੈ / ਤੂਂ / ਤੂਹੈ / ਤੈ / ਤੈਂ / ਤੋਹਿ
+
+                    **3rd Person / ਅਨਯ ਪੁਰਖ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਇਨ / ਇਸ (ਤੇ) / ਉਆ / ਉਨ (ਤੇ) / ਉਨਾ / ਉਸ / ਓਨਾ੍
+                    - Accusative ਕਰਮ: ਇਸਹਿ / ਇਸੁ / ਇਹ / ਇਹੁ / ਉਆਹਿ / ਉਇ / ਉਨ / ਉਸ / ਉਸੁ / ਉਹ / ਏਸ / ਏਹਾ / ਏਹਿ / ਓਇ / ਓਈ / ਓਨਾ / ਓਸ / ਓਸੁ / ਓਹੁ / ਤਿਨ / ਤੇ / ਵਾ / ਵਾਹੀ / ਸੇ / ਸੋਊ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਇਸ / ਇਸੁ / ਉਆ / ਉਨ (ਕ‌ਉ) / ਉਨਾ / ਉਸ / ਉਸੁ / ਏਸ / ਓਨਾ੍ / ਓਸ / ਓਸੁ
+                    - Genitive ਸੰਬੰਧ: ਅਸਗਾ / ਇਨ / ਇਸ / ਉਆ / ਉਆ (ਕਾ) / ਉਨ (ਕੀ) / ਉਨਾ / ਉਸ (ਕਾ) / ਉਸਗਾ / ਉਸੁ / ਓਨਾ / ਓਸੁ / ਤਿਨ / ਤਿਨਾ / ਤਿਸੁ / ਵਾ (ਕਾ) (ਕੈ) (ਕੇ)
+                    - Instrumental ਕਰਣ: ਇਤੁ (ਕਰਿ)
+                    - Locative ਅਧਿਕਰਣ: ਇਸ / ਇਸੁ (ਆਗੈ) / ਉਸੁ / ਓਨਾ (ਪਿਛੈ) / ਓਸੁ / ਵਾਹੂ
+                    - Nominative ਕਰਤਾ: ਇਨ / ਇਨਿ / ਇਹ / ਇਹੁ / ਉਨ / ਉਨਿ / ਉਹ / ਉਹੁ / ਏਹ / ਏਹਿ / ਏਹੁ / ਓਇ / ਓਨਿ / ਓਨੀ / ਓਹ / ਓਹਾ / ਓਹਿ / ਓਹੀ / ਓਹੁ / ਤਿਨ / ਤਿਨਹਿ / ਤੇ / ਤੇਊ / ਸਾ / ਸੇ / ਸੋ / ਸੋਇ / ਸੋਈ
+
+                    **CoRelative / ਅਨੁਸੰਬੰਧ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਤਿਸ (ਤੇ)
+                    - Accusative ਕਰਮ: ਤਾਸੁ / ਤਾਸੁ (ਕਉ) / ਤਾਹਿ / ਤਿਨ / ਤਿਨ੍ / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤੇ / ਤੈ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਤਾਸੁ / ਤਿਨ / ਤਿਨ (ਕਉ) / ਤਿਨਹੁ / ਤਿਨਹੂ (ਕਉ) / ਤਿਨਾ / ਤਿਨਾ੍ / ਤਿਸ (ਕਉ) / ਤਿਸ (ਨੋ) / ਤਿਸ ਹੀ / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤਿੰਨਾ / ਤੈ
+                    - Genitive ਸੰਬੰਧ: ਤਾ / ਤਾਸੁ / ਤਾਹੂ (ਕੋ) / ਤਿਨ / ਤਿਨ (ਕੀ) / ਤਿਨਾ / ਤਿਨਾ੍ / ਤਿਨਾੜਾ / ਤਿਨ੍ / ਤਿਸ (ਕਾ) / ਤਿਸ (ਕੀ) / ਤਿਸ (ਕੇ) / ਤਿਸ (ਹਿ) / ਤਿਸ (ਹੀ) / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤੰਨਿ (ਖੇ)
+                    - Instrumental ਕਰਣ: ਤਿਤੁ
+                    - Locative ਅਧਿਕਰਣ: ਤਾਸ / ਤਾਸੁ / ਤਾਹਿ (ਮੈ) / ਤਿਤ (ਹੀ) / ਤਿਤੁ / ਤਿਨਿ / ਤਿਸੁ (ਮਾਹਿ) / ਤਿਹਿ
+                    - Nominative ਕਰਤਾ: ਓਇ / ਤਿਨ / ਤਿਨ ਹੀ / ਤਿਨਹਿ / ਤਿਨਹੀ / ਤਿਨਹੂ / ਤਿਨਿ / ਤਿਨੀ / ਤਿਨ੍ / ਤਿਹ / ਤੇ / ਸਾ / ਸਾਈ / ਸਿ / ਸੁ / ਸੇ / ਸੇਇ / ਸੇਈ / ਸੋ / ਸੋਈ / ਸੋਊ
+
+                    **Indefinite / ਅਨਿਸਚੇ ਵਾਚਕ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਸਭ (ਦੂ) / ਹਭਾਹੂੰ / ਹੋਰਨਿ / ਹੋਰਿਂਓ
+                    - Accusative ਕਰਮ: ਅਉਰਨ / ਅਗਲਾ / ਅਵਰ / ਅਵਰਹਿ / ਅਵਰਾ / ਅਵਰੀ (ਨੋ) / ਅਵਰੁ / ਇਕਨਾ / ਇਕਨਾ੍ / ਇਕਿ / ਇਕੁ / ਇਤਨਾ (ਕੁ) / ਇਤਨੀ / ਏਕਸੈ / ਏਕੀ / ਏਤਾ / ਏਤੇ / ਕਛੁਆ / ਕਹਾ / ਕਿ / ਕਿਆ (ਕਿਛੁ) / ਕਿਛੁ / ਕਿਝੁ / ਕਿਤੀ / ਕਿਸ (ਨੋ) / ਕਿਸਹਿ / ਕਿਸੁ / ਕਿਸੈ / ਕਿਹੁ / ਕੋਈ / ਘਣੇਰੀ / ਜੇਤਾ / ਜੇਤੀਆ / ਤੇਤਾ / ਥੋੜਾ / ਥੋੜੀ / ਬਹੁਤਾ / ਬਹੁਤੁ / ਬਹੁਤੋ / ਬਾਹਰਾ / ਸਗਲ / ਸਭ / ਸਭਨਾ / ਸਭਸੁ / ਸਭਸੈ (ਨੋ) / ਸਭਿ / ਸਭੁ (ਕਿਛੁ) / ਸਭੁ (ਕਿਹੁ) / ਸਭੈ / ਹਭ / ਹਭ (ਕਿਛੁ) / ਹਿਕੁ / ਹਿਕੋ / ਹੋਰਨਾ (ਨੋ) / ਹੋਰਸੁ / ਹੋਰੁ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਇਕਨਾ / ਕਹੀ / ਕਾਹੂ / ਕਿਨੈ / ਕਿਸ (ਹੀ) / ਕਿਸੈ / ਸਭਸੁ / ਸਭਸੈ
+                    - Genitive ਸੰਬੰਧ: ਅਵਰ / ਇਕਨਾ / ਇਕਨਾ੍ / ਕਾਹੂ / ਕਿਸੈ / ਕੈਹੀ / ਸਭਨਾ / ਸਭਸੈ
+                    - Instrumental ਕਰਣ: ਕਾਹੂ / ਕਿਨੈ / ਹੋਰਤੁ
+                    - Locative ਅਧਿਕਰਣ: ਇਕਨੀ / ਕਿਸੁ (ਨਾਲਿ)
+                    - Nominative ਕਰਤਾ: (ਹੋਰ) ਕੇਤੀ / ਅਉਰ / ਅਉਰੁ (ਕੋ) / ਅਨੇਕ / ਅਵਰਿ (ਸਭਿ) / ਅਵਰੁ (ਕਛੁ) / ਅਵਰੇ / ਇਕਨਾ / ਇਕਨੀ / ਇਕਨੈ / ਇਕਿ / ਇਕੁ / ਏਕ / ਏਕਹਿ / ਏਕੁ / ਏਕੈ / ਕਉਣੁ / ਕਉਨੁ / ਕਛੁ / ਕਹ / ਕਹਾ / ਕਾ / ਕਾਈ / ਕਾਹੂ / ਕਿਆ / ਕਿਛੁ / ਕਿਤੀ / ਕਿਨ (ਹੀ) / ਕਿਨਹਿ / ਕਿਨਹੀ / ਕਿਨਹੂ / ਕਿਨਿ / ਕਿਨੈ / ਕਿਸ ਹੀ / ਕਿਹੁ / ਕੇ / ਕੇਇ / ਕੇਈ / ਕੇਤਕ / ਕੇਤਾ / ਕੇਤੇ / ਕੋ / ਕੋਇ / ਕੋਈ / ਕੋਊ / ਘਣੀ / ਘਣੇ / ਜੇਤੀ / ਤੇਤੀ / ਬਹੁ / ਬਹੁਤਾ / ਬਹੁਤੇਰੀ / ਵਿਰਲੇ / ਸਗਲ / ਸਗਲੀ / ਸਗਲੀਆ / ਸਗਲੇ ਕੇ / ਸਭ / ਸਭਨਾ / ਸਭਨੀ / ਸਭਹਿ / ਸਭਾ / ਸਭਿ / ਸਭੁ (ਕਿਛੁ) / ਸਭੁ (ਕੋ) / ਸਭੁ (ਕੋਇ) / ਸਭੁ (ਕੋਈ) / ਸਭੇ / ਸਾਰੀ / ਹਭਿ / ਹਭੇ / ਹਿਕਨੀ / ਹਿਕਿ / ਹਿਕੁ / ਹੋਰਿ / ਹੋਰੁ
+
+                    **Interrogative / ਪ੍ਰਸ਼ਨ ਵਾਚਕ Pronouns – Case Examples**
+                    - Accusative ਕਰਮ: ਕਹਾ / ਕਾਹਿ / ਕਿਆ / ਕਿਸੁ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਕਾ (ਕਉ) / ਕਿਨਾਹ / ਕਿਸ (ਕਉ) / ਕਿਸੁ / ਕੈ
+                    - Genitive ਸੰਬੰਧ: ਕਿਸੁ
+                    - Locative ਅਧਿਕਰਣ: ਕਾ (ਪਹਿ) / ਕਾ (ਸਿਉ) / ਕਿਸੁ (ਪਹਿ) / ਕੈ (ਪਹਿ)
+                    - Nominative ਕਰਤਾ: ਕਉਣੁ / ਕਉਨ / ਕਵਣ / ਕਵਨ / ਕਵਨੁ / ਕਵਨੈ / ਕਿਨਿ / ਕੁਨੁ / ਕੋ
+
+                    **Reflexive / ਨਿਜ ਵਾਚਕ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਆਪਸ (ਤੇ) / ਆਪਹੁ / ਆਪੌ
+                    - Accusative ਕਰਮ: ਅਪਤੁ / ਆਪਤੁ / ਆਪਾ / ਆਪੁ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਆਪਸ (ਕਉ) / ਆਪੈ (ਨੋ)
+                    - Genitive ਸੰਬੰਧ: ਅਪ / ਅਪਣਾ / ਅਪਨਾ / ਅਪਨੀ / ਅਪਨੈ / ਅਪੁਨਾ / ਅਪੁਨੀ / ਆਪ / ਆਪਣ / ਆਪਣਾ / ਆਪਣੈ / ਆਪਨ / ਆਪਨਾ / ਆਪਾ
+                    - Instrumental ਕਰਣ: ਆਪੈ (ਨਾਲਿ)
+                    - Locative ਅਧਿਕਰਣ: ਆਪਹਿ / ਆਪਿ / ਆਪੈ
+                    - Nominative ਕਰਤਾ: ਆਪ (ਹੀ) / ਆਪਹਿ / ਆਪਿ / ਆਪੀਨੈ੍ / ਆਪੇ (ਹੀ) / ਆਪੈ
+
+                    **Relative / ਸੰਬੰਧ Pronouns – Case Examples**
+                    - Ablative ਅਪਾਦਾਨ: ਜਿਦੂ / ਜਿਸ (ਤੇ) / ਜਿਹ (ਤੇ)
+                    - Accusative ਕਰਮ: ਜਾ (ਕਉ) / ਜਾਸੁ / ਜਾਹਿ / ਜਿ / ਜਿਨ / ਜਿਨ (ਕਉ) / ਜਿਨਾ / ਜਿਨ੍ / ਜਿਸਹਿ / ਜਿਸੁ / ਜਿਹ / ਜੇਹੜਾ / ਜੋ / ਜੋਈ ਜੋਈ / ਯਾਸੁ
+                    - Dative ਸੰਪ੍ਦਾਨ: ਜਿਨ / ਜਿਨਾ / ਜਿਸਹਿ / ਜਿਸੁ / ਜਿਹ / ਜੈ
+                    - Genitive ਸੰਬੰਧ: ਜਾ / ਜਾ (ਕੈ) / ਜਾ (ਮਹਿ) / ਜਾਸੁ / ਜਿਨ / ਜਿਨ (ਕੇ) / ਜਿਨਾ / ਜਿਨਾ (ਕੀ) / ਜਿਨ੍ / ਜਿਸ (ਕਾ) / ਜਿਸ (ਕੀ) / ਜਿਸ (ਕੇ) / ਜਿਸੁ / ਜਿਹ
+                    - Instrumental ਕਰਣ: ਜਿਤੁ / ਜਿਹ
+                    - Locative ਅਧਿਕਰਣ: ਜਿਤੁ / ਜਿਹ
+                    - Nominative ਕਰਤਾ: ਜਿ / ਜਿਨ / ਜਿਨਹਿ / ਜਿਨਹੁ / ਜਿਨਾ / ਜਿਨਾ੍ / ਜਿਨਿ / ਜਿਨੀ / ਜਿਨੀ੍ / ਜਿਨ੍ / ਜਿਹ / ਜੁ / ਜੋ / ਜੋਈ
+
+                    _Ending note: **–ਉ** is often **omitted** before postpositions like ਤੋਂ, ਨੂੰ, ਵਿਚ, ਤੇ.  
+                    e.g., **ਤਿਸ ਹਥਿ** instead of **ਤਿਸੁ ਹਥਿ**_
+                """).strip() + "\n\n"
+
+            elif entry["Type"] == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ":
+                # ────────────────────────────────────────────────
+                # 3-B  IMPLICIT-NOTE  – how to “read” the gloss
+                # ────────────────────────────────────────────────
+                implicit_note = textwrap.dedent("""
+                    **ADJECTIVES IN GURBĀṆĪ – AGREEMENT & HINTS FROM THE DARPAN GLOSS**
+
+                    • An adjective always **agrees in gender & number** with the noun /
+                    pronoun it qualifies.  Case is *not* tagged independently for adjectives;
+                    if a noun shifts to an oblique form (due to post-positions like
+                    `ਨੂੰ, ਤੇ, ਤੋਂ…`) the adjective may simply copy that *ending*.
+
+                    • **Look at the helper words the Darpan adds**:
+                    - If the gloss inserts a post-position after the noun
+                        (*e.g.* “to the **good** one”, “in the **other** realm”), the adjective
+                        will mirror whatever oblique ending the noun shows – **but you still
+                        classify the adjective only by Gender / Number / Class**.
+                    - If the gloss repeats the adjective without a helper,
+                        treat the form you see in the verse as the **direct** (base) form.
+
+                    _Quick reminder – common agreement endings_  
+                    | Ending-class | Masc.Sg | Fem.Sg | Plural | Notes |
+                    |--------------|---------|--------|--------|-------|
+                    | **Mukta**    | –ਅ      | –ਮੁਕਤਾ׀ **ਅ** dropped for fem./pl. |
+                    | **Kannā**    | –ਆ      | –ਈ     | –ਏ     | |
+                    | **Sihārī**   | –ਿ      | –ਿ      | –ੇ      | |
+                    | **Bihārī**   | –ੀ      | –ਈ     | –ਏ/–ਈਆਂ| |
+
+                    _When in doubt: match what the noun is doing rather than forcing
+                    a new inflection on the adjective._
+                """).strip() + "\n\n"
+
+                # ────────────────────────────────────────────────
+                # 3-C  COMMON-SENSE-NOTE  – semantic & class sanity
+                # ────────────────────────────────────────────────
+                common_sense_note = textwrap.dedent("""
+                    **SEMANTIC CHECK – DOES THE LABEL FIT THIS ADJECTIVE?**
+
+                    ① **Identify the class** (use the column “Adjective Class / ਵਿਸ਼ੇਸ਼ਣ ਕਿਸਮ”):  
+                    • **Qualitative / Descriptive (ਗੁਣ ਵਾਚਕ)** – *ਚੰਗਾ, ਸੋਹਣਾ, ਕਾਲਾ*  
+                    • **Demonstrative (ਨਿਸ਼ਚੇ ਵਾਚਕ)** – *ਇਹ, ਉਹ, ਉਹੀ, ਦੇਉ, ਦਿਨੁ*  
+                    • **Indefinite (ਅਨిశਚੇ ਵਾਚਕ)** – *ਕੋਈ, ਕੈ, ਕਉਨ, ਸਭ*  
+                    • **Pronominal**  
+                        – *ਮੇਰਾ, ਤੇਰਾ (possessive) / ਜੈ, ਜਿਉ (relative)*  
+                    • **Interrogative (ਪ੍ਰਸ਼ਨ ਵਾਚਕ)** – *ਕਉਣ, ਕਿਹ, ਕਿਉੳ, ਕਿਵੇਂ*  
+                    • **Numeral (ਸੰਖਿਆ ਵਾਚਕ)**  
+                        – **Cardinal** *ਇਕ, ਦੋ, ਬੀਹ* | **Ordinal** *ਪਹਿਲਾ, ਦੂਜਾ, ਤੀਜਾ…*
+
+                    ② **Verify agreement** – does the ending you see match the gender &
+                    number of the noun in the gloss?  Typical pitfalls:  
+                    • plural nouns paired with singular adjective forms,  
+                    • masculine endings left on a feminine noun after emendation.
+
+                    ③ **Ambiguity guardrails**  
+                    • Many demonstratives (*ਇਹ, ਉਹ, ਸੋ…*) double as pronouns – keep them
+                        in **Adjective** only when they *modify* a following noun.  
+                    • Some numerals can work adverbially (*ਬਹੁਤ ਭਜੇ*, “ran a lot”) – do not
+                        tag those as adjectives.
+
+                    _If two classes seem possible, pick the one that best serves the
+                    **function in that specific gloss line** and give one-line reasoning._
+                """).strip() + "\n\n"
+
+                ending_cheat_sheet = textwrap.dedent("""\
+                **ADJECTIVE ENDINGS – QUICK REFERENCE (Gurbāṇī corpus)**
+
+                🔹 **Agreement grid (what can legally combine)**  
+                • **Number / ਵਚਨ** → Singular / ਇਕ, Plural / ਬਹੁ, NA  
+                • **Gender / ਲਿੰਗ** → Masc / ਪੁਲਿੰਗ, Fem / ਇਸਤਰੀ, Neut / ਨਪੁਂਸਕ, NA  
+                • **Surface ending-classes** → ਮੁਕਤਾ, ਕੰਨਾ, ਸਿਹਾਰੀ, ਬਿਹਾਰੀ, ਹੋਰਾ, ੁ, ੋ, ੌ, NA  
+                • **Sub-classes** → Qualitative, Demonstrative, Indefinite, Possessive-pronom., Pronominal, Interrogative, Numeral (Card & Ord), Diminutive, Negation, Tat-sam, Compound, NA  
+
+                <sub>Adjectives never carry an independent “case”; if the noun is oblique, the adjective just copies that ending.</sub>
+
+                ---
+
+                ### A · Canonical ending patterns  
+
+                | Ending-class | Masc Sg | Fem Sg | Plural | Tiny sample from text |
+                |--------------|---------|--------|--------|-----------------------|
+                | **ਮੁਕਤਾ**    | ਸਾਚ**ਾ** | — | ਸਾਚ**ੇ** | **ਥਿਰੁ**, ਪਵਿਤੁ, ਬੇਅੰਤ |
+                | **ਕੰਨਾ**     | ਚੰਗ**ਾ** | ਚੰਗ**ੀ** | ਚੰਗ**ੇ** | ਕਾਲਾ, ਨਾਮਾ, ਸਾਚਾ |
+                | **ਸਿਹਾਰੀ**   | — | — | ਨਿਰਮਲ**ੇ** | ਨਿਸ਼ਚਿ, ਅਸਲਿ |
+                | **ਬਿਹਾਰੀ**   | ਬਾਵਰ**ੀ** | ਬਾਵਰ**ੀ** | ਬਾਵਰ**ੀਆਂ** | ਲੋਭੀ, ਨਿਗੁਣੀ |
+                | **ਹੋਰਾ**     | ਸੁਭ**ਉ** | — | — | ਉਤੁ (rare) |
+                | **ੁ / ੋ / ੌ** | ਅਮੁਲ**ੁ** | — | — | ਕਾਲੋ, ਮਿੱਠੌ |
+
+                ---
+
+                ### B · Sub-class snapshots  
+
+                | Class / ਕਿਸਮ | 2-4 high-frequency examples (agreement marked) |
+                |--------------|-----------------------------------------------|
+                | **Qualitative (ਗੁਣ)** | ਚੰਗਾ (M), ਚੰਗੀ (F), ਚੰਗੇ (Pl) • ਥਿਰੁ (M) • ਅਮੁਲੁ (M) |
+                | **Demonstrative (ਨਿਸ਼ਚੇ)** | ਇਹੁ (M Sg), ਇਹ (F Sg), ਉਹ, ਏਹ, ਓਹੁ |
+                | **Indefinite (ਅਨਿਸ਼ਚੇ)** | ਕੋਈ, ਕਈ, ਸਭ, ਹੋਰ, ਘਣੀ |
+                | **Possessive-pronominal** | ਮੇਰਾ (M), ਮੇਰੀ (F), ਮੇਰੇ (Pl) • ਅਪਣਾ |
+                | **Pronominal (relative etc.)** | ਜੋ (F/M), ਜਿਸੁ, ਜਿਨ, ਤਿਸੁ |
+                | **Interrogative (ਪ੍ਰਸ਼ਨ)** | ਕਉਣੁ (M Sg), ਕਵਣ, ਕਿਆ, ਕਿਤੁ |
+                | **Numeral – Cardinal** | ਇਕ, ਦੁਇ, ਪੰਜ, ਦਸ, ਸਉ |
+                | **Numeral – Ordinal** | ਪਹਿਲਾ, ਦੂਜਾ, ਤੀਜੀ, ਚਉਥੈ |
+                | **Negation** | ਨ, ਨਾਹੀ |
+                | **Tat-sam (ਸੰਸਕ੍ਰਿਤ loan)** | ਅਸਲਿ, ਬਰਾਬਰਿ, ਸਤਰਿ |
+                | **Diminutive** | ਬੰਕੁੜਾ, ਮੋਹਿਅੜੀ, ਨਵੇਲੜੀਏ |
+                | **Compound** | ਅਨਹਦ ਧੁਨਿ, ਜੀਵਨ ਮੁਕਤਿ, ਬਹੁ ਗੁਣਿ |
+
+                """).strip() + "\n\n"
+
+            elif entry["Type"] == "Verb / ਕਿਰਿਆ":
+                # ────────────────────────────────────────────────
+                # 4-B  IMPLICIT-NOTE  – how to “read” the gloss
+                # ────────────────────────────────────────────────
+                implicit_note = textwrap.dedent("""\
+                **VERBS IN GURBĀṆĪ – IMPLIED CLUES FROM THE GLOSS**
+
+                Verbs in Gurbāṇī span a wide linguistic spectrum—Lahindī, Braj, Hindustānī, and archaic Panjābī. The verse alone often omits explicit markers for **tense, voice, mood, or even subject**. Prof. Sāhib Siṅgh’s **Darpan gloss** therefore becomes our decoder ring: it regularly inserts the **hidden agent, auxiliary, or intent** that lets us recover the full verbal meaning.
+
+                ---
+
+                ### ✔ Step 1 · Read the gloss literally
+                Ask yourself:
+                * Is the action **ongoing**, **completed**, or **yet to come**?
+                * Is the subject **doing** the action or **receiving** it?
+                * Is the clause a **command**, a **wish**, or a **hypothetical**?
+                * Do helper words appear—*has, was, should, may, being, let*—that hint at aspect or mood?
+
+                ---
+
+                ### ✔ Step 2 · Map the gloss cue to a grammatical category
+
+                | Category            | Common cues in the gloss (Eng. gloss)            |
+                |---------------------|--------------------------------------------------|
+                | **Present**         | do, does, is, are, becomes, gives                |
+                | **Past**            | did, was, were, had, gave, came                  |
+                | **Future**          | will, shall, would                               |
+                | **Imperative**      | (you) give, fall, listen — direct command forms  |
+                | **Subjunctive**     | if … may / might / should / let us               |
+                | **Passive**         | is called, was given — object promoted to subject |
+                | **Participles**     | having done, while doing, upon going, imbued     |
+                | **Compound/Aux**    | do come, has gone, may go — multi-verb chains    |
+
+                ---
+
+                ### 🧠 Key heuristics from the Darpan gloss
+                * **“was made / is given”** → strong passive signal.  
+                * **“has shown / had come”** → perfect aspect; expect past-participle + auxiliary.  
+                * If the gloss shows the subject **causing** another to act (*was made to go*) → tag the verb **causative**.
+
+                ---
+
+                ### 📌 Postposition surrogates
+                Gloss words like *to, by, with, for, from* often reveal an implied **shift in voice** or a **participial/causative chain** hidden in the surface form.
+
+                ---
+
+                ### 🔄 When in doubt
+                * Subject absent, object prominent → suspect **passive**.  
+                * Two verbs side-by-side (*will come go*, *has been given*) → parse for **compound** or **auxiliary** roles.  
+                * Conditional tone (*if … may …*, *let it be …*) → test for **subjunctive**.
+
+                ---
+
+                ### 🧩 Suffix hints  
+                Endings like **–ਹਉ, –ਹੀ, –ਮ, –ਸੀਅ** (and Lahindī –ਉ, –ਹੁ) can encode person or emphasis. Cross-check with the gloss’s subject reference.
+
+                ---
+
+                > **Rule of thumb**  
+                > *If the gloss shows something **happening to** someone and the agent is missing → think passive.*  
+                > *If multiple verbs are chained, the **right-most** verb usually carries tense/voice; earlier ones express the semantic action.*
+
+                _Use the gloss—its hidden auxiliaries, agents, and helpers—to uncover the verb’s true grammatical load._\
+                """).strip() + "\n\n"
+
+
+                common_sense_note = textwrap.dedent("""\
+                ### 🔹 `common_sense_note` – VERBS / ਕਿਰਿਆ (semantic sanity layer)
+
+                **Essence** A sieve that questions every verb label: *Does this person × number × tense truly fit what the verb is doing in the paṅktī?*
+
+                **Vision** Fuse surface-form clues with syntactic/semantic roles so edge-cases (poetic plurals, ergative flips, auxiliary drop, Lahindī quirks) are flagged, not rubber-stamped.
+
+                ---
+
+                ## 1 · Finite vs Non-finite: cheat grid  
+
+                | Tag you plan | Sanity checks (abort / relabel if violated) |
+                |--------------|---------------------------------------------|
+                | **Present / Future** | Ending shows **person+number; no gender**. If ending = –ਦਾ/ਦੀ/ਦੇ **without** auxiliary **ਹੈ/ਹਨ**, treat as participle (habitual/progressive) not finite. |
+                | **Imperative** | Only 2nd-person. Command/request mood. If clause is conditional (*ਜੇ ਸੁਣਹੁ…*) → **Subjunctive** not Imperative. |
+                | **Subjunctive** | Expresses wish/suggestion; often with *ਜੇ, ਜੇਕਰ, ਤਾਂ*. Never shows gender agreement. |
+                | **Past / Perfective** | Built on past-participle endings **–ਆ / –ਈ / –ਏ**. Transitive verbs agree with **object** (ergative); intransitives with **subject**. |
+                | **Passive finite** | Look for **ਕਰੀਐ, ਕੀਆ ਜਾਏ, ਕਹੀਏ** etc. Object promoted to subject; auxiliary **ਕਰੀਨਿ, ਕਰੀਐ** etc. present/past table (§ passive pages). |
+                | **Causative** | Endings –ਆਵਾ, –ਨਾੳ, –ਵਉ, –ਏਇ, –ਵਹਿ…; semantics must show *caused* action. |
+                | **Auxiliary-only token** | If root **ਹੋ** form (ਹਾ, ਹੈ, ਹਾਂ, ਹੁੰ, ਸੀ, ਸੇ, ਸੀਐ, ਸਾ…) appears **alone**, tag = **Auxiliary Verb** not main finite. |
+                *If the Canonical row label is “Pronominal Suffixes …” you **must tag Grammar Case = “Pronominal Suffixes …”**, not plain Past/Present.*
+                *For finite verbs, **Word-Root must record the person (1st / 2nd / 3rd)**; tense or aspect belongs in “Grammar Case / ਵਯਾਕਰਣ,” not in Word-Root.*
+
+                ---
+
+                ## 2 · Past-participle agreement sanity  
+
+                1. **Intransitive:** participle ↔ subject.  
+                2. **Transitive (ergative):** participle ↔ object; subject in instrumental/obl.  
+                3. **Pron.-suffix –ਉ/-ਹੁ:** when object = **ਤੈ/ਤੂੰ**, endings like **ਕੀਉ, ਕਿਉਹੁ** act as clitics → tag “Pronominal-suffix” sub-type.  
+                4. Gender/number mismatch with controller → flag for review.
+
+                ---
+
+                ## 2A · When gender actually matters  
+
+                * **Finite verbs** (Present, Future, Imperative, Subjunctive, Causative, Auxiliary)  
+                  → **never carry masc/fem marks** in SGGS.  *Finite verbs must therefore be tagged **Gender = Trans / ਨਪੁਂਸਕ** (not NA).*
+
+                * **Participles** – the only verb forms that **do** mark gender:  
+                  • Perfect / perfective: **Masc SG -ਆ / Fem SG -ਈ / Masc PL -ਏ / Fem PL -ਈਆਂ**  
+                  • Habitual / imperfective: **Masc SG -ਦਾ / Fem SG -ਦੀ / Masc PL -ਦੇ / Fem PL -ਦੀਆਂ**  
+                  • Dialectal allomorphs (ਲਹਿੰਦੀ **-ਇਓ**, ਬ੍ਰਜ **-ਯੋ**, etc.) are **still Masc SG**.
+
+                * **Controller rule**  
+                  – **Intransitive** → participle agrees with **subject**.  
+                  – **Transitive perfective** (ergative) → participle agrees with **object**.
+
+                * **Auxiliaries stay neuter.**  `ਹੈ/ਹਨ/ਸੀ…` never add gender; only the participle does.
+
+                ---
+
+                ## 3 · Auxiliary verbs & silent dropping  
+
+                * Present auxiliaries: **ਹਾ (1 sg), ਹੈ (2 sg), ਹੈ (3 sg), ਹਾਂ (1 pl), ਹਉ/ਹੁ (2 pl respect), ਹਨ/hin (3 pl)**.  
+                * Past auxiliaries (rare): **ਸਾ/ਸੇ/ਸੀ/ਸਿਤ, ਸਿਆ, ਸਾ; 3 pl = ਸੇ, ਸੈਨ, ਸੀਮਾ**.  
+                * In Gurbāṇī the auxiliary is **often absorbed** into a longer verb with pronominal suffix: *ਚਲਦਿਵੈ, ਭਰਵਾਈਐ*. If you can’t locate a free auxiliary, confirm tense via surface ending first.
+
+                ---
+
+                ## 4 · Imperative & Subjunctive overlap  
+
+                | Ending cluster | True Imperative if… | Else → likely Subjunctive |
+                |----------------|---------------------|---------------------------|
+                | **–ਹੁ / –ਹੁਗੇ / –ਹੋ** | Stand-alone command/request | Used inside conditional/wish |
+                | **–ਹੇ / –ਹੀ / –ਹੇਇ** | Vocative context | Hypothetical clause |
+
+                ---
+
+                ## 5 · Passive voice heuristics  
+
+                * **Surface template:** participle (ਘਲਿਆ) + auxiliary **ਕਰੀਐ / ਕਹੀਐ / ਕਵਾਇਓ** etc.  
+                * Only 3rd-person shows full paradigm in tables; 1st/2nd are scarce → flag if you tag 1st-person finite passive without strong textual evidence.  
+                * Present passive often masquerades as adjective; ensure a *patient-as-subject* reading is plausible.
+
+                ---
+
+                ## 6 · Causative sanity  
+
+                * First-person causatives: **–ਆਵਾ / –ਆਵਾ, –ਕਰਾਵਾ**. No object → verb likely **inchoative**, not causative.  
+                * 3rd-person causatives: **–ਵਾਇਆ, –ਵਧਾਇਆ, –ਤਿਵਾਇਆ, –ਈਯੈ**: must show agent-causes-other scenario.  
+                * If semantic agent = performer, drop “causative” tag.
+
+                ---
+
+                ## 7 · Compound verbs  
+
+                * Earlier element -> conjunct ending **-ਕੇ / -ਇ / -ਆ / -ਕੇਂ**.  
+                * Last element holds tense/person.  
+                * Tag first as “Conjunct Verb / Gerund”, second as finite.
+
+                ---
+
+                ## 8 · Auto-highlight (red flags)  
+
+                | Pattern | Likely mis-label |
+                |---------|------------------|
+                | Ending **-ਗਾ/ਗੀ/ਗੇ** but tag ≠ Future | Wrong tense |
+                | Ending **-ਹੁ/-ਹੁਗੇ** tagged 1st/3rd person | Imperative bleed |
+                | Ending **-ਦਾ/ਦੀ/ਦੇ** with no **ਹੈ/ਹਨ** & tag = Present/Future | Participle, not finite |
+                | Two consecutive finite-verb tags inside one clause | Probably compound verb – split roles |
+                | Passive participle **ਕਰੀਐ/ਕਰਾਤੁ** but subject‐agent reading given | Reverse voice |
+                | Finite verb tagged Masc/Fem | Finite forms should be Trans – likely mis-tag |
+                | Participial ending gender ≠ controller noun/pronoun | Agreement error (ergative or intransitive mix-up) |
+                | Ending-tense combo not found in Canonical table | Illegal combination – override gloss |
+                | Finite verb with Gender = NA | Should be Trans – fix label |
+
+                ---
+
+                <sub>Heuristics sourced from pages 5.1 – 5.12: Present, Past, Future, Imperative, Subjunctive, Participles, Compound, Passive, Causative, Auxiliary, Pron-suffix sections.</sub>\
+                """).strip() + "\n\n"
+
+                ending_cheat_sheet = textwrap.dedent("""\
+                🔔 **Authoritative workflow**
+
+                1️⃣ **Check legality** – If a surface ending × person/number × tense combo is **absent** from the
+                Canonical table below, reject or relabel.
+
+                2️⃣ **Decide meaning** – Among the *legal* options, pick the tag that is **best supported by
+                the Darpan Translation and Darpan Meanings** (Prof. Sāhib Siṅgh).  
+                *Those glosses remain the primary key to tense, mood, voice, and agent/object choice.*
+
+                3️⃣ Apply common-sense sanity rules (§ 1–8) for edge-case flags.
+
+                ---
+
+                **VERB / ਕਿਰਿਆ ENDINGS – QUICK REFERENCE (Gurbāṇī corpus, Sheet 1)**  
+
+                🔹 **Agreement grid (what can legally combine)**  
+                • **Person / ਪੁਰਖ** → 1st (ਉੱਤਮ) | 2nd (ਮਧਮ) | 3rd (ਅਨਯ)  
+                • **Number / ਵਚਨ** → Singular / ਇਕ | Plural / ਬਹੁ  
+                • **Tense / Mood** → Present / ਵਰਤਮਾਨ | Past / ਭੁਤ | Future / ਭਵਿੱਖਤ | Causative / ਪੇ੍ਰਣਾਰਥਕ | Pronominal suffix  
+                <sub>*Finite verbs ignore noun-gender; –ਦਾ/–ਦੀ/–ਦੇ are participial*</sub>
+
+                ---
+
+                ### A · Canonical ending patterns (+ three toy forms on **ਗਾਵ-**)
+
+                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **1st Sg** | Present | ਈ/ਉ/ਊ/ਾ/ੀ/ਤ/ਣਾ/ਤਾ/ਦਾ/ਨਾ/ੇਉ/ੰਦਾ/ੇਂਦੀ | ਗਾਵਈ, ਗਾਵਉ, ਗਾਵੇਉ |
+                |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
+                |  | Future | ਉ/ਊ/ਾ/ਸਾ/ਉਗਾ/ਉਗੀ/ਉਗੋ/ੈ ਹਉ | ਗਾਵਉ, ਗਾਵਊ, ਗਾਵਉਗਾ |
+                |  | Causative | ਵਉ/ਾਈ/ਾਵਾ/ਾਹਾ | ਗਾਵਵਉ, ਗਾਵਾਈ, ਗਾਵਾਵਾ |
+                |  | Pronominal | ਮ/ਮੁ | ਗਾਵਮ, ਗਾਵਮੁ |
+                | **1st Pl** | Present | ਹ/ਹਾ/ਤ/ਤੇ/ਦੇ | ਗਾਵਹ, ਗਾਵਤ, ਗਾਵਤੇ |
+                |  | Past | ੇ | ਗਾਵੇ |
+                |  | Future | ਸਹ/ਹਗੇ/ਹਿਗੇ | ਗਾਵਸਹ, ਗਾਵਹਗੇ |
+
+                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **2nd Sg** | Present | ਤ/ੈ/ਸਿ/ਹਿ/ਹੀ/ਹੇ/ੇਹੀ/ਦਾ | ਗਾਵਤ, ਗਾਵੈ, ਗਾਵਹਿ |
+                |  | Past | ਾ/ੀ/ਹੁ | ਗਾਵਾ, ਗਾਵੀ, ਗਾਵਹੁ |
+                |  | Future | ਸਿ/ਸੀ/ਹਿ/ਹੀ/ਹੋ/ਸਹਿ/ਹਿਗਾ | ਗਾਵਸਿ, ਗਾਵਸੀ |
+                |  | Causative | ਹਿ/ਇਦਾ/ਇਹਿ | ਗਾਵਹਿ, ਗਾਵਇਦਾ |
+                |  | Pronominal | ਇ/ਈ/ਹਿ/ਹੁ | ਗਾਵਇ, ਗਾਵਈ |
+                | **2nd Pl** | Present | ਹੁ/ਤ ਹਉ/ਤ ਹੌ/ਤ ਹਹੁ/ਈਅਤ ਹੌ | ਗਾਵਹੁ, ਗਾਵਤ ਹਉ |
+                |  | Past | ੇ/ਹੋ | ਗਾਵੇ, ਗਾਵਹੋ |
+                |  | Future | ਹੁ/ੇਹੁ/ਹੁਗੇ | ਗਾਵਹੁ, ਗਾਵੇਹੁ |
+
+                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **3rd Sg** | Present | ਇ/ਈ/ਏ/ੈ/ਤ/ਤਾ/ਤੀ/ਤਿ/ੇ/ਂਤ/ਦਾ/ਦੀ/ੰਤਾ/ਸਿ/ਹੈ | ਗਾਵਇ, ਗਾਵਈ, ਗਾਵਤੀ |
+                |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
+                |  | Future | ਈ/ੈ/ਗਾ/ਗੀ/ਗੋ/ਸਿ/ਸੀ | ਗਾਵਗਾ, ਗਾਵਗੀ |
+                |  | Causative | ਏ/ਈਐ/ਿਵੈ/ਿਦਾ/ਾਵੈ | ਗਾਵਏ, ਗਾਵਇਦਾ |
+                |  | Pronominal | ਨੁ/ਸੁ | ਗਾਵਨੁ, ਗਾਵਸੁ |
+                | **3rd Pl** | Present | ਤ/ਤੇ/ੰਤੇ/ਦੇ/ੰਦੇ/ਨਿ/ਨੀ/ਸਿ/ਹਿ/ਹੀ/ਇਨਿ/ਇੰਨਿ/ਦੀਆ/ਦੀਆਂ | ਗਾਵਤੇ, ਗਾਵਦੇ |
+                |  | Past | ੇ | ਗਾਵੇ |
+                |  | Future | ਹਿ/ਹੀ/ਸਨਿ/ਹਿਗੇ | ਗਾਵਹਿ, ਗਾਵਹਿਗੇ |
+                |  | Causative | ਇਦੇ/ਇਨਿ/ਵਹਿ | ਗਾਵਇਦੇ, ਗਾਵਵਹਿ |
+
+                ---
+
+                ### B · How to use the dashboard  
+
+                1. **Validate annotations** – If you tag a form “2nd Pl Future” but it ends in **–ਦਾ**, the table shows that combo never occurs → revisit the tag.  
+                2. **Debug machine predictions** – Surface ending not found under predicted role → flag for review.  
+                3. **Handle sandhi** – Remember silent –ਉ can drop before postpositions (e.g. **ਤੋਂ, ਨੂੰ**).  
+
+                _Export or further slicing on request._\
+                """).strip() + "\n\n"
+
+            elif entry["Type"] == "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ":
+                implicit_note = textwrap.dedent("""\
+                ### 🔹 `implicit_note` – ADVERB / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ  
+                *(SGGS-centric discovery guide)*  
+
+                **Essence** Teach the evaluator to recognise words that **modify the *action itself***—never the doer (noun) nor the quality‐word (adjective).  
+
+                **Vision** Lean on *Prof. Sāhib Siṅgh’s* Darpan gloss to infer *how, when, where* the verb happens—even when SGGS omits explicit post-positions or auxiliaries.  
+
+                ---
+
+                ## 1 · Adverb ≠ Adjective ≠ Noun — the litmus test 🩺  
+
+                | Ask this first | Pass ✔️ → Adverb | Fail ✖️ → something else |
+                |----------------|------------------|--------------------------|
+                | **Does the word alter the meaning of the verb?** <br>(time, place, manner, measure…) | ✔️ modifies *action* → keep testing | ✖️ modifies noun → likely *Adjective* or *Noun* |
+                | **Will the clause stay grammatical if the word is removed?** | ✔️ sentence remains; nuance lost | ✖️ structure breaks → maybe pronoun/helper |
+                | **Can the word move freely in the clause?** | ✔️ adverbs float (ੴ ਦਇਆਲੁ **ਹੁਣਿ** ਮਿਲਿਆ) | ✖️ fixed next to noun → adjective/compound |
+                | **Any number/gender inflection visible?** | ✔️ none (adverbs are **indeclinable**) | ✖️ – ਆ/–ਈ/–ਏ etc. → participle/adjective |
+                | **Darpan gloss clue** says: “now, then, quickly, here, twice…” | ✔️ adopt adverb label | ✖️ gloss uses “of, to, with” → case marker |
+
+                > **Rule:** In this framework an adverb may *expand* a phrase (ਜਗਿ **ਸਭਤੈ**), but it still targets the action, **not** the noun.  
+
+                ---
+
+                ## 2 · Functional buckets 🗂️  
+
+                | Category (Punjabi) | Core semantic cue | Minimal examples* |
+                |--------------------|-------------------|-------------------|
+                | **ਸਮਾ / Time**        | ‘ਕਦੋਂ? ਕਿੰਨਾ ਸਮਾਂ?’ | ਹੁਣਿ, ਕਦੇ, ਅਜੁ, ਨਿਤ, ਅਹਿਨਿਸਿ |
+                | **ਥਾਂ / Place**       | ‘ਕਿੱਥੇ?’            | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
+                | **ਵਿਧੀ / Manner**     | ‘ਕਿਵੇਂ? ਕਿਸ ਢੰਗ ਨਾਲ?’ | ਜਿਉ, ਇਉ, ਨਿਸੰਗੁ, ਰਸਕਿ ਰਸਕਿ |
+                | **ਪਰਮਾਣ / Measure**   | ‘ਕਿੰਨਾ?’            | ਅਤਿ, ਬਹੁਤੁ, ਘਣਾ, ਭਰਪੂਰਿ |
+                | **ਸੰਖਿਆ / Number**    | ‘ਕਿੰਨੀ ਵਾਰ?’        | ਬਾਰੰ ਬਾਰ, ਫਿਰਿ ਫਿਰਿ |
+                | **ਨਿਨੈ / Decision**   | certainty / denial  | ਨਾਹਿ, ਨਿਹਚਉ |
+                | **ਕਾਰਣ / Reason**     | causation           | ਯਾਤੇ, ਕਿਤੁ ਅਰਥਿ |
+                | **ਤਾਕੀਦ / Stress**    | emphasis            | ਹੀ, ਭੀ, ਮੂਲੇ |
+
+                * A full “high-freq” table—including **phrase, compound & iterative** idioms—follows in *common_sense_note*.
+
+                ---
+
+                ## 3 · Zero-inflection principle 🚫🧬  
+
+                * Adverbs **never** show number (-ਏ/-ਉ), gender, person or case.  
+                * If a token **does** decline, re-classify: participial verb (*-ਦਾ/-ਦੀ/-ਦੇ*), adjective, or oblique noun.  
+
+                ---
+
+                ## 4 · Typical gloss helpers 🔍  
+
+                | Gloss clue | Likely adverb class | Illustration |
+                |------------|--------------------|--------------|
+                | “**now / today / always**” | Time | “ਹੁਣਿ ਮਿਲਿਆ” |
+                | “**here / everywhere / within**” | Place | “ਅੰਦਰਿ ਰਹੈ” |
+                | “**thus / quickly / secretly**” | Manner | “ਜਿਉ ਕਰੇ” |
+                | “**fully / a little**” | Measure | “ਭਰਪੂਰਿ ਰੰਗਿ ਰਤਾ” |
+                | “**again / twice**” | Number | “ਫਿਰਿ ਫਿਰਿ ਆਇਆ” |
+
+                ---
+
+                ## 5 · Quick detection workflow ⚡  
+
+                1. **Mark all gloss adverbials** – scan Darpan for English adverbs.  
+                2. **Map to Punjabi surface form** – locate the SGGS token(s) that carry that nuance.  
+                3. **Apply indeclinability test** – no visible suffix change? keep as adverb.  
+                4. **Check floating mobility** – move token; if syntax survives, adverb confirmed.  
+                5. **Edge alert** – if token sits after a post-position (ਦੇ, ਨਾਲ…), probably **oblique noun** not adverb.
+
+                ---
+
+                ## 6 · Red-flag heuristics 🚩  
+
+                * Word tagged *Adverb* but ends in **-ਦਾ/-ਦੀ/-ਦੇ** → likely participial.  
+                * Tagged *Adverb* but gloss shows possession (*of*) → test for Genitive noun.  
+                * Compound form **ਸਾਸਿ ਗਿਰਾਸਿ** mis-tagged as Time/Manner interchangeably → ensure Darpan intent.  
+                * Form appears **twice with different endings** in same ṭuk → must be *declinable* → not adverb.  
+
+                ---
+
+                ### 📝 Footnote on spreadsheet codes  
+                The Excel “Adverbs” sheet groups every token into **eight functional sets** above, plus **Compound / Phrase** and **Iterative** markers. These codes are referenced only for *high-freq tables* and require **no inflection logic**.
+
+                _Use this guide, then apply the sanity layer in `common_sense_note` for mis-tag traps._
+                """).strip() + "\n\n"
+        
+                common_sense_note = textwrap.dedent("""\
+                ### 🔹 `common_sense_note` – ADVERBS / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ (semantic sanity layer)
+
+                **Essence** A quick triage: *Does this token truly act as an **adverb**—i.e., modifies a verb (or a whole clause) and NEVER a noun/pronoun?*
+
+                **Vision** Prevent false-positives caused by:
+                * Post-positions or emphatic particles masquerading as adverbs  
+                * Adjectival or nominal words that look “adverb-ish” but show agreement or case
+
+                ---
+
+                ## 1 · Three-step sanity check 🧪  
+
+                | Step | Ask yourself | Abort / Relabel if… |
+                |------|--------------|--------------------|
+                | ① | **Function** – Does the word modify a **verb or clause** (manner, time, place, degree)? | It directly qualifies a noun/pronoun → likely Adjective or Noun |
+                | ② | **Morphology** – No number / gender / person agreement & no case endings | You see –ਏ/–ਉ etc. agreeing with noun → it’s NOT an adverb |
+                | ③ | **Position / Helpers** – Is it followed by a postposition (*ਦੇ, ਨੂੰ, ਨਾਲ*)? | Token + post-position ⇒ treat token as **Noun in oblique**, PP = post-position |
+
+                ---
+
+                ## 2 · Category reference with high-frequency SGGS tokens 🔍  
+
+                | Category | Typical surface cues | SGGS high-freq examples |
+                |----------|----------------------|-------------------------|
+                | **Time / ਸਮਾਂ** | “when?”, duration, sequence | ਹੁਣਿ, ਸਦਾ, ਕਦੇ, ਤਦਿ, ਸਵੇਰੈ |
+                | **Place / ਥਾਂ** | “where?”, location, direction | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
+                | **Manner / ਵਿਧੀ** | “how?”, style, attitude | ਜਿਉ, ਸਹਜਿ, ਇਉ, ਕਿਵ, ਨਿਸੰਗੁ |
+                | **Measurement / ਪਰਮਾਣ** | quantity / degree | ਅਤਿ, ਬਹੁਤਾ, ਘਣਾ, ਭਰਪੂਰਿ, ਤਿਲੁ |
+                | **Number / ਸੰਖਿਆ** | frequency / repetition | ਫਿਰਿ ਫਿਰਿ, ਬਾਰੰ ਬਾਰ, ਵਤਿ, ਲਖ ਲਖ, ਅਨਿਕ ਬਾਰ |
+                | **Decision / ਨਿਨੈ** | negation / affirmation | ਨਾ, ਨਹ, ਨਾਹੀ, ਨਿਹਚਉ, ਮਤ |
+                | **Reason / ਕਾਰਣ** | cause / purpose | ਯਾਤੇ |
+                | **Stress / ਤਾਕੀਦ** | emphasis / focus | ਹੀ, ਭੀ, ਹੈ, ਸਰਪਰ, ਮੂਲੇ |
+            
+                ---
+
+                ### ▸ Phrase / Compound & Iterative idioms (extended reference)
+
+                | Sub-group | Token set → **all indeclinable adverbs** | Main category |
+                |-----------|------------------------------------------|---------------|
+                | **Time — Phrase** | ਅਹਿਨਿਸਿ, ਨਿਸਿ ਬਾਸੁਰ, ਪਹਿਲੋ ਦੇ, ਪਿਛੋ ਦੇ, ਰਾਤਿ ਦਿਨੰਤਿ, ਅੰਤ ਕੀ ਬੇਲਾ, ਅਬ ਕੈ ਕਹਿਐ, ਆਠ ਪਹਰ, ਆਦਿ ਜੁਗਾਦਿ, ਇਬ ਕੇ ਰਾਹੇ, ਨਿਤ ਪ੍ਰਤਿ | Time / ਸਮਾ |
+                | **Place — Phrase** | ਅੰਤਰਿ ਬਾਹਰਿ, ਪਾਸਿ ਦੁਆਸਿ, ਵਿਚੁਦੇ, ਆਸ ਪਾਸ, ਊਪਰਿ ਭੁਜਾ ਕਰਿ, ਅਗਹੁ ਪਿਛਹੁ, ਈਹਾ ਊਹਾ, ਕਿਤੁ ਠਾਇ, ਤਿਹਾ ਧਿਰਿ, ਤਿੰਹੁ ਲੋਇ, ਦੇਸ ਦਿਸੰਤਰ | Place / ਥਾਂ |
+                | **Manner — Phrase** | ਤਾ ਭੀ, ਤਿਲੁ ਸਾਰ, ਇਕ ਮਨਿ, ਏਵੈ, ਸਹਜ ਭਾਇ, ਕਵਨ ਮੁਖਿ, ਕਾਹੇ ਕਉ, ਕਿਉ ਨ, ਕਿਤੁ ਅਰਥਿ, ਨਾਨਾ ਬਿਧਿ, ਕਿਵੈ ਨ, ਰਸਕਿ ਰਸਕਿ | Manner / ਵਿਧੀ |
+                | **Iterative (Time)** | ਫਿਰਿ ਫਿਰਿ, ਦਿਨੁ ਦਿਨੁ, ਸਦਾ ਸਦਾ, ਸਾਸਿ ਸਾਸਿ, ਨਿਤ ਨਿਤ, ਨਿਮਖ ਨਿਮਖ, ਪਲੁ ਪਲੁ, ਬਾਰੰ ਬਾਰ, ਪੁਨਹ ਪੁਨਹ | Time / ਸਮਾ |
+                | **Iterative (Place)** | ਜਤ ਕਤ, ਘਰਿ ਘਰਿ, ਜਹ ਜਹ, ਜਿਤੁ ਜਿਤੁ, ਦੇਸ ਦਿਸੰਤਰਿ | Place / ਥਾਂ |
+                | **Iterative (Manner)** | ਝਿਮਿ ਝਿਮਿ, ਤਿਲ ਤਿਲ, ਖਿਰ ਖਿਰ, ਰਸਿਕ ਰਸਿਕ, ਲੁਡਿ ਲੁਡਿ | Manner / ਵਿਧੀ |
+
+                *(Duplicates collapsed; diacritics kept as in SGGS.)*
+
+                ---
+
+                ## 3 · Red-flag heuristics 🚨  
+
+                | Pattern | Likely mis-tag |
+                |---------|---------------|
+                | Token shows **plural/oblique –ਆਂ / –ਏ / –ਉ** agreement | Probably a noun or adjective |
+                | Token immediately followed by post-position (**ਨਾਲ, ਤੇ, ਵਿਚ**) | Treat as noun + PP |
+                | Token doubles as **auxiliary verb** (*ਹੀ, ਹੈ*) in context | Re-evaluate as Stress adverb OR auxiliary |
+                | Same stem appears with changing endings inside verse | Likely **declinable adjective**, not adverb |
+                | Gloss marks token as **object / subject** | Not an adverb |
+
+                ---
+
+                ## 4 · Usage tips 💡  
+
+                1. **No gender/number tags** – Always set **Gender = NA** & **Number = NA** for adverbs.  
+                2. **POS override wins** – If sanity check fails, switch POS before finishing the task.  
+                3. Quote at least one verb the adverb is modifying when you justify your choice.
+
+                ---
+
+                <sub>Source pages: Grammar book ch. 6 (pp. 6.1–6.2.6) & “Adverbs” sheet from 0.2 For Data to GPT.xlsx.</sub>\
+                """).strip() + "\n\n"
+
+                ending_cheat_sheet = (
+                    "**ADVERBS:** Indeclinable in SGGS → no ending table required."
+                )
+
+            elif entry["Type"] == "Postposition / ਸੰਬੰਧਕ":
+                implicit_note = textwrap.dedent("""\
+                    **POSTPOSITIONS IN GURBĀṆĪ – SEEING THE HIDDEN LINKS**  
+
+                    A postposition (_ਸੰਬੰਧਕ_) expresses the *relationship* of a noun or pronoun to the
+                    rest of the clause.  Think of it as a Punjabi sibling of the English preposition,
+                    except it normally **follows** the word it governs.
+
+                    ### 1 · Why they matter in annotation  
+                    • **Old case-endings → new helpers** – Classical Punjabi often fused case endings
+                    straight onto the noun (e.g. ਕੈ, ਕਉ).  Over centuries these endings began to act
+                    like separate postpositions—and Gurbāṇī preserves *both* layers.  
+                    • **One helper ≠ one case** – Don’t map “each postposition to one case” by reflex.
+                    Many helpers (esp. ‘of’, ‘from’, ‘with’) sit across **multiple traditional cases**.  
+                    • **Pre-noun surprise** – Forms such as **ਕੈ** can surface *before* the noun when
+                    they co-occur with another postposition; still tag them as postpositions.
+
+                    ### 2 · How to read the Darpan gloss  
+                    1. **Scan the English helper** inserted by Prof. Sāhib Siṅgh – _to, of, from,
+                    with, without, in, on, before, after, near, far…_  
+                    2. **Locate the Punjabi token(s)** that deliver that meaning in the pāṅktī.
+                    They may be:  
+                    • an **attached ending** (*…ਕੈ ਸੰਤ*),  
+                    • a **stand-alone word** (*ਨਾਲ, ਵਿਚ, ਉਪਰਿ*), or  
+                    • an **archaic variant** (e.g. _ਕਹ, ਵਸੇ, ਬਾਸੇ_).  
+                    3. **Check the noun form** – the governed noun should be in the **oblique** (ਸੰਬੰਧਕ)
+                    if the language still marks one; otherwise, rely on meaning.
+
+                    > **Rule of thumb** – If the gloss supplies a relational word the verse omits,
+                    > treat that English word as a flag that “a postposition is hiding here.”\
+                    """).strip() + "\\n\\n"
+
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – IS THIS *REALLY* A POSTPOSITION?**  
+
+                    ### ①  Function test  
+                    • Does the candidate **link** its noun/pronoun to the verb or another noun?  
+                    _Yes_ → proceed.  _No_ → it may be an **adverb**, **case-suffix**, or even
+                    part of a **compound noun**.
+
+                    ### ②  Morphology test  
+                    • Postpositions are **indeclinable** – no gender/number/person endings of their
+                    own.  If the token shows –ਆ/ਈ/ਏ etc., suspect an *oblique noun* instead.  
+                    • Possessive markers **ਦਾ, ਦੇ, ਦੀ** *look* like adjectives but behave as
+                    postpositions.  Tag them here only when they attach to another noun
+                    (“ਰਾਮ **ਦਾ** ਦਾਸ”).  
+
+                    ### ③  Dependency test  
+                    • A true postposition normally keeps a **dependent noun** close by.  If none
+                    appears, ask whether the word is actually an **adverbial particle** (“ਤਦਿ,
+                    ਅਗੈ”) or part of a **verb phrase**.
+
+                    ### ④  Red-flag heuristics 🚩  
+                    | Pattern | Likely mis-tag | Example cue |
+                    |---------|---------------|-------------|
+                    | Token plus **another postposition** with no noun in between | Missing oblique noun | “ਕੈ **ਨਾਲ**” |
+                    | Token followed by *ਹੈ/ਹਨ* | Probably predicate adjective | “ਨਾਨਕੁ ਦੋਖੀ **ਨਾਹਿ**” |
+                    | Token appears twice with changing endings | Declining noun, not postposition | “ਘਰਿ ਘਰਿ” |
+
+                    ### ⑤  Quick role alignment  
+                    | Semantic role | Common helpers (non-exhaustive) |
+                    |---------------|----------------------------------|
+                    | **Genitive / OF** | ਕਾ, ਕੇ, ਕੀ, ਦਾ, ਦੇ, ਦੀ, ਕੋਰਾ |
+                    | **Dative / TO, FOR** | ਕਉ, ਕੋ, ਕੈ, ਨੂ, ਲਈ |
+                    | **Ablative / FROM** | ਤੋਂ, ਤੇ, ਵੈਹੁ, ਬਿਨ, ਬਾਹਰ |
+                    | **Instrumental / WITH** | ਨਾਲ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ |
+                    | **Locative / IN, ON, AT** | ਵਿਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਉਪਰਿ, ਊਤੇ |
+                    | **Orientational / BEFORE, AFTER, NEAR, FAR** | ਅਗੈ, ਪਿਛੈ, ਕੋਲ, ਨਿਕਟ, ਦੂਰਿ |
+
+                    _If a helper can sit in more than one row, choose the case that best matches the
+                    **meaning of the clause**, and note the alternative in comments._\
+                    """).strip() + "\\n\\n"
+            
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **POSTPOSITION QUICK-REFERENCE – SURFACE FORMS BY SEMANTIC GROUP**  
+
+                    | Role (Eng.) | Core Punjabi forms* | Notes |
+                    |-------------|---------------------|-------|
+                    | **OF / Possessive** | ਦਾ, ਦੇ, ਦੀ · ਕਾ, ਕੇ, ਕੀ · ਕਾ, ਕੈ, ਕੈਹਿਉ · ਕੋਰਾ / ਕੋਰੈ | Masculine/Feminine variants; decline with possessed noun, not with owner |
+                    | **TO / FOR** | ਕਉ, ਕੂ, ਕੈ, ਕੋ · ਨੂ, ਨੂੰ · ਲਈ | Older endings (ਕਉ…) often fuse; **ਨੂੰ** modern |
+                    | **FROM / OUT OF** | ਤੋਂ, ਤੇ, ਉਤੋਂ, ਵੈਹੁ, ਬਾਹਰ, ਬਿਨਾ | Ablative / separative sense; *ਬਿਨਾ* also “without” |
+                    | **WITH / BY / ALONG** | ਨਾਲ, ਨਾਲੇ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ | Instrumental & associative; choice shaped by metre |
+                    | **WITHOUT / THAN** | ਬਾਜਹੁ, ਬਾਗੈ, ਬਿਨ, ਬਿਨੁ, ਵਿਣ, ਵਿਣਹੁ, ਥੋੜਾ | Negative / comparative nuance |
+                    | **IN / INSIDE / WITHIN** | ਵਿਚ, ਵਿ⸱ਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਮਹਿ, ਮਾਹਰੈ | Locative & internal |
+                    | **ON / OVER / ABOVE** | ਉਪਰਿ, ਉਪਰ, ਉਤੇ, ਊਤੇ, ਊਪਰਿ | Spatial elevation; *ਤੇ* doubles as generic PP |
+                    | **UNDER / BELOW** | ਤਲਿ, ਥਲੈ, ਹੇਠ, ਹੇਠਾਂ | Lower level |
+                    | **BEFORE / FRONT** | ਅਗੈ, ਅਗੇ | Temporal or spatial precedence |
+                    | **AFTER / BEHIND** | ਪਿਛੈ, ਪਾਛੈ, ਪਿਛੋ | Temporal or spatial following |
+                    | **TOWARDS / NEAR / FAR** | ਵਲ, ਕਨ, ਕੋਲ, ਕੋਲੀ, ਨਿਕਟ, ਪਾਸਿ, ਪਾਸੇ, ਦੂਰਿ | Directional & proximity |
+
+                    <sub>*Forms collated from pp. 1-7 of your textbook; diacritics left as printed.
+                    The list is not exhaustive—add dialectal or Braj variants as you meet them.</sub>
+
+                    **Oblique rule** – The governed noun normally appears in the **oblique**; the
+                    postposition itself **never inflects**.
+
+                    **Pre-noun exception** – When **ਕੈ** precedes another PP, it may surface *before*
+                    its noun (e.g. “ਮੰਨੇ ਜਮ **ਕੈ** ਸਾਥ ਨ ਜਾਇ”) – still tag as postposition.
+
+                    **Cross-case cautions**  
+                    • Some helpers (esp. “with”, “in”, “from”) can realise **Instrumental, Locative,
+                    or Ablative** – decide by semantics.  
+                    • Genitive set **ਦਾ/ਦੇ/ਦੀ** functions like an adjective in modern speech but
+                    grammatically remains a postposition in SGGS.
+
+                    _Use this sheet to *reject impossible guesses* and to **confirm legal surface
+                    forms** before finalising your annotation._\
+                    """).strip() + "\\n\\n"
+
+            elif entry["Type"] == "Conjunction / ਯੋਜਕ":
+                implicit_note = textwrap.dedent("""\
+                    **CONJUNCTIONS IN GURBĀṆĪ – HOW TO HEAR THE HINGES**
+
+                    A conjunction (_ਯੋਜਕ_) links words, phrases, or entire clauses—*and, but, or,
+                    if … then, even though…. *  Gurbāṇī uses a small core set, but the
+                    multilingual texture of the text supplies many **variants** (ੲੈ, ਅਤੇ, ਅਉ,
+                    ਫੁਨਿ; ਜੇ, ਜੇਕਰ; ਤਾ, ਤਾਂ, ਤਭ).
+
+                    #### 1 · Spotting them in the verse
+                    1. **Look for clause boundaries** – commas or the metrical “||” often signal the
+                    join.  
+                    2. **Map the gloss cue** – Prof. Sāhib Siṅgh frequently inserts
+                    *and / but / or / if / then / even*, etc.  Trace that helper back to a Punjabi
+                    token (sometimes a tiny vowel like **ਤ, ਜੇ, ਤੇ**).  
+                    3. **Check the flow** – removing a true conjunction should split the sentence
+                    into two meaningful parts; if the sense collapses, the token may be an
+                    **adverb** (*ਤੌਂ = then* vs. *ਤੋਂ = from*), **post-position**, or **particle**.
+
+                    > **Rule of thumb** – If the gloss supplies an English linker and the Punjabi
+                    > token neither declines nor carries case, you’ve found a conjunction.
+                    """).strip() + "\\n\\n"
+            
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – DOES THIS REALLY JOIN THINGS?**
+
+                    | Quick test | Keep as conjunction ✔︎ | Rethink ✘ |
+                    |------------|------------------------|-----------|
+                    | **Function** | Links two clauses / words of equal status | Adds a helper to a noun (*post-position*) |
+                    | **Morphology** | Indeclinable; no gender/number | Ends -ਆ/-ਈ/-ਏ → likely adjective/noun |
+                    | **Mobility** | Can often move to clause edge without breaking grammar | Locked to noun it follows → PP/adjective |
+                    | **Gloss cue** | gloss shows *and, but, or, if … then* | gloss shows *to, of, from* → case helper |
+
+                    #### Red-flag patterns 🚩
+                    * Token plus **post-position** (e.g. *ਜੇ ਕੋ*): maybe *ਜੇ* = “if” (OK) but *ਕੋ* =
+                    Dative → label both separately.  
+                    * **ਨੀ…ਨਾ** or **ਨੋ…ਨੋ** – might be emphatic repetition, not conjunction.  
+                    * **ਤਾ/ਤੇ/ਤੋਂ**: confirm rôle—*ਤਾ* = “then”, *ਤੇ* often Locative PP, *ਤੋਂ* Ablative.
+                    """).strip() + "\\n\\n"
+            
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **CONJUNCTION QUICK-REFERENCE – HIGH-FREQ FORMS IN SGGS**
+
+                    | Logical role | Punjabi forms* | Example gloss cue |
+                    |--------------|---------------|-------------------|
+                    | **AND / THEN** | ਤੇ, ਅਤੇ, ਅਤਿ, ਅਉ, ਅਵਰ, ਅਉਰੁ, ਫੁਨਿ | “and”, “then”, “also” |
+                    | **OR** | ਕੈ, ਕਿ, ਅਕੇ | “or / whether” |
+                    | **BUT / HOWEVER** | ਘਟ, ਪਰ, ਪਰੰਤੂ, ਫੁਨਿ | “but”, “yet” |
+                    | **IF** | ਜੇ, ਜੇਕਰ, ਜੇਵੀ | “if / provided that” |
+                    | **IF … THEN** | ਜੇ … ਤਾ/ਤਾਂ/ਤੋਂ | paired correlative |
+                    | **EVEN IF / EVEN THEN** | ਤ, ਜੇ, ਭਾਵੇ, ਤਉ ਭੀ, ਤਉ, ਤਉਂ | concessive |
+                    | **NEITHER … NOR** | ਨ … ਨਾ | correlative negative |
+                    | **OTHERWISE** | ਨਤ ਰਿ, ਨਤੂ, ਨਹੀਂ, ਨਹੀਂ ਤਾਂ | “otherwise” |
+                    | **THEREFORE / HENCE** | ਤਾ, ਤਾ ਤੇ, ਤਸੂ, ਕਾ ਤੇ | result / inference |
+                    | **AS / LIKE** | ਜਿਉ, ਜਿਵੇਂ | comparative |
+                    | **LEST** | ਮਤੁ | preventative |
+
+                    <sub>*Forms taken from textbook pp. 8.1 – 8.4; diacritics preserved.</sub>
+
+                    **Key reminders**
+
+                    * **Indeclinable** – conjunctions never carry case or agreement.
+                    * **Dual tokens** – Some forms (*ਤਾ, ਤੇ, ਤੋਂ*) double as post-positions.
+                    Decide by context: if it *links* clauses → conjunction; if it *marks* a noun
+                    → post-position.
+                    * **Correlative pairs** – Tag both halves (e.g. **ਜੇ** … **ਤਾਂ**) as one
+                    logical conjunction with a note “correlative”.
+                    """).strip() + "\\n\\n"
+            
+            elif entry["Type"] == "Interjection / ਵਿਸਮਿਕ":
+                implicit_note = textwrap.dedent("""\
+                    **INTERJECTIONS IN GURBĀṆĪ – PURE, UNINFLECTED EMOTION**
+
+                    An interjection (_ਵਿਸਮਿਕ_) erupts outside normal grammar to voice **feeling**:
+                    surprise, pain, devotion, blessing, awe…  Because they sit *outside* the clause
+                    structure, they **never govern case, never inflect, never agree**.
+
+                    #### 1 · What to notice in a verse
+                    1. **Standalone or comma-bound** tokens – often at the start, end, or mid-clause,
+                    separated by a breve pause.  E.g. **ਵਾਹੁ ਵਾਹੁ**, **ਹੈ ਹੈ**, **ਹਰਿ ਹਰਿ**.
+                    2. **Gloss cue** – Prof. Sāhib Siṅgh usually inserts an English exclamation
+                    (*O!, Alas!, Wow!, Blessed!*) or italicises the Punjabi for emphasis.
+                    3. **No syntactic load** – if you remove the interjection, the grammar of the
+                    sentence remains intact (though colour is lost).
+
+                    #### 2 · Ten broad emotional classes in SGGS
+                    1. **Vocative** – calling or invoking (*ਏ, ਐ, ਓ, ਹੈ, ਹਉ, ਹੇ ਜੀ…*).  
+                    2. **Repulsive** – aversion or disgust (*ਵਿਚੁ, ਫਿਟੁ*).  
+                    3. **Painful** – sorrow, lament (*ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ*).  
+                    4. **Submission** – ‘Divine willing’ (*ਅਲਹ*).  
+                    5. **Wondrous** – ecstatic awe (*ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਭੈਰੀ*).  
+                    6. **Caution / Warning** – prudent cry (*ਹਰਿ ਹਰਿ ਹਰੇ* used admonishingly).  
+                    7. **Blessing** – goodwill (*ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ*).  
+                    8. **Curse** – condemnation (*ਜਲਉ, ਜਲਿ ਜਾਉ*).  
+                    9. **Sacrificial** – self-offering (*ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ*).  
+                    10. **Reverence** – respectful welcome (*ਆਇ ਜੀ, ਪਿਛੋ ਜੀ*).
+
+                    > **Rule of thumb** – if the word communicates *only* emotion and detaches
+                    > cleanly from clause syntax, tag it as Interjection; otherwise test Adverb,
+                    > Vocative Noun, or Particle.
+                    """).strip() + "\\n\\n"
+
+                common_sense_note = textwrap.dedent("""\
+                    **SEMANTIC SANITY CHECK – IS THIS TOKEN *JUST* AN EMOTION?**
+
+                    | Quick probe | Keep as Interjection ✔ | Rethink ✖ |
+                    |-------------|-----------------------|-----------|
+                    | **Function** | Adds emotional colour, no syntactic role | Performs grammatical work (case, link, inflection) |
+                    | **Inflection** | Completely indeclinable | Shows –ਆ / –ਈ / –ਏ endings → maybe adjective/noun |
+                    | **Dependence** | Can float; removal leaves clause intact | Sentence breaks → probably verb/particle |
+                    | **Gloss cue** | Gloss marks “O!”, “Alas!”, “Blessed!” etc. | Gloss gives “to, from, with” → post-position |
+
+                    #### Red-flag patterns 🚩
+                    * **ਵਾਹੁ ਵਾਹੁ** appears as noun/adjective elsewhere – decide per context.  
+                    * **ਹੈ ਮੈ, ਹੇ ਭਾਈ** – first token vocative interjection, second token noun;
+                    split tags, don’t bundle.  
+                    * Repeated **ਹਰਿ ਹਰਿ** could be mantra (noun) *or* caution interjection –
+                    weigh meaning.
+
+                    _For every interjection, fill **Number = NA** and **Gender = NA**; they never
+                    agree with anything._
+                    """).strip() + "\\n\\n"
+            
+                ending_cheat_sheet = textwrap.dedent("""\
+                    **INTERJECTION QUICK-REFERENCE – FREQUENT FORMS BY EMOTIONAL CLASS**
+
+                    | Class               | High-frequency tokens* (SGGS spelling)        |
+                    |---------------------|----------------------------------------------|
+                    | **Vocative**        | ਏ, ਐ, ਓ, ਓਹ, ਹੇ, ਹੈ, ਹਉ, ਹਲੈ, ਮੁਸੈ, ਜੀ, ਰੇ, ਬੇ |
+                    | **Repulsive**       | ਵਿਚੁ, ਫਿਟੁ                                   |
+                    | **Painful**         | ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ, ਝੂਅਹ ਬੂਢਹ           |
+                    | **Submission**      | ਅਲਹ                                          |
+                    | **Wondrous**        | ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਵਾਹ, ਵਾਅ ਵਾਅ, ਵਹੁ ਵਹੁ, ਵਾਹ ਭੈ, ਵਹੁ ਵਹੁ |
+                    | **Caution / Warning** | ਹਰਿ ਹਰਿ ਹਰੇ, ਹਰੇ ਹਰੇ                       |
+                    | **Blessing**        | ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ, ਜੁਗੁ ਜੁਗੁ ਜੀਵੈ              |
+                    | **Curse**           | ਜਲਉ, ਜਲਿ ਜਾਉ, ਜਲਿ ਜਲਿ ਜਰਹੁ                  |
+                    | **Sacrificial**     | ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ, ਵਾਰੀ ਵੰਞਾ, ਕਣੀਏ ਵੰਞਾ    |
+                    | **Reverence**       | ਆਉ ਜੀ, ਆਇ ਜੀ, ਪਿਛੋ ਜੀ                       |
+
+                    <sub>*Tokens taken from textbook pp. 9.1–9.4; diacritics preserved.  
+                    Feel free to trim or expand as corpus stats evolve.</sub>
+
+                    **Remember** – Interjections are **indeclinable** and **carry no grammatical
+                    features**.  Therefore the spreadsheet needs **no ending table** beyond this
+                    categorical list.
+                    """).strip() + "\\n\\n"
+            
+            notes_block = ending_cheat_sheet + implicit_note + common_sense_note
+
+            prompt = textwrap.dedent(f"""
+                **You are a Punjabi grammar expert.**
+
+                Below are the *allowed choices* for each feature of the highlighted word:
+
+                {opts_block}
+                {matches_block}
+
+                {notes_block}
+
+                **IMPORTANT:**  
+                Base **all** confirmations or corrections **solely on the Darpan translation** below.  
+                Do **not** consult any other translation or external context.
+
+                **My Current Selections:**  
+                - Word Under Analysis: **{ve}**  
+                - Number / ਵਚਨ: **{num}**  
+                - Grammar Case / ਵਯਾਕਰਣ: **{gram}**  
+                - Gender / ਲਿੰਗ: **{gen}**  
+                - Word Root: **{root}**
+
+                **Context (use *only* the Darpan gloss):**  
+                • **Verse:** {verse}  
+                • **Darpan Translation:** {trans}  
+                • **Darpan-Meanings:** {dm}
+
+                **Task:**  
+                1. **Confirm or correct** each feature—if blank, **choose** the best option  
+                (one-sentence rationale citing the inflection or usage).
+                • For finite forms, choose **1st / 2nd / 3rd Person** in Word-Root (do not use Past/Perfect there). 
+                2. **Corrections**, if any:  
+                - Number → …  
+                - Grammar Case → …  
+                - Word Root → …  
+                3. **Example Usage:**  
+                Provide **one** new Gurbāṇī-style sentence using **“{ve}”** with the
+                confirmed ending, number, case, gender, and root.
+                4. **Table citation:**  
+                Quote the person × number × tense row header you matched in the Canonical table  
+                (e.g., “1 Sg | Past”). **Use that row’s category name for “Grammar Case / ਵਯਾਕਰਣ,” unless a sanity rule forbids it.**
+                5. **Ending ⇄ Case cross-check:**
+                • If the cheat-sheet already lists a suffix for your chosen case, use it.  
+                • If the case is **missing**, you may propose a likely form
+                    (or say “uninflected”) **but give one-line reasoning**.
+                6. **Commentary:**  
+                Please write 2–3 sentences as “ChatGPT Commentary:” explaining how you arrived at each feature choice.
+            """).strip()
+
+            self.root.clipboard_clear()
+            self.root.clipboard_append(prompt)
+            messagebox.showinfo(
+                "Prompt Ready",
+                "The detailed-grammar prompt has been copied to your clipboard.\n"
+                "Paste it into ChatGPT, then paste its response back into the text box."
+            )
+
+        tk.Button(
+            frm, text="📋 Build Detailed Grammar Prompt",
+            font=("Arial", 12, "italic"),
+            bg="white", fg="dark cyan",
+            command=build_detailed_prompt
+        ).grid(row=6, column=0, columnspan=2, pady=(10, 0))
+
+        # 6) --------------  Bottom buttons (unchanged)  --------------
+        sep = tk.Frame(win, bg="#cccccc", height=2)
+        sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(5, 0))
+
+        btns = tk.Frame(win, bg="light gray")
+        btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
+
+        tk.Button(
+            btns, text="‹ Back",
+            font=("Arial", 12), bg="gray", fg="white",
+            command=lambda: [win.destroy(),
+                            self.show_matches_grammar(self._last_matches, word, index)]
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            btns, text="Save & Finish →",
+            font=("Arial", 12, "bold"), bg="dark cyan", fg="white",
+            command=lambda: self.on_accept_detailed_grammar(win)
+        ).pack(side=tk.RIGHT)
+
+        win.transient(self.root)
+        win.grab_set()
+        self.root.wait_window(win)
+
+
+    # Wrappers for Verse and ABW to avoid cross-calling
+    def open_final_grammar_dropdown(self, word, pos, index):
+        return self._open_final_grammar_dropdown_common(word, pos, index, mode='verse')
+
+    def open_final_grammar_dropdown_for_word(self, word, pos, index):
+        return self._open_final_grammar_dropdown_common(word, pos, index, mode='word')
+    def on_accept_detailed_grammar(self, win):
+        """Finalize the detailed grammar selection and append a row to 1.1.1_birha.csv.
+        This is called by the 'Save & Finish' button in the detailed grammar dialog.
+        """
+        advance_ok = False
+        try:
+            # Pull selections from the dropdowns/commentary box
+            ve    = (self.detailed_ve_var.get() if hasattr(self, 'detailed_ve_var') else "")
+            num   = (self.detailed_number_var.get()  if hasattr(self, 'detailed_number_var')  else "")
+            gram  = (self.detailed_grammar_var.get() if hasattr(self, 'detailed_grammar_var') else "")
+            gen   = (self.detailed_gender_var.get()  if hasattr(self, 'detailed_gender_var')  else "")
+            root  = (self.detailed_root_var.get()    if hasattr(self, 'detailed_root_var')    else "")
+            comm  = ""
+            try:
+                if hasattr(self, 'detailed_commentary') and self.detailed_commentary is not None:
+                    comm = self.detailed_commentary.get("1.0", tk.END).strip()
             except Exception:
                 pass
 
-            frm = tk.LabelFrame(
-                win, text="Finalize Detailed Grammar",
-                font=("Arial", 16, "bold"), bg="light gray",
-                padx=10, pady=10
+            # Update the current detailed entry with finalized values
+            entry = getattr(self, 'current_detailed_entry', {}) or {}
+            if ve:
+                entry["Vowel Ending"] = ve
+            if num:
+                entry["Number / ਵਚਨ"] = num
+            if gram:
+                entry["Grammar / ਵਯਾਕਰਣ"] = gram
+            if gen:
+                entry["Gender / ਲਿੰਗ"] = gen
+            if root:
+                entry["Word Root"] = root
+            # Keep existing fields: Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning
+            # Store commentary in the UI key for internal use; CSV uses 'ChatGPT Commentry'
+            entry["ChatGPT Commentary"] = comm
+
+            # Append/Overwrite to CSV with composite key and confirm-overwrite UI
+            saved, _row_no, _mode = self._append_birha_csv_row(
+                entry,
+                path="1.1.1_birha.csv",
+                require_confirm=True,
+                ui_parent=win
             )
-            frm.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-            frm.grid_columnconfigure(1, weight=1)
-
-            def _add_dropdown(row, label, var, options, colspan=1):
-                ttk.Label(frm, text=label, font=("Arial", 12),
-                        background="light gray").grid(
-                    row=row, column=0, sticky="w", padx=5, pady=8)
-                cb = ttk.Combobox(
-                    frm, textvariable=var, values=options,
-                    state="readonly", font=("Arial", 12))
-                cb.grid(row=row, column=1, columnspan=colspan,
-                        sticky="ew", padx=5, pady=8)
-                return cb
-
-            # 3) --------------  Five dropdowns  -------------------------
-            self.detailed_ve_var      = tk.StringVar(value=self._norm_get(entry, "\ufeffVowel Ending"))
-            self.detailed_number_var  = tk.StringVar(value=(entry.get(COL_NUMBER)  if isinstance(entry, dict) else None) or "NA")
-            self.detailed_grammar_var = tk.StringVar(value=(entry.get(COL_GRAMMAR) if isinstance(entry, dict) else None) or "")
-            self.detailed_gender_var  = tk.StringVar(value=(entry.get(COL_GENDER)  if isinstance(entry, dict) else None) or "NA")
-            self.detailed_root_var    = tk.StringVar(value=entry["Word Root"])
-
-            _add_dropdown(0, "Word Under Analysis:", self.detailed_ve_var, [word], colspan=2)
-            _add_dropdown(1, "Number / ਵਚਨ:",        self.detailed_number_var,  num_opts)
-            _add_dropdown(2, "Grammar Case / ਵਯਾਕਰਣ:", self.detailed_grammar_var, gram_opts)
-            _add_dropdown(3, "Gender / ਲਿੰਗ:",        self.detailed_gender_var,   gen_opts)
-            _add_dropdown(4, "Word Root:",            self.detailed_root_var,     root_opts)
-
-            # 4) --------------  Commentary box  -------------------------
-            cm_frame = tk.LabelFrame(
-                frm, text="ChatGPT Commentary", font=("Arial", 14, "bold"),
-                bg="light gray", padx=8, pady=8
-            )
-            cm_frame.grid(row=5, column=0, columnspan=2,
-                        sticky="nsew", padx=5, pady=(10, 0))
-            self.detailed_commentary = tk.Text(
-                cm_frame, wrap=tk.WORD, font=("Arial", 12),
-                height=6, bd=1, relief="sunken", padx=5, pady=5
-            )
-            self.detailed_commentary.pack(fill=tk.BOTH, expand=True)
-
-            # ---------- dynamic noun-map in self ----------
-            if not hasattr(self, "noun_map"):
-                self.noun_map = build_noun_map()
-
-            def build_examples_footer():
-                """
-                Return a Markdown block that lists every ending-class with its full word,
-                base form, and detachable suffix, taken from EXAMPLE_BASES.
-                """
-                lines = ["*Ending-class examples*"]
-                for label in CANONICAL_ENDINGS:
-                    if label == "NA":
-                        continue
-
-                    triples = EXAMPLE_BASES.get(label, [])
-                    if not triples:
-                        continue
-
-                    # Build “ਉਦਿਆਨੈ → ਉਦਿਆਨ + ੈ” style strings
-                    rendered = [
-                        f"{full} → {base}{' + ' + suf if suf else ''}"
-                        for full, base, suf in triples
-                    ]
-                    lines.append(f"- **{label}** → " + ", ".join(rendered))
-
-                return "\n".join(lines)
-
-            # helper – build cheat-sheet table from noun_map
-            def make_cheat_sheet(word: str, gender: str, number: str) -> str:
-                """
-                Progressive right-edge matcher, now bounded by len(word):
-                • For L = 1 … len(word):
-                        slice_w = word[-L:]
-                        for every ending key E in noun_map:
-                            if E[-L:] == slice_w  → collect E
-                • Merge all collected endings’ case tables (deduped), build Markdown.
-                """
-
-                word_len = len(word)                              # new upper bound
-                matched: list[str] = []
-
-                # 1) -------- gather every ending with the same right-edge ------------
-                for L in range(1, word_len + 1):                  # 1 … len(word)
-                    slice_w = word[-L:]
-                    for ending in self.noun_map:
-                        if ending[-L:] == slice_w and ending not in matched:
-                            matched.append(ending)
-
-                if not matched:
-                    return ""                                     # nothing found
-
-                # 2) -------- merge case → suffix lists for gender & number ----------
-                merged: dict[str, list[str]] = {}
-                for end in matched:
-                    cases = (
-                        self.noun_map[end]
-                            .get(gender or "NA", {})
-                            .get(number or "NA", {})
-                    )
-                    for case, forms in cases.items():
-                        merged.setdefault(case, []).extend(forms)
-
-                if not merged:
-                    return ""                                     # no data for this combo
-
-                # Deduplicate each list while preserving order
-                for case, forms in merged.items():
-                    seen = set()
-                    merged[case] = [f for f in forms if not (f in seen or seen.add(f))]
-
-                # 3) -------- build the mini-table -----------------------------------
-                rows = [
-                    f"| {case:11} | {', '.join(forms)} |"
-                    for case, forms in merged.items()
-                ]
-                ending_list = ", ".join(matched)
-
-                # build the core table but DON’T return yet
-                table_rows = "\n".join(rows)
-                table_markdown = textwrap.dedent(f"""
-                    **Morphology map – endings matched: {ending_list}
-                    ({gender.split()[0]}/{number.split()[0]})**
-                    | Case         | Attested suffix(es) |
-                    |--------------|----------------------|
-                    {table_rows}
-                    _Table shows **attested** suffixes.
-                    If you need an unlisted case, propose a plausible form and justify._
-                """).strip()
-
-                # --- build a footer that shows EVERY ending-class with examples -------------
-                footer = "\n" + build_examples_footer()
-                return table_markdown + footer + "\n\n"
-
-            # 5) --------------  Prompt-builder button  ------------------
-            def build_detailed_prompt(num_opts=num_opts,
-                                    gram_opts=gram_opts,
-                                    gen_opts=gen_opts,
-                                    root_opts=root_opts):
-
-                ve    = self.detailed_ve_var.get()      or "(please choose)"
-                num   = self.detailed_number_var.get()  or "(please choose)"
-                gram  = self.detailed_grammar_var.get() or "(please choose)"
-                gen   = self.detailed_gender_var.get()  or "(please choose)"
-                root  = self.detailed_root_var.get()    or "(please choose)"
-                verse = entry["Reference Verse"]
-                trans = entry.get("Darpan Translation (Raw)", entry.get("Darpan Translation", ""))
-                dm    = entry["Darpan Meaning"]
-
-                def make_block(title, items):
-                    lines = [f"- **{title}**"]
-                    for it in items:
-                        lines.append(f"  – {it}")
-                    return "\n".join(lines)
-
-                # ------------------------------------------------------------------
-                # Use the existing search_by_criteria helper to surface any grammar
-                # matches that align with the current selections.  This gives the
-                # language model extra context about how the form appears in the
-                # database.  If no match is found or the search fails, we simply
-                # omit the block from the prompt.
-                # ------------------------------------------------------------------
-                try:
-                    crit_num = num if num != "(please choose)" else "NA"
-                    crit_gen = gen if gen != "(please choose)" else "NA"
-                    crit_matches = self.search_by_criteria(word, crit_num, crit_gen, pos)
-
-                    # Predefined-only filter keyset from CSV
-                    pre_keys = load_predefined_keyset("1.1.1_birha.csv")
-                    rows = []
-                    for result, _count, _perc in crit_matches:
-                        parts = [p.strip() for p in result.split("|")]
-                        if len(parts) < 7:
-                            parts += [""] * (7 - len(parts))
-
-                        # Skip if the match does not map to a Predefined row in CSV
-                        try:
-                            key = tuple((parts[i] or "").strip() for i in (2, 3, 4, 5, 6))
-                        except Exception:
-                            key = ("") * 5
-                        if key not in pre_keys:
-                            continue
-
-                        highlight = parts[0] == parts[1] and is_full_word(parts[0])
-                        if highlight:
-                            parts = [f"**{p}**" for p in parts]
-                            parts[0] = "✅ " + parts[0]
-
-                        rows.append("| " + " | ".join(
-                            parts + [str(_count), f"{_perc:.1f}%"]
-                        ) + " |")
-                        if len(rows) >= 5:
-                            break
-
-                    if rows:
-                        headers = [
-                            "Word under Analysis",
-                            "Vowel Ending / Word Matches",
-                            "Number / ਵਚਨ",
-                            "Grammar / ਵਯਾਕਰਣ",
-                            "Gender / ਲਿੰਗ",
-                            "Word Root",
-                            "Type",
-                            "Match Count",
-                            "Match %",
-                        ]
-                        table_lines = [
-                            "**Top Grammar Matches**",
-                            "| " + " | ".join(headers) + " |",
-                            "| " + " | ".join(["---"] * len(headers)) + " |",
-                            *rows,
-                        ]
-                        matches_block = "\n".join(table_lines)
-                    else:
-                        matches_block = "**Top Grammar Matches**\nNo predefined examples found"
-                except Exception as exc:
-                    print(f"search_by_criteria failed: {exc}")
-                    matches_block = ""
-
-                opts_block = "\n\n".join([
-                    make_block("Word Under Analysis", [ve]),
-                    make_block("Number / ਵਚਨ options",   num_opts),
-                    make_block("Grammar Case / ਵਯਾਕਰਣ options", gram_opts),
-                    make_block("Gender / ਲਿੰਗ options",  gen_opts),
-                    make_block("Word-Root options",      root_opts),
-                ])
-
-                # noun-specific notes
-                ending_cheat_sheet = ""
-                implicit_note      = ""
-                common_sense_note  = ""
-
-                if entry["Type"] == "Noun / ਨਾਂਵ":
-                    ending_cheat_sheet = make_cheat_sheet(ve, gen, num)
-
-                    implicit_note = textwrap.dedent("""\
-                        **IMPLICIT POST-POSITIONS & CASE DECLENSIONS**  
-                        In Gurbāṇī, relationships such as *to, from, with, of, in* are conveyed
-                        by **inflected endings** rather than modern post-positions (`ਨੂੰ`, `ਨਾਲ`
-                        …). A noun may appear unmarked while the Darpan gloss supplies a helper.
-
-                        **How to read the gloss**  
-                        • If the gloss inserts **to / for / of / by / with / from / in / on / at / O / Hey**
-                        that is absent in the verse, treat it as an **implicit post-position**
-                        and pick the matching **case**.  
-                        • If the gloss repeats the word without a helper, default to
-                        **Nominative / Accusative** and let context refine the choice.
-
-                        | Helper | Punjabi marker | Case |
-                        |--------|----------------|------|
-                        | to / for   | `ਨੂੰ`, `ਲਈ`     | **Dative** |
-                        | of         | `ਦਾ/ਦੇ/ਦੀ`      | **Genitive** |
-                        | by / with  | `ਨਾਲ`, `ਨਾਲੋਂ`  | **Instrumental** |
-                        | from / out of | `ਤੋਂ`, `ਉਤੋਂ` | **Ablative** |
-                        | in / on / at | `ਵਿੱਚ`, `ਉੱਤੇ`, `ਤੇ` | **Locative** |
-                        | O / Hey    | *(address)*     | **Vocative** |
-
-                        _Endings overlap: Nom≈Acc, Gen≈Dat, Inst≈Loc – use semantics to decide._
-                    """).strip() + "\n\n"
-
-                    common_sense_note = textwrap.dedent("""\
-                        **SEMANTIC SANITY CHECK – DOES THE LABEL REALLY FIT?**  
-                        Match the case to the *role* the noun plays.
-
-                        **Quick Meanings**  Nom=subject | Acc=object | Inst=by/with | Dat=to/for |
-                        Gen=of | Abl=from | Loc=in/on | Voc=address
-
-                        • Instrumental – means, agency, tool  
-                        • Locative     – spatial/temporal setting  
-                        • Dative       – recipient, purpose  
-                        • Genitive     – ownership, relation  
-                        • Ablative     – source, cause  
-                        • Nom / Acc    – subject vs. direct object (no helper)  
-                        • Vocative     – direct address
-
-                        **Ambiguity reminder** – If **one suffix stands for two cases**
-                        (e.g., –ਈ = Nom *and* Acc), *explain your semantic reason* for choosing.
-
-                        **Oblique + Post-position lines** – Gurbāṇī occasionally stacks a
-                        post-position **after** an oblique form **and** after a direct form
-                        (see examples with *ਨਇਆਂ*, *ਸਬਦੈ*).  Either is valid—choose the case
-                        that best reflects the combined meaning.
-                    """).strip() + "\n\n"
-                
-                elif entry["Type"] == "Pronoun / ਪੜਨਾਂਵ":
-                    # ─── Pronoun block with enriched cross-category logic ─────────────────────────────
-                    implicit_note = textwrap.dedent("""\
-                        **PRONOUNS – INFLECTIONS, IDENTITY & IMPLIED MEANINGS**  
-                        In Gurbāṇī, pronouns diverge from noun patterns and inflect by **person, number, and gender**.  
-                        Their meaning is sometimes explicit (like ਮੈਂ = I), but often **derived from Darpan's gloss**.
-
-                        **Core Steps to Identify the Case**  
-                        1. **Read the gloss literally.**  
-                        If it adds a helper like *to, from, with, in*, this signals an **implicit post-position**.  
-                        Match it with:  
-                        • `ਨੂੰ`, `ਲਈ` → Dative  
-                        • `ਦਾ/ਦੀ/ਦੇ`, `ਕਾ/ਕੀ/ਕੇ` → Genitive  
-                        • `ਤੋਂ`, `ਉਤੋਂ`, `ਸੇ`, `ਅਤੇ` → Ablative  
-                        • `ਨਾਲ`, `ਵਿੱਚ`, `ਉੱਤੇ`, `ਕੋਲ`, `ਅੰਦਰ`, etc. → Instrumental / Locative  
-                        • `O`, `Hey` → Vocative
-
-                        2. **Check form compatibility.**  
-                        Every person/gender/number has a finite set of endings (see below).  
-                        Match the surface form to a standard **canonical pronoun**.
-
-                        3. **For Relative / Interrogative / Reflexive / Indefinite types**,  
-                        blend case logic with **semantic roles**: e.g.,  
-                        • ਕਿਸ ਨੂੰ → “to whom” → Dative  
-                        • ਜਿਸ ਤੇ → “on whom” → Locative  
-                        • ਆਪਣੇ ਹੀ ਆਪ → Reflexive emphatic  
-                        • ਜਿਸ ਦੀ, ਜਿਸ ਦਾ → Genitive relative
-
-                        _Postpositions are often absent but implied—your judgment is key._  
-                        Also note: **Gurbāṇī often uses plural pronouns to show respect.**
-                    """).strip() + "\n\n"
-
-                    common_sense_note = textwrap.dedent("""\
-                        **PRONOUN SEMANTIC CHECK – ROLE IN MEANINGFUL CONTEXT**  
-                        Pronouns are **not just replacements for nouns**—they carry personhood, humility, or divinity.
-
-                        ✅ Use this test logic:  
-                        - **Is the pronoun the subject?** → Nom  
-                        - **Receiving the action?** → Acc  
-                        - **Belonging to someone?** → Gen  
-                        - **Given to someone?** → Dat  
-                        - **Means or tool or “with” sense?** → Inst  
-                        - **Place or inner state?** → Loc  
-                        - **Directly addressed?** → Voc  
-
-                        ⚠️ For overlapping forms:  
-                        - Use the Darpan helper (e.g., "to me", "from them", "by whom")  
-                        - Ask what semantic role the pronoun plays **in that line**  
-                        - e.g., “ਮੈ” may be Nom or Acc depending on meaning
-
-                        **Special Guidance per Category**  
-                        - **Reflexive** (ਆਪ, ਆਪਣੇ): Self-reference or emphasis  
-                        - **Relative/Correlative** (ਜੋ...ਸੋ): Link two ideas (doer/result, condition/result)  
-                        - **Interrogative** (ਕੌਣ, ਕਿਸ): Structure question  
-                        - **Indefinite** (ਕੋਈ, ਸਭ): Ambiguous subject  
-                        - **Honorific 2nd Person** (ਤੁਸੀਂ, ਤੁਮ): May appear plural but refer to one Divine
-
-                        **Final Tip**: Plural/oblique/abstract usage may reflect poetic or spiritual nuance more than grammar. Follow meaning.
-                    """).strip() + "\n\n"
-
-                    ending_cheat_sheet = textwrap.dedent("""\
-                        **PRONOUN CASE ENDINGS – EXAMPLES ACROSS CATEGORIES**
-
-                        🔹 **Valid Number / Gender Combinations per Category**  
-                        *(Use this to cross-check if your feature choices are logically possible)*
-
-                        - **1st Person / ਉੱਤਮ ਪੁਰਖ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Trans / ਨਪੁਂਸਕ
-
-                        - **2nd Person / ਮਧਮ ਪੁਰਖ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Trans / ਨਪੁਂਸਕ
-
-                        - **3rd Person / ਅਨਯ ਪੁਰਖ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
-
-                        - **CoRelative / ਅਨੁਸੰਬੰਧ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
-
-                        - **Relative / ਸੰਬੰਧ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
-
-                        - **Interrogative / ਪ੍ਰਸ਼ਨ ਵਾਚਕ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
-
-                        - **Reflexive / ਨਿਜ ਵਾਚਕ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
-
-                        - **Indefinite / ਅਨਿਸਚੇ ਵਾਚਕ**  
-                        – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                        – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
-
-                        _✳ Note: “Trans” (ਨਪੁਂਸਕ) appears for most categories due to universal/neutral references or poetic plurality._
-
-                        **1st Person / ਉੱਤਮ ਪੁਰਖ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਮੈ / ਮੰਝਹੁ / ਹਮ ਤੇ
-                        - Accusative ਕਰਮ: ਮੈ / ਮੈਨੋ / ਮੋ ਕਉ / ਮੋਕਉ / ਮੋਹਿ / ਮੰਞੁ / ਹਮ / ਹਮਹਿ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਮਾਝੈ / ਮੁਝਹਿ / ਮੁਝੈ / ਮੁਹਿ / ਮੂ / ਮੈ / ਮੈਨੋ / ਮੋ ਕਉ / ਮੋਹਿ / ਹਮ (ਕਉ) / ਹਮਹੁ / ਹਮਾਰੈ
-                        - Genitive ਸੰਬੰਧ: ਅਸਾ / ਅਸਾਡੜਾ / ਅਸਾਹ / ਅਸਾੜਾ / ਮਹਿੰਜਾ / ਮਹਿੰਡਾ / ਮਾ / ਮੂ / ਮੇਰਉ / ਮੇਰਾ / ਮੇਰੀ / ਮੈ / ਮੈਡਾ / ਮੋਰ / ਮੋਰਲਾ / ਮੋਰਲੋ / ਮੋਰਾ / ਮੋਰੀ / ਮੋਰੇ / ਮੋਹਿ / ਮੰਞੁ / ਹਮਰਾ / ਹਮਰੈ / ਹਮਰੋ / ਹਮਾਰਾ
-                        - Locative ਅਧਿਕਰਣ: ਮੁਝ ਮਹਿ / ਮੁਝਹਿ ਪਹਿ / ਮੁਝੁ / ਮੁਝੈ / ਮੇਰੈ / ਮੈ ਅੰਤਰਿ / ਮੈ ਵਿਚਿ / ਮੋ ਮਹਿ / ਮੰਝੁ / ਹਮ / ਹਮਰੈ / ਹਮਾਰੈ
-                        - Nominative ਕਰਤਾ: ਅਸਾ / ਅਸੀ / ਮੂ / ਮੂਂ / ਮੈ / ਮੋਹਿ / ਹਉ / ਹਮ / ਹਮਹੁ
-
-                        **2nd Person / ਮਧਮ ਪੁਰਖ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਤੁਝ ਤੇ / ਤੁਝੈ / ਤੁਝੈ ਤੇ / ਤੁਝੈ ਪਹਿ / ਤੁਧਹੁ / ਤੁਧੈ ਤੇ / ਤੁਮ ਤੇ
-                        - Accusative ਕਰਮ: ਤਉ / ਤੁਝ / ਤੁਝਹਿ / ਤੁਝੁ / ਤੁਝੈ / ਤੁਧ / ਤੁਧ ਨੋ / ਤੁਧੁ / ਤੁਧੁਨੋ / ਤੁਧੈ / ਤੁਮ / ਤੁਮਹਿ / ਤੁਹਨੋ / ਤੁਹਿ / ਤੂ / ਤੂੰ / ਤੋਹਿ / ਤੋਹੀ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਤਉ / ਤੁਝਹਿ / ਤੁਝੁ / ਤੁਝੈ / ਤੁਧ / ਤੁਧੁ / ਤੁਮ / ਤੁਮ ਕਉ / ਤੁਸਾ / ਤੁਹਿ / ਤੈ / ਤੈ ਕੂੰ / ਤੋਹਿ / ਥੇ / ਥੈਂ
-                        - Genitive ਸੰਬੰਧ: ਤਉ / ਤਵ / ਤਹਿੰਜੀ / ਤਿਹਾਰੈ / ਤੁ / ਤੁਅ / ਤੁਝਹਿ / ਤੁਮਰਾ / ਤੁਮਰੀ / ਤੁਮਰੇ / ਤੁਮਾਰੀ / ਤੁਹਾਰੇ / ਤੂ / ਤੇਰਉ / ਤੇਰਾ / ਤੇਰਿਆ / ਤੇਰੀ / ਤੇਰੇ / ਤੇਰੋ / ਤੈਡਾ / ਤੋਰ / ਤੋਹਿ / ਥਾਰੀ / ਥਾਰੇ
-                        - Locative ਅਧਿਕਰਣ: ਤੁਝ / ਤੁਝ ਹੀ / ਤੁਝਹਿ / ਤੁਝੈ / ਤੁਝੈ ਸਾਝਰਿ / ਤੁਧੁ / ਤੁਧੈ / ਤੁਮ / ਤੁਮਹਿ / ਤੋਹਿ
-                        - Nominative ਕਰਤਾ: ਤਉ / ਤੁ ਹੀ / ਤੁਝ / ਤੁਝਹਿ / ਤੁਝੈ / ਤੁਧੁ / ਤੁਧੈ / ਤੁਮ / ਤੁਮ ਹੀ / ਤੁਮਹਿ / ਤੁਮੈ / ਤੁਸੀ / ਤੁਹੀ / ਤੂ / ਤੂ ਹੈ / ਤੂਂ / ਤੂਹੈ / ਤੈ / ਤੈਂ / ਤੋਹਿ
-
-                        **3rd Person / ਅਨਯ ਪੁਰਖ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਇਨ / ਇਸ (ਤੇ) / ਉਆ / ਉਨ (ਤੇ) / ਉਨਾ / ਉਸ / ਓਨਾ੍
-                        - Accusative ਕਰਮ: ਇਸਹਿ / ਇਸੁ / ਇਹ / ਇਹੁ / ਉਆਹਿ / ਉਇ / ਉਨ / ਉਸ / ਉਸੁ / ਉਹ / ਏਸ / ਏਹਾ / ਏਹਿ / ਓਇ / ਓਈ / ਓਨਾ / ਓਸ / ਓਸੁ / ਓਹੁ / ਤਿਨ / ਤੇ / ਵਾ / ਵਾਹੀ / ਸੇ / ਸੋਊ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਇਸ / ਇਸੁ / ਉਆ / ਉਨ (ਕ‌ਉ) / ਉਨਾ / ਉਸ / ਉਸੁ / ਏਸ / ਓਨਾ੍ / ਓਸ / ਓਸੁ
-                        - Genitive ਸੰਬੰਧ: ਅਸਗਾ / ਇਨ / ਇਸ / ਉਆ / ਉਆ (ਕਾ) / ਉਨ (ਕੀ) / ਉਨਾ / ਉਸ (ਕਾ) / ਉਸਗਾ / ਉਸੁ / ਓਨਾ / ਓਸੁ / ਤਿਨ / ਤਿਨਾ / ਤਿਸੁ / ਵਾ (ਕਾ) (ਕੈ) (ਕੇ)
-                        - Instrumental ਕਰਣ: ਇਤੁ (ਕਰਿ)
-                        - Locative ਅਧਿਕਰਣ: ਇਸ / ਇਸੁ (ਆਗੈ) / ਉਸੁ / ਓਨਾ (ਪਿਛੈ) / ਓਸੁ / ਵਾਹੂ
-                        - Nominative ਕਰਤਾ: ਇਨ / ਇਨਿ / ਇਹ / ਇਹੁ / ਉਨ / ਉਨਿ / ਉਹ / ਉਹੁ / ਏਹ / ਏਹਿ / ਏਹੁ / ਓਇ / ਓਨਿ / ਓਨੀ / ਓਹ / ਓਹਾ / ਓਹਿ / ਓਹੀ / ਓਹੁ / ਤਿਨ / ਤਿਨਹਿ / ਤੇ / ਤੇਊ / ਸਾ / ਸੇ / ਸੋ / ਸੋਇ / ਸੋਈ
-
-                        **CoRelative / ਅਨੁਸੰਬੰਧ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਤਿਸ (ਤੇ)
-                        - Accusative ਕਰਮ: ਤਾਸੁ / ਤਾਸੁ (ਕਉ) / ਤਾਹਿ / ਤਿਨ / ਤਿਨ੍ / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤੇ / ਤੈ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਤਾਸੁ / ਤਿਨ / ਤਿਨ (ਕਉ) / ਤਿਨਹੁ / ਤਿਨਹੂ (ਕਉ) / ਤਿਨਾ / ਤਿਨਾ੍ / ਤਿਸ (ਕਉ) / ਤਿਸ (ਨੋ) / ਤਿਸ ਹੀ / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤਿੰਨਾ / ਤੈ
-                        - Genitive ਸੰਬੰਧ: ਤਾ / ਤਾਸੁ / ਤਾਹੂ (ਕੋ) / ਤਿਨ / ਤਿਨ (ਕੀ) / ਤਿਨਾ / ਤਿਨਾ੍ / ਤਿਨਾੜਾ / ਤਿਨ੍ / ਤਿਸ (ਕਾ) / ਤਿਸ (ਕੀ) / ਤਿਸ (ਕੇ) / ਤਿਸ (ਹਿ) / ਤਿਸ (ਹੀ) / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤੰਨਿ (ਖੇ)
-                        - Instrumental ਕਰਣ: ਤਿਤੁ
-                        - Locative ਅਧਿਕਰਣ: ਤਾਸ / ਤਾਸੁ / ਤਾਹਿ (ਮੈ) / ਤਿਤ (ਹੀ) / ਤਿਤੁ / ਤਿਨਿ / ਤਿਸੁ (ਮਾਹਿ) / ਤਿਹਿ
-                        - Nominative ਕਰਤਾ: ਓਇ / ਤਿਨ / ਤਿਨ ਹੀ / ਤਿਨਹਿ / ਤਿਨਹੀ / ਤਿਨਹੂ / ਤਿਨਿ / ਤਿਨੀ / ਤਿਨ੍ / ਤਿਹ / ਤੇ / ਸਾ / ਸਾਈ / ਸਿ / ਸੁ / ਸੇ / ਸੇਇ / ਸੇਈ / ਸੋ / ਸੋਈ / ਸੋਊ
-
-                        **Indefinite / ਅਨਿਸਚੇ ਵਾਚਕ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਸਭ (ਦੂ) / ਹਭਾਹੂੰ / ਹੋਰਨਿ / ਹੋਰਿਂਓ
-                        - Accusative ਕਰਮ: ਅਉਰਨ / ਅਗਲਾ / ਅਵਰ / ਅਵਰਹਿ / ਅਵਰਾ / ਅਵਰੀ (ਨੋ) / ਅਵਰੁ / ਇਕਨਾ / ਇਕਨਾ੍ / ਇਕਿ / ਇਕੁ / ਇਤਨਾ (ਕੁ) / ਇਤਨੀ / ਏਕਸੈ / ਏਕੀ / ਏਤਾ / ਏਤੇ / ਕਛੁਆ / ਕਹਾ / ਕਿ / ਕਿਆ (ਕਿਛੁ) / ਕਿਛੁ / ਕਿਝੁ / ਕਿਤੀ / ਕਿਸ (ਨੋ) / ਕਿਸਹਿ / ਕਿਸੁ / ਕਿਸੈ / ਕਿਹੁ / ਕੋਈ / ਘਣੇਰੀ / ਜੇਤਾ / ਜੇਤੀਆ / ਤੇਤਾ / ਥੋੜਾ / ਥੋੜੀ / ਬਹੁਤਾ / ਬਹੁਤੁ / ਬਹੁਤੋ / ਬਾਹਰਾ / ਸਗਲ / ਸਭ / ਸਭਨਾ / ਸਭਸੁ / ਸਭਸੈ (ਨੋ) / ਸਭਿ / ਸਭੁ (ਕਿਛੁ) / ਸਭੁ (ਕਿਹੁ) / ਸਭੈ / ਹਭ / ਹਭ (ਕਿਛੁ) / ਹਿਕੁ / ਹਿਕੋ / ਹੋਰਨਾ (ਨੋ) / ਹੋਰਸੁ / ਹੋਰੁ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਇਕਨਾ / ਕਹੀ / ਕਾਹੂ / ਕਿਨੈ / ਕਿਸ (ਹੀ) / ਕਿਸੈ / ਸਭਸੁ / ਸਭਸੈ
-                        - Genitive ਸੰਬੰਧ: ਅਵਰ / ਇਕਨਾ / ਇਕਨਾ੍ / ਕਾਹੂ / ਕਿਸੈ / ਕੈਹੀ / ਸਭਨਾ / ਸਭਸੈ
-                        - Instrumental ਕਰਣ: ਕਾਹੂ / ਕਿਨੈ / ਹੋਰਤੁ
-                        - Locative ਅਧਿਕਰਣ: ਇਕਨੀ / ਕਿਸੁ (ਨਾਲਿ)
-                        - Nominative ਕਰਤਾ: (ਹੋਰ) ਕੇਤੀ / ਅਉਰ / ਅਉਰੁ (ਕੋ) / ਅਨੇਕ / ਅਵਰਿ (ਸਭਿ) / ਅਵਰੁ (ਕਛੁ) / ਅਵਰੇ / ਇਕਨਾ / ਇਕਨੀ / ਇਕਨੈ / ਇਕਿ / ਇਕੁ / ਏਕ / ਏਕਹਿ / ਏਕੁ / ਏਕੈ / ਕਉਣੁ / ਕਉਨੁ / ਕਛੁ / ਕਹ / ਕਹਾ / ਕਾ / ਕਾਈ / ਕਾਹੂ / ਕਿਆ / ਕਿਛੁ / ਕਿਤੀ / ਕਿਨ (ਹੀ) / ਕਿਨਹਿ / ਕਿਨਹੀ / ਕਿਨਹੂ / ਕਿਨਿ / ਕਿਨੈ / ਕਿਸ ਹੀ / ਕਿਹੁ / ਕੇ / ਕੇਇ / ਕੇਈ / ਕੇਤਕ / ਕੇਤਾ / ਕੇਤੇ / ਕੋ / ਕੋਇ / ਕੋਈ / ਕੋਊ / ਘਣੀ / ਘਣੇ / ਜੇਤੀ / ਤੇਤੀ / ਬਹੁ / ਬਹੁਤਾ / ਬਹੁਤੇਰੀ / ਵਿਰਲੇ / ਸਗਲ / ਸਗਲੀ / ਸਗਲੀਆ / ਸਗਲੇ ਕੇ / ਸਭ / ਸਭਨਾ / ਸਭਨੀ / ਸਭਹਿ / ਸਭਾ / ਸਭਿ / ਸਭੁ (ਕਿਛੁ) / ਸਭੁ (ਕੋ) / ਸਭੁ (ਕੋਇ) / ਸਭੁ (ਕੋਈ) / ਸਭੇ / ਸਾਰੀ / ਹਭਿ / ਹਭੇ / ਹਿਕਨੀ / ਹਿਕਿ / ਹਿਕੁ / ਹੋਰਿ / ਹੋਰੁ
-
-                        **Interrogative / ਪ੍ਰਸ਼ਨ ਵਾਚਕ Pronouns – Case Examples**
-                        - Accusative ਕਰਮ: ਕਹਾ / ਕਾਹਿ / ਕਿਆ / ਕਿਸੁ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਕਾ (ਕਉ) / ਕਿਨਾਹ / ਕਿਸ (ਕਉ) / ਕਿਸੁ / ਕੈ
-                        - Genitive ਸੰਬੰਧ: ਕਿਸੁ
-                        - Locative ਅਧਿਕਰਣ: ਕਾ (ਪਹਿ) / ਕਾ (ਸਿਉ) / ਕਿਸੁ (ਪਹਿ) / ਕੈ (ਪਹਿ)
-                        - Nominative ਕਰਤਾ: ਕਉਣੁ / ਕਉਨ / ਕਵਣ / ਕਵਨ / ਕਵਨੁ / ਕਵਨੈ / ਕਿਨਿ / ਕੁਨੁ / ਕੋ
-
-                        **Reflexive / ਨਿਜ ਵਾਚਕ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਆਪਸ (ਤੇ) / ਆਪਹੁ / ਆਪੌ
-                        - Accusative ਕਰਮ: ਅਪਤੁ / ਆਪਤੁ / ਆਪਾ / ਆਪੁ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਆਪਸ (ਕਉ) / ਆਪੈ (ਨੋ)
-                        - Genitive ਸੰਬੰਧ: ਅਪ / ਅਪਣਾ / ਅਪਨਾ / ਅਪਨੀ / ਅਪਨੈ / ਅਪੁਨਾ / ਅਪੁਨੀ / ਆਪ / ਆਪਣ / ਆਪਣਾ / ਆਪਣੈ / ਆਪਨ / ਆਪਨਾ / ਆਪਾ
-                        - Instrumental ਕਰਣ: ਆਪੈ (ਨਾਲਿ)
-                        - Locative ਅਧਿਕਰਣ: ਆਪਹਿ / ਆਪਿ / ਆਪੈ
-                        - Nominative ਕਰਤਾ: ਆਪ (ਹੀ) / ਆਪਹਿ / ਆਪਿ / ਆਪੀਨੈ੍ / ਆਪੇ (ਹੀ) / ਆਪੈ
-
-                        **Relative / ਸੰਬੰਧ Pronouns – Case Examples**
-                        - Ablative ਅਪਾਦਾਨ: ਜਿਦੂ / ਜਿਸ (ਤੇ) / ਜਿਹ (ਤੇ)
-                        - Accusative ਕਰਮ: ਜਾ (ਕਉ) / ਜਾਸੁ / ਜਾਹਿ / ਜਿ / ਜਿਨ / ਜਿਨ (ਕਉ) / ਜਿਨਾ / ਜਿਨ੍ / ਜਿਸਹਿ / ਜਿਸੁ / ਜਿਹ / ਜੇਹੜਾ / ਜੋ / ਜੋਈ ਜੋਈ / ਯਾਸੁ
-                        - Dative ਸੰਪ੍ਦਾਨ: ਜਿਨ / ਜਿਨਾ / ਜਿਸਹਿ / ਜਿਸੁ / ਜਿਹ / ਜੈ
-                        - Genitive ਸੰਬੰਧ: ਜਾ / ਜਾ (ਕੈ) / ਜਾ (ਮਹਿ) / ਜਾਸੁ / ਜਿਨ / ਜਿਨ (ਕੇ) / ਜਿਨਾ / ਜਿਨਾ (ਕੀ) / ਜਿਨ੍ / ਜਿਸ (ਕਾ) / ਜਿਸ (ਕੀ) / ਜਿਸ (ਕੇ) / ਜਿਸੁ / ਜਿਹ
-                        - Instrumental ਕਰਣ: ਜਿਤੁ / ਜਿਹ
-                        - Locative ਅਧਿਕਰਣ: ਜਿਤੁ / ਜਿਹ
-                        - Nominative ਕਰਤਾ: ਜਿ / ਜਿਨ / ਜਿਨਹਿ / ਜਿਨਹੁ / ਜਿਨਾ / ਜਿਨਾ੍ / ਜਿਨਿ / ਜਿਨੀ / ਜਿਨੀ੍ / ਜਿਨ੍ / ਜਿਹ / ਜੁ / ਜੋ / ਜੋਈ
-
-                        _Ending note: **–ਉ** is often **omitted** before postpositions like ਤੋਂ, ਨੂੰ, ਵਿਚ, ਤੇ.  
-                        e.g., **ਤਿਸ ਹਥਿ** instead of **ਤਿਸੁ ਹਥਿ**_
-                    """).strip() + "\n\n"
-
-                elif entry["Type"] == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ":
-                    # ────────────────────────────────────────────────
-                    # 3-B  IMPLICIT-NOTE  – how to “read” the gloss
-                    # ────────────────────────────────────────────────
-                    implicit_note = textwrap.dedent("""
-                        **ADJECTIVES IN GURBĀṆĪ – AGREEMENT & HINTS FROM THE DARPAN GLOSS**
-
-                        • An adjective always **agrees in gender & number** with the noun /
-                        pronoun it qualifies.  Case is *not* tagged independently for adjectives;
-                        if a noun shifts to an oblique form (due to post-positions like
-                        `ਨੂੰ, ਤੇ, ਤੋਂ…`) the adjective may simply copy that *ending*.
-
-                        • **Look at the helper words the Darpan adds**:
-                        - If the gloss inserts a post-position after the noun
-                            (*e.g.* “to the **good** one”, “in the **other** realm”), the adjective
-                            will mirror whatever oblique ending the noun shows – **but you still
-                            classify the adjective only by Gender / Number / Class**.
-                        - If the gloss repeats the adjective without a helper,
-                            treat the form you see in the verse as the **direct** (base) form.
-
-                        _Quick reminder – common agreement endings_  
-                        | Ending-class | Masc.Sg | Fem.Sg | Plural | Notes |
-                        |--------------|---------|--------|--------|-------|
-                        | **Mukta**    | –ਅ      | –ਮੁਕਤਾ׀ **ਅ** dropped for fem./pl. |
-                        | **Kannā**    | –ਆ      | –ਈ     | –ਏ     | |
-                        | **Sihārī**   | –ਿ      | –ਿ      | –ੇ      | |
-                        | **Bihārī**   | –ੀ      | –ਈ     | –ਏ/–ਈਆਂ| |
-
-                        _When in doubt: match what the noun is doing rather than forcing
-                        a new inflection on the adjective._
-                    """).strip() + "\n\n"
-
-                    # ────────────────────────────────────────────────
-                    # 3-C  COMMON-SENSE-NOTE  – semantic & class sanity
-                    # ────────────────────────────────────────────────
-                    common_sense_note = textwrap.dedent("""
-                        **SEMANTIC CHECK – DOES THE LABEL FIT THIS ADJECTIVE?**
-
-                        ① **Identify the class** (use the column “Adjective Class / ਵਿਸ਼ੇਸ਼ਣ ਕਿਸਮ”):  
-                        • **Qualitative / Descriptive (ਗੁਣ ਵਾਚਕ)** – *ਚੰਗਾ, ਸੋਹਣਾ, ਕਾਲਾ*  
-                        • **Demonstrative (ਨਿਸ਼ਚੇ ਵਾਚਕ)** – *ਇਹ, ਉਹ, ਉਹੀ, ਦੇਉ, ਦਿਨੁ*  
-                        • **Indefinite (ਅਨిశਚੇ ਵਾਚਕ)** – *ਕੋਈ, ਕੈ, ਕਉਨ, ਸਭ*  
-                        • **Pronominal**  
-                            – *ਮੇਰਾ, ਤੇਰਾ (possessive) / ਜੈ, ਜਿਉ (relative)*  
-                        • **Interrogative (ਪ੍ਰਸ਼ਨ ਵਾਚਕ)** – *ਕਉਣ, ਕਿਹ, ਕਿਉੳ, ਕਿਵੇਂ*  
-                        • **Numeral (ਸੰਖਿਆ ਵਾਚਕ)**  
-                            – **Cardinal** *ਇਕ, ਦੋ, ਬੀਹ* | **Ordinal** *ਪਹਿਲਾ, ਦੂਜਾ, ਤੀਜਾ…*
-
-                        ② **Verify agreement** – does the ending you see match the gender &
-                        number of the noun in the gloss?  Typical pitfalls:  
-                        • plural nouns paired with singular adjective forms,  
-                        • masculine endings left on a feminine noun after emendation.
-
-                        ③ **Ambiguity guardrails**  
-                        • Many demonstratives (*ਇਹ, ਉਹ, ਸੋ…*) double as pronouns – keep them
-                            in **Adjective** only when they *modify* a following noun.  
-                        • Some numerals can work adverbially (*ਬਹੁਤ ਭਜੇ*, “ran a lot”) – do not
-                            tag those as adjectives.
-
-                        _If two classes seem possible, pick the one that best serves the
-                        **function in that specific gloss line** and give one-line reasoning._
-                    """).strip() + "\n\n"
-
-                    ending_cheat_sheet = textwrap.dedent("""\
-                    **ADJECTIVE ENDINGS – QUICK REFERENCE (Gurbāṇī corpus)**
-
-                    🔹 **Agreement grid (what can legally combine)**  
-                    • **Number / ਵਚਨ** → Singular / ਇਕ, Plural / ਬਹੁ, NA  
-                    • **Gender / ਲਿੰਗ** → Masc / ਪੁਲਿੰਗ, Fem / ਇਸਤਰੀ, Neut / ਨਪੁਂਸਕ, NA  
-                    • **Surface ending-classes** → ਮੁਕਤਾ, ਕੰਨਾ, ਸਿਹਾਰੀ, ਬਿਹਾਰੀ, ਹੋਰਾ, ੁ, ੋ, ੌ, NA  
-                    • **Sub-classes** → Qualitative, Demonstrative, Indefinite, Possessive-pronom., Pronominal, Interrogative, Numeral (Card & Ord), Diminutive, Negation, Tat-sam, Compound, NA  
-
-                    <sub>Adjectives never carry an independent “case”; if the noun is oblique, the adjective just copies that ending.</sub>
-
-                    ---
-
-                    ### A · Canonical ending patterns  
-
-                    | Ending-class | Masc Sg | Fem Sg | Plural | Tiny sample from text |
-                    |--------------|---------|--------|--------|-----------------------|
-                    | **ਮੁਕਤਾ**    | ਸਾਚ**ਾ** | — | ਸਾਚ**ੇ** | **ਥਿਰੁ**, ਪਵਿਤੁ, ਬੇਅੰਤ |
-                    | **ਕੰਨਾ**     | ਚੰਗ**ਾ** | ਚੰਗ**ੀ** | ਚੰਗ**ੇ** | ਕਾਲਾ, ਨਾਮਾ, ਸਾਚਾ |
-                    | **ਸਿਹਾਰੀ**   | — | — | ਨਿਰਮਲ**ੇ** | ਨਿਸ਼ਚਿ, ਅਸਲਿ |
-                    | **ਬਿਹਾਰੀ**   | ਬਾਵਰ**ੀ** | ਬਾਵਰ**ੀ** | ਬਾਵਰ**ੀਆਂ** | ਲੋਭੀ, ਨਿਗੁਣੀ |
-                    | **ਹੋਰਾ**     | ਸੁਭ**ਉ** | — | — | ਉਤੁ (rare) |
-                    | **ੁ / ੋ / ੌ** | ਅਮੁਲ**ੁ** | — | — | ਕਾਲੋ, ਮਿੱਠੌ |
-
-                    ---
-
-                    ### B · Sub-class snapshots  
-
-                    | Class / ਕਿਸਮ | 2-4 high-frequency examples (agreement marked) |
-                    |--------------|-----------------------------------------------|
-                    | **Qualitative (ਗੁਣ)** | ਚੰਗਾ (M), ਚੰਗੀ (F), ਚੰਗੇ (Pl) • ਥਿਰੁ (M) • ਅਮੁਲੁ (M) |
-                    | **Demonstrative (ਨਿਸ਼ਚੇ)** | ਇਹੁ (M Sg), ਇਹ (F Sg), ਉਹ, ਏਹ, ਓਹੁ |
-                    | **Indefinite (ਅਨਿਸ਼ਚੇ)** | ਕੋਈ, ਕਈ, ਸਭ, ਹੋਰ, ਘਣੀ |
-                    | **Possessive-pronominal** | ਮੇਰਾ (M), ਮੇਰੀ (F), ਮੇਰੇ (Pl) • ਅਪਣਾ |
-                    | **Pronominal (relative etc.)** | ਜੋ (F/M), ਜਿਸੁ, ਜਿਨ, ਤਿਸੁ |
-                    | **Interrogative (ਪ੍ਰਸ਼ਨ)** | ਕਉਣੁ (M Sg), ਕਵਣ, ਕਿਆ, ਕਿਤੁ |
-                    | **Numeral – Cardinal** | ਇਕ, ਦੁਇ, ਪੰਜ, ਦਸ, ਸਉ |
-                    | **Numeral – Ordinal** | ਪਹਿਲਾ, ਦੂਜਾ, ਤੀਜੀ, ਚਉਥੈ |
-                    | **Negation** | ਨ, ਨਾਹੀ |
-                    | **Tat-sam (ਸੰਸਕ੍ਰਿਤ loan)** | ਅਸਲਿ, ਬਰਾਬਰਿ, ਸਤਰਿ |
-                    | **Diminutive** | ਬੰਕੁੜਾ, ਮੋਹਿਅੜੀ, ਨਵੇਲੜੀਏ |
-                    | **Compound** | ਅਨਹਦ ਧੁਨਿ, ਜੀਵਨ ਮੁਕਤਿ, ਬਹੁ ਗੁਣਿ |
-
-                    """).strip() + "\n\n"
-
-                elif entry["Type"] == "Verb / ਕਿਰਿਆ":
-                    # ────────────────────────────────────────────────
-                    # 4-B  IMPLICIT-NOTE  – how to “read” the gloss
-                    # ────────────────────────────────────────────────
-                    implicit_note = textwrap.dedent("""\
-                    **VERBS IN GURBĀṆĪ – IMPLIED CLUES FROM THE GLOSS**
-
-                    Verbs in Gurbāṇī span a wide linguistic spectrum—Lahindī, Braj, Hindustānī, and archaic Panjābī. The verse alone often omits explicit markers for **tense, voice, mood, or even subject**. Prof. Sāhib Siṅgh’s **Darpan gloss** therefore becomes our decoder ring: it regularly inserts the **hidden agent, auxiliary, or intent** that lets us recover the full verbal meaning.
-
-                    ---
-
-                    ### ✔ Step 1 · Read the gloss literally
-                    Ask yourself:
-                    * Is the action **ongoing**, **completed**, or **yet to come**?
-                    * Is the subject **doing** the action or **receiving** it?
-                    * Is the clause a **command**, a **wish**, or a **hypothetical**?
-                    * Do helper words appear—*has, was, should, may, being, let*—that hint at aspect or mood?
-
-                    ---
-
-                    ### ✔ Step 2 · Map the gloss cue to a grammatical category
-
-                    | Category            | Common cues in the gloss (Eng. gloss)            |
-                    |---------------------|--------------------------------------------------|
-                    | **Present**         | do, does, is, are, becomes, gives                |
-                    | **Past**            | did, was, were, had, gave, came                  |
-                    | **Future**          | will, shall, would                               |
-                    | **Imperative**      | (you) give, fall, listen — direct command forms  |
-                    | **Subjunctive**     | if … may / might / should / let us               |
-                    | **Passive**         | is called, was given — object promoted to subject |
-                    | **Participles**     | having done, while doing, upon going, imbued     |
-                    | **Compound/Aux**    | do come, has gone, may go — multi-verb chains    |
-
-                    ---
-
-                    ### 🧠 Key heuristics from the Darpan gloss
-                    * **“was made / is given”** → strong passive signal.  
-                    * **“has shown / had come”** → perfect aspect; expect past-participle + auxiliary.  
-                    * If the gloss shows the subject **causing** another to act (*was made to go*) → tag the verb **causative**.
-
-                    ---
-
-                    ### 📌 Postposition surrogates
-                    Gloss words like *to, by, with, for, from* often reveal an implied **shift in voice** or a **participial/causative chain** hidden in the surface form.
-
-                    ---
-
-                    ### 🔄 When in doubt
-                    * Subject absent, object prominent → suspect **passive**.  
-                    * Two verbs side-by-side (*will come go*, *has been given*) → parse for **compound** or **auxiliary** roles.  
-                    * Conditional tone (*if … may …*, *let it be …*) → test for **subjunctive**.
-
-                    ---
-
-                    ### 🧩 Suffix hints  
-                    Endings like **–ਹਉ, –ਹੀ, –ਮ, –ਸੀਅ** (and Lahindī –ਉ, –ਹੁ) can encode person or emphasis. Cross-check with the gloss’s subject reference.
-
-                    ---
-
-                    > **Rule of thumb**  
-                    > *If the gloss shows something **happening to** someone and the agent is missing → think passive.*  
-                    > *If multiple verbs are chained, the **right-most** verb usually carries tense/voice; earlier ones express the semantic action.*
-
-                    _Use the gloss—its hidden auxiliaries, agents, and helpers—to uncover the verb’s true grammatical load._\
-                    """).strip() + "\n\n"
-
-
-                    common_sense_note = textwrap.dedent("""\
-                    ### 🔹 `common_sense_note` – VERBS / ਕਿਰਿਆ (semantic sanity layer)
-
-                    **Essence** A sieve that questions every verb label: *Does this person × number × tense truly fit what the verb is doing in the paṅktī?*
-
-                    **Vision** Fuse surface-form clues with syntactic/semantic roles so edge-cases (poetic plurals, ergative flips, auxiliary drop, Lahindī quirks) are flagged, not rubber-stamped.
-
-                    ---
-
-                    ## 1 · Finite vs Non-finite: cheat grid  
-
-                    | Tag you plan | Sanity checks (abort / relabel if violated) |
-                    |--------------|---------------------------------------------|
-                    | **Present / Future** | Ending shows **person+number; no gender**. If ending = –ਦਾ/ਦੀ/ਦੇ **without** auxiliary **ਹੈ/ਹਨ**, treat as participle (habitual/progressive) not finite. |
-                    | **Imperative** | Only 2nd-person. Command/request mood. If clause is conditional (*ਜੇ ਸੁਣਹੁ…*) → **Subjunctive** not Imperative. |
-                    | **Subjunctive** | Expresses wish/suggestion; often with *ਜੇ, ਜੇਕਰ, ਤਾਂ*. Never shows gender agreement. |
-                    | **Past / Perfective** | Built on past-participle endings **–ਆ / –ਈ / –ਏ**. Transitive verbs agree with **object** (ergative); intransitives with **subject**. |
-                    | **Passive finite** | Look for **ਕਰੀਐ, ਕੀਆ ਜਾਏ, ਕਹੀਏ** etc. Object promoted to subject; auxiliary **ਕਰੀਨਿ, ਕਰੀਐ** etc. present/past table (§ passive pages). |
-                    | **Causative** | Endings –ਆਵਾ, –ਨਾੳ, –ਵਉ, –ਏਇ, –ਵਹਿ…; semantics must show *caused* action. |
-                    | **Auxiliary-only token** | If root **ਹੋ** form (ਹਾ, ਹੈ, ਹਾਂ, ਹੁੰ, ਸੀ, ਸੇ, ਸੀਐ, ਸਾ…) appears **alone**, tag = **Auxiliary Verb** not main finite. |
-                    *If the Canonical row label is “Pronominal Suffixes …” you **must tag Grammar Case = “Pronominal Suffixes …”**, not plain Past/Present.*
-                    *For finite verbs, **Word-Root must record the person (1st / 2nd / 3rd)**; tense or aspect belongs in “Grammar Case / ਵਯਾਕਰਣ,” not in Word-Root.*
-
-                    ---
-
-                    ## 2 · Past-participle agreement sanity  
-
-                    1. **Intransitive:** participle ↔ subject.  
-                    2. **Transitive (ergative):** participle ↔ object; subject in instrumental/obl.  
-                    3. **Pron.-suffix –ਉ/-ਹੁ:** when object = **ਤੈ/ਤੂੰ**, endings like **ਕੀਉ, ਕਿਉਹੁ** act as clitics → tag “Pronominal-suffix” sub-type.  
-                    4. Gender/number mismatch with controller → flag for review.
-
-                    ---
-
-                    ## 2A · When gender actually matters  
-
-                    * **Finite verbs** (Present, Future, Imperative, Subjunctive, Causative, Auxiliary)  
-                      → **never carry masc/fem marks** in SGGS.  *Finite verbs must therefore be tagged **Gender = Trans / ਨਪੁਂਸਕ** (not NA).*
-
-                    * **Participles** – the only verb forms that **do** mark gender:  
-                      • Perfect / perfective: **Masc SG -ਆ / Fem SG -ਈ / Masc PL -ਏ / Fem PL -ਈਆਂ**  
-                      • Habitual / imperfective: **Masc SG -ਦਾ / Fem SG -ਦੀ / Masc PL -ਦੇ / Fem PL -ਦੀਆਂ**  
-                      • Dialectal allomorphs (ਲਹਿੰਦੀ **-ਇਓ**, ਬ੍ਰਜ **-ਯੋ**, etc.) are **still Masc SG**.
-
-                    * **Controller rule**  
-                      – **Intransitive** → participle agrees with **subject**.  
-                      – **Transitive perfective** (ergative) → participle agrees with **object**.
-
-                    * **Auxiliaries stay neuter.**  `ਹੈ/ਹਨ/ਸੀ…` never add gender; only the participle does.
-
-                    ---
-
-                    ## 3 · Auxiliary verbs & silent dropping  
-
-                    * Present auxiliaries: **ਹਾ (1 sg), ਹੈ (2 sg), ਹੈ (3 sg), ਹਾਂ (1 pl), ਹਉ/ਹੁ (2 pl respect), ਹਨ/hin (3 pl)**.  
-                    * Past auxiliaries (rare): **ਸਾ/ਸੇ/ਸੀ/ਸਿਤ, ਸਿਆ, ਸਾ; 3 pl = ਸੇ, ਸੈਨ, ਸੀਮਾ**.  
-                    * In Gurbāṇī the auxiliary is **often absorbed** into a longer verb with pronominal suffix: *ਚਲਦਿਵੈ, ਭਰਵਾਈਐ*. If you can’t locate a free auxiliary, confirm tense via surface ending first.
-
-                    ---
-
-                    ## 4 · Imperative & Subjunctive overlap  
-
-                    | Ending cluster | True Imperative if… | Else → likely Subjunctive |
-                    |----------------|---------------------|---------------------------|
-                    | **–ਹੁ / –ਹੁਗੇ / –ਹੋ** | Stand-alone command/request | Used inside conditional/wish |
-                    | **–ਹੇ / –ਹੀ / –ਹੇਇ** | Vocative context | Hypothetical clause |
-
-                    ---
-
-                    ## 5 · Passive voice heuristics  
-
-                    * **Surface template:** participle (ਘਲਿਆ) + auxiliary **ਕਰੀਐ / ਕਹੀਐ / ਕਵਾਇਓ** etc.  
-                    * Only 3rd-person shows full paradigm in tables; 1st/2nd are scarce → flag if you tag 1st-person finite passive without strong textual evidence.  
-                    * Present passive often masquerades as adjective; ensure a *patient-as-subject* reading is plausible.
-
-                    ---
-
-                    ## 6 · Causative sanity  
-
-                    * First-person causatives: **–ਆਵਾ / –ਆਵਾ, –ਕਰਾਵਾ**. No object → verb likely **inchoative**, not causative.  
-                    * 3rd-person causatives: **–ਵਾਇਆ, –ਵਧਾਇਆ, –ਤਿਵਾਇਆ, –ਈਯੈ**: must show agent-causes-other scenario.  
-                    * If semantic agent = performer, drop “causative” tag.
-
-                    ---
-
-                    ## 7 · Compound verbs  
-
-                    * Earlier element -> conjunct ending **-ਕੇ / -ਇ / -ਆ / -ਕੇਂ**.  
-                    * Last element holds tense/person.  
-                    * Tag first as “Conjunct Verb / Gerund”, second as finite.
-
-                    ---
-
-                    ## 8 · Auto-highlight (red flags)  
-
-                    | Pattern | Likely mis-label |
-                    |---------|------------------|
-                    | Ending **-ਗਾ/ਗੀ/ਗੇ** but tag ≠ Future | Wrong tense |
-                    | Ending **-ਹੁ/-ਹੁਗੇ** tagged 1st/3rd person | Imperative bleed |
-                    | Ending **-ਦਾ/ਦੀ/ਦੇ** with no **ਹੈ/ਹਨ** & tag = Present/Future | Participle, not finite |
-                    | Two consecutive finite-verb tags inside one clause | Probably compound verb – split roles |
-                    | Passive participle **ਕਰੀਐ/ਕਰਾਤੁ** but subject‐agent reading given | Reverse voice |
-                    | Finite verb tagged Masc/Fem | Finite forms should be Trans – likely mis-tag |
-                    | Participial ending gender ≠ controller noun/pronoun | Agreement error (ergative or intransitive mix-up) |
-                    | Ending-tense combo not found in Canonical table | Illegal combination – override gloss |
-                    | Finite verb with Gender = NA | Should be Trans – fix label |
-
-                    ---
-
-                    <sub>Heuristics sourced from pages 5.1 – 5.12: Present, Past, Future, Imperative, Subjunctive, Participles, Compound, Passive, Causative, Auxiliary, Pron-suffix sections.</sub>\
-                    """).strip() + "\n\n"
-
-                    ending_cheat_sheet = textwrap.dedent("""\
-                    🔔 **Authoritative workflow**
-
-                    1️⃣ **Check legality** – If a surface ending × person/number × tense combo is **absent** from the
-                    Canonical table below, reject or relabel.
-
-                    2️⃣ **Decide meaning** – Among the *legal* options, pick the tag that is **best supported by
-                    the Darpan Translation and Darpan Meanings** (Prof. Sāhib Siṅgh).  
-                    *Those glosses remain the primary key to tense, mood, voice, and agent/object choice.*
-
-                    3️⃣ Apply common-sense sanity rules (§ 1–8) for edge-case flags.
-
-                    ---
-
-                    **VERB / ਕਿਰਿਆ ENDINGS – QUICK REFERENCE (Gurbāṇī corpus, Sheet 1)**  
-
-                    🔹 **Agreement grid (what can legally combine)**  
-                    • **Person / ਪੁਰਖ** → 1st (ਉੱਤਮ) | 2nd (ਮਧਮ) | 3rd (ਅਨਯ)  
-                    • **Number / ਵਚਨ** → Singular / ਇਕ | Plural / ਬਹੁ  
-                    • **Tense / Mood** → Present / ਵਰਤਮਾਨ | Past / ਭੁਤ | Future / ਭਵਿੱਖਤ | Causative / ਪੇ੍ਰਣਾਰਥਕ | Pronominal suffix  
-                    <sub>*Finite verbs ignore noun-gender; –ਦਾ/–ਦੀ/–ਦੇ are participial*</sub>
-
-                    ---
-
-                    ### A · Canonical ending patterns (+ three toy forms on **ਗਾਵ-**)
-
-                    | Person · Number | Tense / Mood | Surface endings | Micro-examples |
-                    |-----------------|--------------|-----------------|---------------|
-                    | **1st Sg** | Present | ਈ/ਉ/ਊ/ਾ/ੀ/ਤ/ਣਾ/ਤਾ/ਦਾ/ਨਾ/ੇਉ/ੰਦਾ/ੇਂਦੀ | ਗਾਵਈ, ਗਾਵਉ, ਗਾਵੇਉ |
-                    |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
-                    |  | Future | ਉ/ਊ/ਾ/ਸਾ/ਉਗਾ/ਉਗੀ/ਉਗੋ/ੈ ਹਉ | ਗਾਵਉ, ਗਾਵਊ, ਗਾਵਉਗਾ |
-                    |  | Causative | ਵਉ/ਾਈ/ਾਵਾ/ਾਹਾ | ਗਾਵਵਉ, ਗਾਵਾਈ, ਗਾਵਾਵਾ |
-                    |  | Pronominal | ਮ/ਮੁ | ਗਾਵਮ, ਗਾਵਮੁ |
-                    | **1st Pl** | Present | ਹ/ਹਾ/ਤ/ਤੇ/ਦੇ | ਗਾਵਹ, ਗਾਵਤ, ਗਾਵਤੇ |
-                    |  | Past | ੇ | ਗਾਵੇ |
-                    |  | Future | ਸਹ/ਹਗੇ/ਹਿਗੇ | ਗਾਵਸਹ, ਗਾਵਹਗੇ |
-
-                    | Person · Number | Tense / Mood | Surface endings | Micro-examples |
-                    |-----------------|--------------|-----------------|---------------|
-                    | **2nd Sg** | Present | ਤ/ੈ/ਸਿ/ਹਿ/ਹੀ/ਹੇ/ੇਹੀ/ਦਾ | ਗਾਵਤ, ਗਾਵੈ, ਗਾਵਹਿ |
-                    |  | Past | ਾ/ੀ/ਹੁ | ਗਾਵਾ, ਗਾਵੀ, ਗਾਵਹੁ |
-                    |  | Future | ਸਿ/ਸੀ/ਹਿ/ਹੀ/ਹੋ/ਸਹਿ/ਹਿਗਾ | ਗਾਵਸਿ, ਗਾਵਸੀ |
-                    |  | Causative | ਹਿ/ਇਦਾ/ਇਹਿ | ਗਾਵਹਿ, ਗਾਵਇਦਾ |
-                    |  | Pronominal | ਇ/ਈ/ਹਿ/ਹੁ | ਗਾਵਇ, ਗਾਵਈ |
-                    | **2nd Pl** | Present | ਹੁ/ਤ ਹਉ/ਤ ਹੌ/ਤ ਹਹੁ/ਈਅਤ ਹੌ | ਗਾਵਹੁ, ਗਾਵਤ ਹਉ |
-                    |  | Past | ੇ/ਹੋ | ਗਾਵੇ, ਗਾਵਹੋ |
-                    |  | Future | ਹੁ/ੇਹੁ/ਹੁਗੇ | ਗਾਵਹੁ, ਗਾਵੇਹੁ |
-
-                    | Person · Number | Tense / Mood | Surface endings | Micro-examples |
-                    |-----------------|--------------|-----------------|---------------|
-                    | **3rd Sg** | Present | ਇ/ਈ/ਏ/ੈ/ਤ/ਤਾ/ਤੀ/ਤਿ/ੇ/ਂਤ/ਦਾ/ਦੀ/ੰਤਾ/ਸਿ/ਹੈ | ਗਾਵਇ, ਗਾਵਈ, ਗਾਵਤੀ |
-                    |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
-                    |  | Future | ਈ/ੈ/ਗਾ/ਗੀ/ਗੋ/ਸਿ/ਸੀ | ਗਾਵਗਾ, ਗਾਵਗੀ |
-                    |  | Causative | ਏ/ਈਐ/ਿਵੈ/ਿਦਾ/ਾਵੈ | ਗਾਵਏ, ਗਾਵਇਦਾ |
-                    |  | Pronominal | ਨੁ/ਸੁ | ਗਾਵਨੁ, ਗਾਵਸੁ |
-                    | **3rd Pl** | Present | ਤ/ਤੇ/ੰਤੇ/ਦੇ/ੰਦੇ/ਨਿ/ਨੀ/ਸਿ/ਹਿ/ਹੀ/ਇਨਿ/ਇੰਨਿ/ਦੀਆ/ਦੀਆਂ | ਗਾਵਤੇ, ਗਾਵਦੇ |
-                    |  | Past | ੇ | ਗਾਵੇ |
-                    |  | Future | ਹਿ/ਹੀ/ਸਨਿ/ਹਿਗੇ | ਗਾਵਹਿ, ਗਾਵਹਿਗੇ |
-                    |  | Causative | ਇਦੇ/ਇਨਿ/ਵਹਿ | ਗਾਵਇਦੇ, ਗਾਵਵਹਿ |
-
-                    ---
-
-                    ### B · How to use the dashboard  
-
-                    1. **Validate annotations** – If you tag a form “2nd Pl Future” but it ends in **–ਦਾ**, the table shows that combo never occurs → revisit the tag.  
-                    2. **Debug machine predictions** – Surface ending not found under predicted role → flag for review.  
-                    3. **Handle sandhi** – Remember silent –ਉ can drop before postpositions (e.g. **ਤੋਂ, ਨੂੰ**).  
-
-                    _Export or further slicing on request._\
-                    """).strip() + "\n\n"
-
-                elif entry["Type"] == "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ":
-                    implicit_note = textwrap.dedent("""\
-                    ### 🔹 `implicit_note` – ADVERB / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ  
-                    *(SGGS-centric discovery guide)*  
-
-                    **Essence** Teach the evaluator to recognise words that **modify the *action itself***—never the doer (noun) nor the quality‐word (adjective).  
-
-                    **Vision** Lean on *Prof. Sāhib Siṅgh’s* Darpan gloss to infer *how, when, where* the verb happens—even when SGGS omits explicit post-positions or auxiliaries.  
-
-                    ---
-
-                    ## 1 · Adverb ≠ Adjective ≠ Noun — the litmus test 🩺  
-
-                    | Ask this first | Pass ✔️ → Adverb | Fail ✖️ → something else |
-                    |----------------|------------------|--------------------------|
-                    | **Does the word alter the meaning of the verb?** <br>(time, place, manner, measure…) | ✔️ modifies *action* → keep testing | ✖️ modifies noun → likely *Adjective* or *Noun* |
-                    | **Will the clause stay grammatical if the word is removed?** | ✔️ sentence remains; nuance lost | ✖️ structure breaks → maybe pronoun/helper |
-                    | **Can the word move freely in the clause?** | ✔️ adverbs float (ੴ ਦਇਆਲੁ **ਹੁਣਿ** ਮਿਲਿਆ) | ✖️ fixed next to noun → adjective/compound |
-                    | **Any number/gender inflection visible?** | ✔️ none (adverbs are **indeclinable**) | ✖️ – ਆ/–ਈ/–ਏ etc. → participle/adjective |
-                    | **Darpan gloss clue** says: “now, then, quickly, here, twice…” | ✔️ adopt adverb label | ✖️ gloss uses “of, to, with” → case marker |
-
-                    > **Rule:** In this framework an adverb may *expand* a phrase (ਜਗਿ **ਸਭਤੈ**), but it still targets the action, **not** the noun.  
-
-                    ---
-
-                    ## 2 · Functional buckets 🗂️  
-
-                    | Category (Punjabi) | Core semantic cue | Minimal examples* |
-                    |--------------------|-------------------|-------------------|
-                    | **ਸਮਾ / Time**        | ‘ਕਦੋਂ? ਕਿੰਨਾ ਸਮਾਂ?’ | ਹੁਣਿ, ਕਦੇ, ਅਜੁ, ਨਿਤ, ਅਹਿਨਿਸਿ |
-                    | **ਥਾਂ / Place**       | ‘ਕਿੱਥੇ?’            | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
-                    | **ਵਿਧੀ / Manner**     | ‘ਕਿਵੇਂ? ਕਿਸ ਢੰਗ ਨਾਲ?’ | ਜਿਉ, ਇਉ, ਨਿਸੰਗੁ, ਰਸਕਿ ਰਸਕਿ |
-                    | **ਪਰਮਾਣ / Measure**   | ‘ਕਿੰਨਾ?’            | ਅਤਿ, ਬਹੁਤੁ, ਘਣਾ, ਭਰਪੂਰਿ |
-                    | **ਸੰਖਿਆ / Number**    | ‘ਕਿੰਨੀ ਵਾਰ?’        | ਬਾਰੰ ਬਾਰ, ਫਿਰਿ ਫਿਰਿ |
-                    | **ਨਿਨੈ / Decision**   | certainty / denial  | ਨਾਹਿ, ਨਿਹਚਉ |
-                    | **ਕਾਰਣ / Reason**     | causation           | ਯਾਤੇ, ਕਿਤੁ ਅਰਥਿ |
-                    | **ਤਾਕੀਦ / Stress**    | emphasis            | ਹੀ, ਭੀ, ਮੂਲੇ |
-
-                    * A full “high-freq” table—including **phrase, compound & iterative** idioms—follows in *common_sense_note*.
-
-                    ---
-
-                    ## 3 · Zero-inflection principle 🚫🧬  
-
-                    * Adverbs **never** show number (-ਏ/-ਉ), gender, person or case.  
-                    * If a token **does** decline, re-classify: participial verb (*-ਦਾ/-ਦੀ/-ਦੇ*), adjective, or oblique noun.  
-
-                    ---
-
-                    ## 4 · Typical gloss helpers 🔍  
-
-                    | Gloss clue | Likely adverb class | Illustration |
-                    |------------|--------------------|--------------|
-                    | “**now / today / always**” | Time | “ਹੁਣਿ ਮਿਲਿਆ” |
-                    | “**here / everywhere / within**” | Place | “ਅੰਦਰਿ ਰਹੈ” |
-                    | “**thus / quickly / secretly**” | Manner | “ਜਿਉ ਕਰੇ” |
-                    | “**fully / a little**” | Measure | “ਭਰਪੂਰਿ ਰੰਗਿ ਰਤਾ” |
-                    | “**again / twice**” | Number | “ਫਿਰਿ ਫਿਰਿ ਆਇਆ” |
-
-                    ---
-
-                    ## 5 · Quick detection workflow ⚡  
-
-                    1. **Mark all gloss adverbials** – scan Darpan for English adverbs.  
-                    2. **Map to Punjabi surface form** – locate the SGGS token(s) that carry that nuance.  
-                    3. **Apply indeclinability test** – no visible suffix change? keep as adverb.  
-                    4. **Check floating mobility** – move token; if syntax survives, adverb confirmed.  
-                    5. **Edge alert** – if token sits after a post-position (ਦੇ, ਨਾਲ…), probably **oblique noun** not adverb.
-
-                    ---
-
-                    ## 6 · Red-flag heuristics 🚩  
-
-                    * Word tagged *Adverb* but ends in **-ਦਾ/-ਦੀ/-ਦੇ** → likely participial.  
-                    * Tagged *Adverb* but gloss shows possession (*of*) → test for Genitive noun.  
-                    * Compound form **ਸਾਸਿ ਗਿਰਾਸਿ** mis-tagged as Time/Manner interchangeably → ensure Darpan intent.  
-                    * Form appears **twice with different endings** in same ṭuk → must be *declinable* → not adverb.  
-
-                    ---
-
-                    ### 📝 Footnote on spreadsheet codes  
-                    The Excel “Adverbs” sheet groups every token into **eight functional sets** above, plus **Compound / Phrase** and **Iterative** markers. These codes are referenced only for *high-freq tables* and require **no inflection logic**.
-
-                    _Use this guide, then apply the sanity layer in `common_sense_note` for mis-tag traps._
-                    """).strip() + "\n\n"
-            
-                    common_sense_note = textwrap.dedent("""\
-                    ### 🔹 `common_sense_note` – ADVERBS / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ (semantic sanity layer)
-
-                    **Essence** A quick triage: *Does this token truly act as an **adverb**—i.e., modifies a verb (or a whole clause) and NEVER a noun/pronoun?*
-
-                    **Vision** Prevent false-positives caused by:
-                    * Post-positions or emphatic particles masquerading as adverbs  
-                    * Adjectival or nominal words that look “adverb-ish” but show agreement or case
-
-                    ---
-
-                    ## 1 · Three-step sanity check 🧪  
-
-                    | Step | Ask yourself | Abort / Relabel if… |
-                    |------|--------------|--------------------|
-                    | ① | **Function** – Does the word modify a **verb or clause** (manner, time, place, degree)? | It directly qualifies a noun/pronoun → likely Adjective or Noun |
-                    | ② | **Morphology** – No number / gender / person agreement & no case endings | You see –ਏ/–ਉ etc. agreeing with noun → it’s NOT an adverb |
-                    | ③ | **Position / Helpers** – Is it followed by a postposition (*ਦੇ, ਨੂੰ, ਨਾਲ*)? | Token + post-position ⇒ treat token as **Noun in oblique**, PP = post-position |
-
-                    ---
-
-                    ## 2 · Category reference with high-frequency SGGS tokens 🔍  
-
-                    | Category | Typical surface cues | SGGS high-freq examples |
-                    |----------|----------------------|-------------------------|
-                    | **Time / ਸਮਾਂ** | “when?”, duration, sequence | ਹੁਣਿ, ਸਦਾ, ਕਦੇ, ਤਦਿ, ਸਵੇਰੈ |
-                    | **Place / ਥਾਂ** | “where?”, location, direction | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
-                    | **Manner / ਵਿਧੀ** | “how?”, style, attitude | ਜਿਉ, ਸਹਜਿ, ਇਉ, ਕਿਵ, ਨਿਸੰਗੁ |
-                    | **Measurement / ਪਰਮਾਣ** | quantity / degree | ਅਤਿ, ਬਹੁਤਾ, ਘਣਾ, ਭਰਪੂਰਿ, ਤਿਲੁ |
-                    | **Number / ਸੰਖਿਆ** | frequency / repetition | ਫਿਰਿ ਫਿਰਿ, ਬਾਰੰ ਬਾਰ, ਵਤਿ, ਲਖ ਲਖ, ਅਨਿਕ ਬਾਰ |
-                    | **Decision / ਨਿਨੈ** | negation / affirmation | ਨਾ, ਨਹ, ਨਾਹੀ, ਨਿਹਚਉ, ਮਤ |
-                    | **Reason / ਕਾਰਣ** | cause / purpose | ਯਾਤੇ |
-                    | **Stress / ਤਾਕੀਦ** | emphasis / focus | ਹੀ, ਭੀ, ਹੈ, ਸਰਪਰ, ਮੂਲੇ |
-                
-                    ---
-
-                    ### ▸ Phrase / Compound & Iterative idioms (extended reference)
-
-                    | Sub-group | Token set → **all indeclinable adverbs** | Main category |
-                    |-----------|------------------------------------------|---------------|
-                    | **Time — Phrase** | ਅਹਿਨਿਸਿ, ਨਿਸਿ ਬਾਸੁਰ, ਪਹਿਲੋ ਦੇ, ਪਿਛੋ ਦੇ, ਰਾਤਿ ਦਿਨੰਤਿ, ਅੰਤ ਕੀ ਬੇਲਾ, ਅਬ ਕੈ ਕਹਿਐ, ਆਠ ਪਹਰ, ਆਦਿ ਜੁਗਾਦਿ, ਇਬ ਕੇ ਰਾਹੇ, ਨਿਤ ਪ੍ਰਤਿ | Time / ਸਮਾ |
-                    | **Place — Phrase** | ਅੰਤਰਿ ਬਾਹਰਿ, ਪਾਸਿ ਦੁਆਸਿ, ਵਿਚੁਦੇ, ਆਸ ਪਾਸ, ਊਪਰਿ ਭੁਜਾ ਕਰਿ, ਅਗਹੁ ਪਿਛਹੁ, ਈਹਾ ਊਹਾ, ਕਿਤੁ ਠਾਇ, ਤਿਹਾ ਧਿਰਿ, ਤਿੰਹੁ ਲੋਇ, ਦੇਸ ਦਿਸੰਤਰ | Place / ਥਾਂ |
-                    | **Manner — Phrase** | ਤਾ ਭੀ, ਤਿਲੁ ਸਾਰ, ਇਕ ਮਨਿ, ਏਵੈ, ਸਹਜ ਭਾਇ, ਕਵਨ ਮੁਖਿ, ਕਾਹੇ ਕਉ, ਕਿਉ ਨ, ਕਿਤੁ ਅਰਥਿ, ਨਾਨਾ ਬਿਧਿ, ਕਿਵੈ ਨ, ਰਸਕਿ ਰਸਕਿ | Manner / ਵਿਧੀ |
-                    | **Iterative (Time)** | ਫਿਰਿ ਫਿਰਿ, ਦਿਨੁ ਦਿਨੁ, ਸਦਾ ਸਦਾ, ਸਾਸਿ ਸਾਸਿ, ਨਿਤ ਨਿਤ, ਨਿਮਖ ਨਿਮਖ, ਪਲੁ ਪਲੁ, ਬਾਰੰ ਬਾਰ, ਪੁਨਹ ਪੁਨਹ | Time / ਸਮਾ |
-                    | **Iterative (Place)** | ਜਤ ਕਤ, ਘਰਿ ਘਰਿ, ਜਹ ਜਹ, ਜਿਤੁ ਜਿਤੁ, ਦੇਸ ਦਿਸੰਤਰਿ | Place / ਥਾਂ |
-                    | **Iterative (Manner)** | ਝਿਮਿ ਝਿਮਿ, ਤਿਲ ਤਿਲ, ਖਿਰ ਖਿਰ, ਰਸਿਕ ਰਸਿਕ, ਲੁਡਿ ਲੁਡਿ | Manner / ਵਿਧੀ |
-
-                    *(Duplicates collapsed; diacritics kept as in SGGS.)*
-
-                    ---
-
-                    ## 3 · Red-flag heuristics 🚨  
-
-                    | Pattern | Likely mis-tag |
-                    |---------|---------------|
-                    | Token shows **plural/oblique –ਆਂ / –ਏ / –ਉ** agreement | Probably a noun or adjective |
-                    | Token immediately followed by post-position (**ਨਾਲ, ਤੇ, ਵਿਚ**) | Treat as noun + PP |
-                    | Token doubles as **auxiliary verb** (*ਹੀ, ਹੈ*) in context | Re-evaluate as Stress adverb OR auxiliary |
-                    | Same stem appears with changing endings inside verse | Likely **declinable adjective**, not adverb |
-                    | Gloss marks token as **object / subject** | Not an adverb |
-
-                    ---
-
-                    ## 4 · Usage tips 💡  
-
-                    1. **No gender/number tags** – Always set **Gender = NA** & **Number = NA** for adverbs.  
-                    2. **POS override wins** – If sanity check fails, switch POS before finishing the task.  
-                    3. Quote at least one verb the adverb is modifying when you justify your choice.
-
-                    ---
-
-                    <sub>Source pages: Grammar book ch. 6 (pp. 6.1–6.2.6) & “Adverbs” sheet from 0.2 For Data to GPT.xlsx.</sub>\
-                    """).strip() + "\n\n"
-
-                    ending_cheat_sheet = (
-                        "**ADVERBS:** Indeclinable in SGGS → no ending table required."
-                    )
-
-                elif entry["Type"] == "Postposition / ਸੰਬੰਧਕ":
-                    implicit_note = textwrap.dedent("""\
-                        **POSTPOSITIONS IN GURBĀṆĪ – SEEING THE HIDDEN LINKS**  
-
-                        A postposition (_ਸੰਬੰਧਕ_) expresses the *relationship* of a noun or pronoun to the
-                        rest of the clause.  Think of it as a Punjabi sibling of the English preposition,
-                        except it normally **follows** the word it governs.
-
-                        ### 1 · Why they matter in annotation  
-                        • **Old case-endings → new helpers** – Classical Punjabi often fused case endings
-                        straight onto the noun (e.g. ਕੈ, ਕਉ).  Over centuries these endings began to act
-                        like separate postpositions—and Gurbāṇī preserves *both* layers.  
-                        • **One helper ≠ one case** – Don’t map “each postposition to one case” by reflex.
-                        Many helpers (esp. ‘of’, ‘from’, ‘with’) sit across **multiple traditional cases**.  
-                        • **Pre-noun surprise** – Forms such as **ਕੈ** can surface *before* the noun when
-                        they co-occur with another postposition; still tag them as postpositions.
-
-                        ### 2 · How to read the Darpan gloss  
-                        1. **Scan the English helper** inserted by Prof. Sāhib Siṅgh – _to, of, from,
-                        with, without, in, on, before, after, near, far…_  
-                        2. **Locate the Punjabi token(s)** that deliver that meaning in the pāṅktī.
-                        They may be:  
-                        • an **attached ending** (*…ਕੈ ਸੰਤ*),  
-                        • a **stand-alone word** (*ਨਾਲ, ਵਿਚ, ਉਪਰਿ*), or  
-                        • an **archaic variant** (e.g. _ਕਹ, ਵਸੇ, ਬਾਸੇ_).  
-                        3. **Check the noun form** – the governed noun should be in the **oblique** (ਸੰਬੰਧਕ)
-                        if the language still marks one; otherwise, rely on meaning.
-
-                        > **Rule of thumb** – If the gloss supplies a relational word the verse omits,
-                        > treat that English word as a flag that “a postposition is hiding here.”\
-                        """).strip() + "\\n\\n"
-
-                    common_sense_note = textwrap.dedent("""\
-                        **SEMANTIC SANITY CHECK – IS THIS *REALLY* A POSTPOSITION?**  
-
-                        ### ①  Function test  
-                        • Does the candidate **link** its noun/pronoun to the verb or another noun?  
-                        _Yes_ → proceed.  _No_ → it may be an **adverb**, **case-suffix**, or even
-                        part of a **compound noun**.
-
-                        ### ②  Morphology test  
-                        • Postpositions are **indeclinable** – no gender/number/person endings of their
-                        own.  If the token shows –ਆ/ਈ/ਏ etc., suspect an *oblique noun* instead.  
-                        • Possessive markers **ਦਾ, ਦੇ, ਦੀ** *look* like adjectives but behave as
-                        postpositions.  Tag them here only when they attach to another noun
-                        (“ਰਾਮ **ਦਾ** ਦਾਸ”).  
-
-                        ### ③  Dependency test  
-                        • A true postposition normally keeps a **dependent noun** close by.  If none
-                        appears, ask whether the word is actually an **adverbial particle** (“ਤਦਿ,
-                        ਅਗੈ”) or part of a **verb phrase**.
-
-                        ### ④  Red-flag heuristics 🚩  
-                        | Pattern | Likely mis-tag | Example cue |
-                        |---------|---------------|-------------|
-                        | Token plus **another postposition** with no noun in between | Missing oblique noun | “ਕੈ **ਨਾਲ**” |
-                        | Token followed by *ਹੈ/ਹਨ* | Probably predicate adjective | “ਨਾਨਕੁ ਦੋਖੀ **ਨਾਹਿ**” |
-                        | Token appears twice with changing endings | Declining noun, not postposition | “ਘਰਿ ਘਰਿ” |
-
-                        ### ⑤  Quick role alignment  
-                        | Semantic role | Common helpers (non-exhaustive) |
-                        |---------------|----------------------------------|
-                        | **Genitive / OF** | ਕਾ, ਕੇ, ਕੀ, ਦਾ, ਦੇ, ਦੀ, ਕੋਰਾ |
-                        | **Dative / TO, FOR** | ਕਉ, ਕੋ, ਕੈ, ਨੂ, ਲਈ |
-                        | **Ablative / FROM** | ਤੋਂ, ਤੇ, ਵੈਹੁ, ਬਿਨ, ਬਾਹਰ |
-                        | **Instrumental / WITH** | ਨਾਲ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ |
-                        | **Locative / IN, ON, AT** | ਵਿਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਉਪਰਿ, ਊਤੇ |
-                        | **Orientational / BEFORE, AFTER, NEAR, FAR** | ਅਗੈ, ਪਿਛੈ, ਕੋਲ, ਨਿਕਟ, ਦੂਰਿ |
-
-                        _If a helper can sit in more than one row, choose the case that best matches the
-                        **meaning of the clause**, and note the alternative in comments._\
-                        """).strip() + "\\n\\n"
-                
-                    ending_cheat_sheet = textwrap.dedent("""\
-                        **POSTPOSITION QUICK-REFERENCE – SURFACE FORMS BY SEMANTIC GROUP**  
-
-                        | Role (Eng.) | Core Punjabi forms* | Notes |
-                        |-------------|---------------------|-------|
-                        | **OF / Possessive** | ਦਾ, ਦੇ, ਦੀ · ਕਾ, ਕੇ, ਕੀ · ਕਾ, ਕੈ, ਕੈਹਿਉ · ਕੋਰਾ / ਕੋਰੈ | Masculine/Feminine variants; decline with possessed noun, not with owner |
-                        | **TO / FOR** | ਕਉ, ਕੂ, ਕੈ, ਕੋ · ਨੂ, ਨੂੰ · ਲਈ | Older endings (ਕਉ…) often fuse; **ਨੂੰ** modern |
-                        | **FROM / OUT OF** | ਤੋਂ, ਤੇ, ਉਤੋਂ, ਵੈਹੁ, ਬਾਹਰ, ਬਿਨਾ | Ablative / separative sense; *ਬਿਨਾ* also “without” |
-                        | **WITH / BY / ALONG** | ਨਾਲ, ਨਾਲੇ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ | Instrumental & associative; choice shaped by metre |
-                        | **WITHOUT / THAN** | ਬਾਜਹੁ, ਬਾਗੈ, ਬਿਨ, ਬਿਨੁ, ਵਿਣ, ਵਿਣਹੁ, ਥੋੜਾ | Negative / comparative nuance |
-                        | **IN / INSIDE / WITHIN** | ਵਿਚ, ਵਿ⸱ਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਮਹਿ, ਮਾਹਰੈ | Locative & internal |
-                        | **ON / OVER / ABOVE** | ਉਪਰਿ, ਉਪਰ, ਉਤੇ, ਊਤੇ, ਊਪਰਿ | Spatial elevation; *ਤੇ* doubles as generic PP |
-                        | **UNDER / BELOW** | ਤਲਿ, ਥਲੈ, ਹੇਠ, ਹੇਠਾਂ | Lower level |
-                        | **BEFORE / FRONT** | ਅਗੈ, ਅਗੇ | Temporal or spatial precedence |
-                        | **AFTER / BEHIND** | ਪਿਛੈ, ਪਾਛੈ, ਪਿਛੋ | Temporal or spatial following |
-                        | **TOWARDS / NEAR / FAR** | ਵਲ, ਕਨ, ਕੋਲ, ਕੋਲੀ, ਨਿਕਟ, ਪਾਸਿ, ਪਾਸੇ, ਦੂਰਿ | Directional & proximity |
-
-                        <sub>*Forms collated from pp. 1-7 of your textbook; diacritics left as printed.
-                        The list is not exhaustive—add dialectal or Braj variants as you meet them.</sub>
-
-                        **Oblique rule** – The governed noun normally appears in the **oblique**; the
-                        postposition itself **never inflects**.
-
-                        **Pre-noun exception** – When **ਕੈ** precedes another PP, it may surface *before*
-                        its noun (e.g. “ਮੰਨੇ ਜਮ **ਕੈ** ਸਾਥ ਨ ਜਾਇ”) – still tag as postposition.
-
-                        **Cross-case cautions**  
-                        • Some helpers (esp. “with”, “in”, “from”) can realise **Instrumental, Locative,
-                        or Ablative** – decide by semantics.  
-                        • Genitive set **ਦਾ/ਦੇ/ਦੀ** functions like an adjective in modern speech but
-                        grammatically remains a postposition in SGGS.
-
-                        _Use this sheet to *reject impossible guesses* and to **confirm legal surface
-                        forms** before finalising your annotation._\
-                        """).strip() + "\\n\\n"
-
-                elif entry["Type"] == "Conjunction / ਯੋਜਕ":
-                    implicit_note = textwrap.dedent("""\
-                        **CONJUNCTIONS IN GURBĀṆĪ – HOW TO HEAR THE HINGES**
-
-                        A conjunction (_ਯੋਜਕ_) links words, phrases, or entire clauses—*and, but, or,
-                        if … then, even though…. *  Gurbāṇī uses a small core set, but the
-                        multilingual texture of the text supplies many **variants** (ੲੈ, ਅਤੇ, ਅਉ,
-                        ਫੁਨਿ; ਜੇ, ਜੇਕਰ; ਤਾ, ਤਾਂ, ਤਭ).
-
-                        #### 1 · Spotting them in the verse
-                        1. **Look for clause boundaries** – commas or the metrical “||” often signal the
-                        join.  
-                        2. **Map the gloss cue** – Prof. Sāhib Siṅgh frequently inserts
-                        *and / but / or / if / then / even*, etc.  Trace that helper back to a Punjabi
-                        token (sometimes a tiny vowel like **ਤ, ਜੇ, ਤੇ**).  
-                        3. **Check the flow** – removing a true conjunction should split the sentence
-                        into two meaningful parts; if the sense collapses, the token may be an
-                        **adverb** (*ਤੌਂ = then* vs. *ਤੋਂ = from*), **post-position**, or **particle**.
-
-                        > **Rule of thumb** – If the gloss supplies an English linker and the Punjabi
-                        > token neither declines nor carries case, you’ve found a conjunction.
-                        """).strip() + "\\n\\n"
-                
-                    common_sense_note = textwrap.dedent("""\
-                        **SEMANTIC SANITY CHECK – DOES THIS REALLY JOIN THINGS?**
-
-                        | Quick test | Keep as conjunction ✔︎ | Rethink ✘ |
-                        |------------|------------------------|-----------|
-                        | **Function** | Links two clauses / words of equal status | Adds a helper to a noun (*post-position*) |
-                        | **Morphology** | Indeclinable; no gender/number | Ends -ਆ/-ਈ/-ਏ → likely adjective/noun |
-                        | **Mobility** | Can often move to clause edge without breaking grammar | Locked to noun it follows → PP/adjective |
-                        | **Gloss cue** | gloss shows *and, but, or, if … then* | gloss shows *to, of, from* → case helper |
-
-                        #### Red-flag patterns 🚩
-                        * Token plus **post-position** (e.g. *ਜੇ ਕੋ*): maybe *ਜੇ* = “if” (OK) but *ਕੋ* =
-                        Dative → label both separately.  
-                        * **ਨੀ…ਨਾ** or **ਨੋ…ਨੋ** – might be emphatic repetition, not conjunction.  
-                        * **ਤਾ/ਤੇ/ਤੋਂ**: confirm rôle—*ਤਾ* = “then”, *ਤੇ* often Locative PP, *ਤੋਂ* Ablative.
-                        """).strip() + "\\n\\n"
-                
-                    ending_cheat_sheet = textwrap.dedent("""\
-                        **CONJUNCTION QUICK-REFERENCE – HIGH-FREQ FORMS IN SGGS**
-
-                        | Logical role | Punjabi forms* | Example gloss cue |
-                        |--------------|---------------|-------------------|
-                        | **AND / THEN** | ਤੇ, ਅਤੇ, ਅਤਿ, ਅਉ, ਅਵਰ, ਅਉਰੁ, ਫੁਨਿ | “and”, “then”, “also” |
-                        | **OR** | ਕੈ, ਕਿ, ਅਕੇ | “or / whether” |
-                        | **BUT / HOWEVER** | ਘਟ, ਪਰ, ਪਰੰਤੂ, ਫੁਨਿ | “but”, “yet” |
-                        | **IF** | ਜੇ, ਜੇਕਰ, ਜੇਵੀ | “if / provided that” |
-                        | **IF … THEN** | ਜੇ … ਤਾ/ਤਾਂ/ਤੋਂ | paired correlative |
-                        | **EVEN IF / EVEN THEN** | ਤ, ਜੇ, ਭਾਵੇ, ਤਉ ਭੀ, ਤਉ, ਤਉਂ | concessive |
-                        | **NEITHER … NOR** | ਨ … ਨਾ | correlative negative |
-                        | **OTHERWISE** | ਨਤ ਰਿ, ਨਤੂ, ਨਹੀਂ, ਨਹੀਂ ਤਾਂ | “otherwise” |
-                        | **THEREFORE / HENCE** | ਤਾ, ਤਾ ਤੇ, ਤਸੂ, ਕਾ ਤੇ | result / inference |
-                        | **AS / LIKE** | ਜਿਉ, ਜਿਵੇਂ | comparative |
-                        | **LEST** | ਮਤੁ | preventative |
-
-                        <sub>*Forms taken from textbook pp. 8.1 – 8.4; diacritics preserved.</sub>
-
-                        **Key reminders**
-
-                        * **Indeclinable** – conjunctions never carry case or agreement.
-                        * **Dual tokens** – Some forms (*ਤਾ, ਤੇ, ਤੋਂ*) double as post-positions.
-                        Decide by context: if it *links* clauses → conjunction; if it *marks* a noun
-                        → post-position.
-                        * **Correlative pairs** – Tag both halves (e.g. **ਜੇ** … **ਤਾਂ**) as one
-                        logical conjunction with a note “correlative”.
-                        """).strip() + "\\n\\n"
-                
-                elif entry["Type"] == "Interjection / ਵਿਸਮਿਕ":
-                    implicit_note = textwrap.dedent("""\
-                        **INTERJECTIONS IN GURBĀṆĪ – PURE, UNINFLECTED EMOTION**
-
-                        An interjection (_ਵਿਸਮਿਕ_) erupts outside normal grammar to voice **feeling**:
-                        surprise, pain, devotion, blessing, awe…  Because they sit *outside* the clause
-                        structure, they **never govern case, never inflect, never agree**.
-
-                        #### 1 · What to notice in a verse
-                        1. **Standalone or comma-bound** tokens – often at the start, end, or mid-clause,
-                        separated by a breve pause.  E.g. **ਵਾਹੁ ਵਾਹੁ**, **ਹੈ ਹੈ**, **ਹਰਿ ਹਰਿ**.
-                        2. **Gloss cue** – Prof. Sāhib Siṅgh usually inserts an English exclamation
-                        (*O!, Alas!, Wow!, Blessed!*) or italicises the Punjabi for emphasis.
-                        3. **No syntactic load** – if you remove the interjection, the grammar of the
-                        sentence remains intact (though colour is lost).
-
-                        #### 2 · Ten broad emotional classes in SGGS
-                        1. **Vocative** – calling or invoking (*ਏ, ਐ, ਓ, ਹੈ, ਹਉ, ਹੇ ਜੀ…*).  
-                        2. **Repulsive** – aversion or disgust (*ਵਿਚੁ, ਫਿਟੁ*).  
-                        3. **Painful** – sorrow, lament (*ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ*).  
-                        4. **Submission** – ‘Divine willing’ (*ਅਲਹ*).  
-                        5. **Wondrous** – ecstatic awe (*ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਭੈਰੀ*).  
-                        6. **Caution / Warning** – prudent cry (*ਹਰਿ ਹਰਿ ਹਰੇ* used admonishingly).  
-                        7. **Blessing** – goodwill (*ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ*).  
-                        8. **Curse** – condemnation (*ਜਲਉ, ਜਲਿ ਜਾਉ*).  
-                        9. **Sacrificial** – self-offering (*ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ*).  
-                        10. **Reverence** – respectful welcome (*ਆਇ ਜੀ, ਪਿਛੋ ਜੀ*).
-
-                        > **Rule of thumb** – if the word communicates *only* emotion and detaches
-                        > cleanly from clause syntax, tag it as Interjection; otherwise test Adverb,
-                        > Vocative Noun, or Particle.
-                        """).strip() + "\\n\\n"
-
-                    common_sense_note = textwrap.dedent("""\
-                        **SEMANTIC SANITY CHECK – IS THIS TOKEN *JUST* AN EMOTION?**
-
-                        | Quick probe | Keep as Interjection ✔ | Rethink ✖ |
-                        |-------------|-----------------------|-----------|
-                        | **Function** | Adds emotional colour, no syntactic role | Performs grammatical work (case, link, inflection) |
-                        | **Inflection** | Completely indeclinable | Shows –ਆ / –ਈ / –ਏ endings → maybe adjective/noun |
-                        | **Dependence** | Can float; removal leaves clause intact | Sentence breaks → probably verb/particle |
-                        | **Gloss cue** | Gloss marks “O!”, “Alas!”, “Blessed!” etc. | Gloss gives “to, from, with” → post-position |
-
-                        #### Red-flag patterns 🚩
-                        * **ਵਾਹੁ ਵਾਹੁ** appears as noun/adjective elsewhere – decide per context.  
-                        * **ਹੈ ਮੈ, ਹੇ ਭਾਈ** – first token vocative interjection, second token noun;
-                        split tags, don’t bundle.  
-                        * Repeated **ਹਰਿ ਹਰਿ** could be mantra (noun) *or* caution interjection –
-                        weigh meaning.
-
-                        _For every interjection, fill **Number = NA** and **Gender = NA**; they never
-                        agree with anything._
-                        """).strip() + "\\n\\n"
-                
-                    ending_cheat_sheet = textwrap.dedent("""\
-                        **INTERJECTION QUICK-REFERENCE – FREQUENT FORMS BY EMOTIONAL CLASS**
-
-                        | Class               | High-frequency tokens* (SGGS spelling)        |
-                        |---------------------|----------------------------------------------|
-                        | **Vocative**        | ਏ, ਐ, ਓ, ਓਹ, ਹੇ, ਹੈ, ਹਉ, ਹਲੈ, ਮੁਸੈ, ਜੀ, ਰੇ, ਬੇ |
-                        | **Repulsive**       | ਵਿਚੁ, ਫਿਟੁ                                   |
-                        | **Painful**         | ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ, ਝੂਅਹ ਬੂਢਹ           |
-                        | **Submission**      | ਅਲਹ                                          |
-                        | **Wondrous**        | ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਵਾਹ, ਵਾਅ ਵਾਅ, ਵਹੁ ਵਹੁ, ਵਾਹ ਭੈ, ਵਹੁ ਵਹੁ |
-                        | **Caution / Warning** | ਹਰਿ ਹਰਿ ਹਰੇ, ਹਰੇ ਹਰੇ                       |
-                        | **Blessing**        | ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ, ਜੁਗੁ ਜੁਗੁ ਜੀਵੈ              |
-                        | **Curse**           | ਜਲਉ, ਜਲਿ ਜਾਉ, ਜਲਿ ਜਲਿ ਜਰਹੁ                  |
-                        | **Sacrificial**     | ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ, ਵਾਰੀ ਵੰਞਾ, ਕਣੀਏ ਵੰਞਾ    |
-                        | **Reverence**       | ਆਉ ਜੀ, ਆਇ ਜੀ, ਪਿਛੋ ਜੀ                       |
-
-                        <sub>*Tokens taken from textbook pp. 9.1–9.4; diacritics preserved.  
-                        Feel free to trim or expand as corpus stats evolve.</sub>
-
-                        **Remember** – Interjections are **indeclinable** and **carry no grammatical
-                        features**.  Therefore the spreadsheet needs **no ending table** beyond this
-                        categorical list.
-                        """).strip() + "\\n\\n"
-                
-                notes_block = ending_cheat_sheet + implicit_note + common_sense_note
-
-                prompt = textwrap.dedent(f"""
-                    **You are a Punjabi grammar expert.**
-
-                    Below are the *allowed choices* for each feature of the highlighted word:
-
-                    {opts_block}
-                    {matches_block}
-
-                    {notes_block}
-
-                    **IMPORTANT:**  
-                    Base **all** confirmations or corrections **solely on the Darpan translation** below.  
-                    Do **not** consult any other translation or external context.
-
-                    **My Current Selections:**  
-                    - Word Under Analysis: **{ve}**  
-                    - Number / ਵਚਨ: **{num}**  
-                    - Grammar Case / ਵਯਾਕਰਣ: **{gram}**  
-                    - Gender / ਲਿੰਗ: **{gen}**  
-                    - Word Root: **{root}**
-
-                    **Context (use *only* the Darpan gloss):**  
-                    • **Verse:** {verse}  
-                    • **Darpan Translation:** {trans}  
-                    • **Darpan-Meanings:** {dm}
-
-                    **Task:**  
-                    1. **Confirm or correct** each feature—if blank, **choose** the best option  
-                    (one-sentence rationale citing the inflection or usage).
-                    • For finite forms, choose **1st / 2nd / 3rd Person** in Word-Root (do not use Past/Perfect there). 
-                    2. **Corrections**, if any:  
-                    - Number → …  
-                    - Grammar Case → …  
-                    - Word Root → …  
-                    3. **Example Usage:**  
-                    Provide **one** new Gurbāṇī-style sentence using **“{ve}”** with the
-                    confirmed ending, number, case, gender, and root.
-                    4. **Table citation:**  
-                    Quote the person × number × tense row header you matched in the Canonical table  
-                    (e.g., “1 Sg | Past”). **Use that row’s category name for “Grammar Case / ਵਯਾਕਰਣ,” unless a sanity rule forbids it.**
-                    5. **Ending ⇄ Case cross-check:**
-                    • If the cheat-sheet already lists a suffix for your chosen case, use it.  
-                    • If the case is **missing**, you may propose a likely form
-                        (or say “uninflected”) **but give one-line reasoning**.
-                    6. **Commentary:**  
-                    Please write 2–3 sentences as “ChatGPT Commentary:” explaining how you arrived at each feature choice.
-                """).strip()
-
-                self.root.clipboard_clear()
-                self.root.clipboard_append(prompt)
-                messagebox.showinfo(
-                    "Prompt Ready",
-                    "The detailed-grammar prompt has been copied to your clipboard.\n"
-                    "Paste it into ChatGPT, then paste its response back into the text box."
-                )
-
-            tk.Button(
-                frm, text="📋 Build Detailed Grammar Prompt",
-                font=("Arial", 12, "italic"),
-                bg="white", fg="dark cyan",
-                command=build_detailed_prompt
-            ).grid(row=6, column=0, columnspan=2, pady=(10, 0))
-
-            # 6) --------------  Bottom buttons (unchanged)  --------------
-            sep = tk.Frame(win, bg="#cccccc", height=2)
-            sep.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(5, 0))
-
-            btns = tk.Frame(win, bg="light gray")
-            btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
-
-            tk.Button(
-                btns, text="‹ Back",
-                font=("Arial", 12), bg="gray", fg="white",
-                command=lambda: [win.destroy(),
-                                self.show_matches_grammar(self._last_matches, word, index)]
-            ).pack(side=tk.LEFT)
-
-            tk.Button(
-                btns, text="Save & Finish →",
-                font=("Arial", 12, "bold"), bg="dark cyan", fg="white",
-                command=lambda: self.on_accept_detailed_grammar(win)
-            ).pack(side=tk.RIGHT)
-
-            win.transient(self.root)
-            win.grab_set()
-            self.root.wait_window(win)
-
-
-        # Wrappers for Verse and ABW to avoid cross-calling
-        def open_final_grammar_dropdown(self, word, pos, index):
-            return self._open_final_grammar_dropdown_common(word, pos, index, mode='verse')
-
-        def open_final_grammar_dropdown_for_word(self, word, pos, index):
-            return self._open_final_grammar_dropdown_common(word, pos, index, mode='word')
-        def on_accept_detailed_grammar(self, win):
-            """Finalize the detailed grammar selection and append a row to 1.1.1_birha.csv.
-            This is called by the 'Save & Finish' button in the detailed grammar dialog.
-            """
-            advance_ok = False
+            advance_ok = bool(saved)
+        except Exception as e:
             try:
-                # Pull selections from the dropdowns/commentary box
-                ve    = (self.detailed_ve_var.get() if hasattr(self, 'detailed_ve_var') else "")
-                num   = (self.detailed_number_var.get()  if hasattr(self, 'detailed_number_var')  else "")
-                gram  = (self.detailed_grammar_var.get() if hasattr(self, 'detailed_grammar_var') else "")
-                gen   = (self.detailed_gender_var.get()  if hasattr(self, 'detailed_gender_var')  else "")
-                root  = (self.detailed_root_var.get()    if hasattr(self, 'detailed_root_var')    else "")
-                comm  = ""
+                messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
+            except Exception:
+                pass
+        finally:
+            # Close and advance only if save succeeded or confirmed overwrite
+            if advance_ok:
+                self.detailed_grammar_entries_saved = getattr(self, 'detailed_grammar_entries_saved', 0) + 1
                 try:
-                    if hasattr(self, 'detailed_commentary') and self.detailed_commentary is not None:
-                        comm = self.detailed_commentary.get("1.0", tk.END).strip()
+                    if win and win.winfo_exists():
+                        win.destroy()
+                except Exception:
+                    pass
+                try:
+                    # advance in the selected-words queue if that flow is active
+                    if hasattr(self, 'grammar_queue'):
+                        self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
+                        is_abw = (getattr(self, '_current_detailed_mode', 'verse') == 'word') or (getattr(self, '_current_grammar_mode', 'verse') == 'word')
+                        if is_abw:
+                            self.abw_process_next_word_assessment()
+                        else:
+                            self.process_next_word_assessment()
                 except Exception:
                     pass
 
-                # Update the current detailed entry with finalized values
-                entry = getattr(self, 'current_detailed_entry', {}) or {}
-                if ve:
-                    entry["Vowel Ending"] = ve
-                if num:
-                    entry["Number / ਵਚਨ"] = num
-                if gram:
-                    entry["Grammar / ਵਯਾਕਰਣ"] = gram
-                if gen:
-                    entry["Gender / ਲਿੰਗ"] = gen
-                if root:
-                    entry["Word Root"] = root
-                # Keep existing fields: Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning
-                # Store commentary in the UI key for internal use; CSV uses 'ChatGPT Commentry'
-                entry["ChatGPT Commentary"] = comm
+    def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv", require_confirm: bool = False, ui_parent=None):
+        """Append a UTF-8 row to 1.1.1_birha.csv, creating it with headers if missing.
+        Expected headers: Vowel Ending, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ,
+        Word Root, Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning, ChatGPT Commentry
+        """
+        headers = [
+            "\ufeffVowel Ending",  # keep BOM in first header for compatibility with existing readers
+            "Number / ਵਚਨ",
+            "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ",
+            "Word Root",
+            "Type",
+            "Evaluation",
+            "Reference Verse",
+            "Darpan Translation",
+            "Darpan Meaning",
+            "ChatGPT Commentry",   # note: CSV header uses \'Commentry\'
+            "Row State",
+        ]
+        # Build a row mapping with safe defaults
+        row = {h: "" for h in headers}
+        # Map from internal keys (including 'ChatGPT Commentary') to CSV headers
+        mapping = {
+            "Vowel Ending": "Vowel Ending",
+            "\ufeffVowel Ending": "Vowel Ending",
+            "Number / ਵਚਨ": "Number / ਵਚਨ",
+            "Grammar / ਵਯਾਕਰਣ": "Grammar / ਵਯਾਕਰਣ",
+            "Gender / ਲਿੰਗ": "Gender / ਲਿੰਗ",
+            "Word Root": "Word Root",
+            "Type": "Type",
+            "Evaluation": "Evaluation",
+            "Reference Verse": "Reference Verse",
+            "Darpan Translation": "Darpan Translation",
+            "Darpan Meaning": "Darpan Meaning",
+            # Internal UI key to CSV header
+            "ChatGPT Commentary": "ChatGPT Commentry",
+            "ChatGPT Commentry": "ChatGPT Commentry",
+            "Row State": "Row State",
+            "row_state": "Row State",
+            "Word Index": "Word Index",
+        }
+        for k, v in (entry or {}).items():
+            if k in mapping:
+                row[mapping[k]] = v if v is not None else ""
 
-                # Append/Overwrite to CSV with composite key and confirm-overwrite UI
-                saved, _row_no, _mode = self._append_birha_csv_row(
-                    entry,
-                    path="1.1.1_birha.csv",
-                    require_confirm=True,
-                    ui_parent=win
-                )
-                advance_ok = bool(saved)
-            except Exception as e:
+        row_state_val = entry.get('Row State', entry.get('row_state', 'Active')) if entry else 'Active'
+        if not row_state_val:
+            row_state_val = 'Active'
+        row['Row State'] = row_state_val
+
+        # Overwrite vs append based on composite key (Vowel Ending, Reference Verse, Word Index)
+        key_vowel = row.get('Vowel Ending', row.get('\ufeffVowel Ending', ''))
+        key_ref   = row.get('Reference Verse', '')
+        key_widx  = str(row.get('Word Index', '') or '').strip()
+        composite_key = (key_vowel, key_ref, key_widx)
+
+        file_exists = os.path.exists(path)
+        file_empty = False
+        if file_exists:
+            try:
+                file_empty = os.path.getsize(path) == 0
+            except Exception:
+                file_empty = False
+
+        existing_rows = []
+        headers_from_file = None
+        if file_exists and not file_empty:
+            try:
+                with open(path, 'r', encoding='utf-8-sig', newline='') as f:
+                    reader = csv.DictReader(f)
+                    headers_from_file = list(reader.fieldnames or [])
+                    existing_rows = list(reader)
+            except Exception:
+                existing_rows = []
+
+        # Normalize and preserve existing column order; ensure 'Word Index' exists at end
+        def _norm_header_list(hdrs):
+            out = []
+            for h in (hdrs or []):
+                s = str(h)
+                if s.startswith('\ufeff'):
+                    s = s[1:]
+                out.append(s)
+            return out
+
+        if headers_from_file:
+            headers = _norm_header_list(headers_from_file)
+        else:
+            headers = _norm_header_list(headers)
+        if 'Word Index' not in headers:
+            headers.append('Word Index')
+        if 'Row State' not in headers:
+            headers.append('Row State')
+
+        for r in existing_rows:
+            if 'Row State' not in r or not str(r.get('Row State', '')).strip():
+                r['Row State'] = 'Active'
+
+        # Find a matching row by keys; treat missing/blank Word Index as wildcard for legacy rows
+        match_idx = None
+        for i, r in enumerate(existing_rows):
+            ex_vowel = r.get('\ufeffVowel Ending', r.get('Vowel Ending', ''))
+            ex_ref   = r.get('Reference Verse', '')
+            ex_widx  = str(r.get('Word Index', '') or '').strip()
+            if ex_vowel == key_vowel and ex_ref == key_ref:
+                if (ex_widx == key_widx) or (ex_widx == '' or key_widx == ''):
+                    match_idx = i
+                    break
+
+        if match_idx is not None:
+            # Show confirm modal with diff if requested
+            if require_confirm and ui_parent is not None:
                 try:
-                    messagebox.showwarning("Save Warning", f"Could not append CSV row: {e}")
+                    if not self._confirm_overwrite_modal(ui_parent, headers, existing_rows[match_idx], row):
+                        return False, None, None
                 except Exception:
                     pass
-            finally:
-                # Close and advance only if save succeeded or confirmed overwrite
-                if advance_ok:
-                    self.detailed_grammar_entries_saved = getattr(self, 'detailed_grammar_entries_saved', 0) + 1
-                    try:
-                        if win and win.winfo_exists():
-                            win.destroy()
-                    except Exception:
-                        pass
-                    try:
-                        # advance in the selected-words queue if that flow is active
-                        if hasattr(self, 'grammar_queue'):
-                            self.current_queue_pos = getattr(self, 'current_queue_pos', 0) + 1
-                            is_abw = (getattr(self, '_current_detailed_mode', 'verse') == 'word') or (getattr(self, '_current_grammar_mode', 'verse') == 'word')
-                            if is_abw:
-                                self.abw_process_next_word_assessment()
-                            else:
-                                self.process_next_word_assessment()
-                    except Exception:
-                        pass
-
-        def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv", require_confirm: bool = False, ui_parent=None):
-            """Append a UTF-8 row to 1.1.1_birha.csv, creating it with headers if missing.
-            Expected headers: Vowel Ending, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ,
-            Word Root, Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning, ChatGPT Commentry
-            """
-            headers = [
-                "\ufeffVowel Ending",  # keep BOM in first header for compatibility with existing readers
-                "Number / ਵਚਨ",
-                "Grammar / ਵਯਾਕਰਣ",
-                "Gender / ਲਿੰਗ",
-                "Word Root",
-                "Type",
-                "Evaluation",
-                "Reference Verse",
-                "Darpan Translation",
-                "Darpan Meaning",
-                "ChatGPT Commentry",   # note: CSV header uses \'Commentry\'
-                "Row State",
-            ]
-            # Build a row mapping with safe defaults
-            row = {h: "" for h in headers}
-            # Map from internal keys (including 'ChatGPT Commentary') to CSV headers
-            mapping = {
-                "Vowel Ending": "Vowel Ending",
-                "\ufeffVowel Ending": "Vowel Ending",
-                "Number / ਵਚਨ": "Number / ਵਚਨ",
-                "Grammar / ਵਯਾਕਰਣ": "Grammar / ਵਯਾਕਰਣ",
-                "Gender / ਲਿੰਗ": "Gender / ਲਿੰਗ",
-                "Word Root": "Word Root",
-                "Type": "Type",
-                "Evaluation": "Evaluation",
-                "Reference Verse": "Reference Verse",
-                "Darpan Translation": "Darpan Translation",
-                "Darpan Meaning": "Darpan Meaning",
-                # Internal UI key to CSV header
-                "ChatGPT Commentary": "ChatGPT Commentry",
-                "ChatGPT Commentry": "ChatGPT Commentry",
-                "Row State": "Row State",
-                "row_state": "Row State",
-                "Word Index": "Word Index",
-            }
-            for k, v in (entry or {}).items():
-                if k in mapping:
-                    row[mapping[k]] = v if v is not None else ""
-
-            row_state_val = entry.get('Row State', entry.get('row_state', 'Active')) if entry else 'Active'
-            if not row_state_val:
-                row_state_val = 'Active'
-            row['Row State'] = row_state_val
-
-            # Overwrite vs append based on composite key (Vowel Ending, Reference Verse, Word Index)
-            key_vowel = row.get('Vowel Ending', row.get('\ufeffVowel Ending', ''))
-            key_ref   = row.get('Reference Verse', '')
-            key_widx  = str(row.get('Word Index', '') or '').strip()
-            composite_key = (key_vowel, key_ref, key_widx)
-
-            file_exists = os.path.exists(path)
-            file_empty = False
-            if file_exists:
+            # Replace the existing row (store normalized keys so writer can map to BOM-safe headers)
+            existing_rows[match_idx] = dict(row)
+            with open(path, 'w', encoding='utf-8', newline='') as f:
                 try:
-                    file_empty = os.path.getsize(path) == 0
+                    f.write('\ufeff')
                 except Exception:
-                    file_empty = False
-
-            existing_rows = []
-            headers_from_file = None
-            if file_exists and not file_empty:
+                    pass
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                for r in existing_rows:
+                    out = {h: '' for h in headers}
+                    for k, v in (r or {}).items():
+                        try:
+                            nk = str(k)
+                        except Exception:
+                            nk = k
+                        if isinstance(nk, str) and nk.startswith('\ufeff'):
+                            nk = nk[1:]
+                        if nk in out:
+                            out[nk] = v
+                    writer.writerow(out)
                 try:
-                    with open(path, 'r', encoding='utf-8-sig', newline='') as f:
-                        reader = csv.DictReader(f)
-                        headers_from_file = list(reader.fieldnames or [])
-                        existing_rows = list(reader)
+                    f.flush(); os.fsync(f.fileno())
                 except Exception:
-                    existing_rows = []
-
-            # Normalize and preserve existing column order; ensure 'Word Index' exists at end
-            def _norm_header_list(hdrs):
-                out = []
-                for h in (hdrs or []):
-                    s = str(h)
-                    if s.startswith('\ufeff'):
-                        s = s[1:]
-                    out.append(s)
-                return out
-
-            if headers_from_file:
-                headers = _norm_header_list(headers_from_file)
-            else:
-                headers = _norm_header_list(headers)
-            if 'Word Index' not in headers:
-                headers.append('Word Index')
-            if 'Row State' not in headers:
-                headers.append('Row State')
-
-            for r in existing_rows:
-                if 'Row State' not in r or not str(r.get('Row State', '')).strip():
-                    r['Row State'] = 'Active'
-
-            # Find a matching row by keys; treat missing/blank Word Index as wildcard for legacy rows
-            match_idx = None
-            for i, r in enumerate(existing_rows):
-                ex_vowel = r.get('\ufeffVowel Ending', r.get('Vowel Ending', ''))
-                ex_ref   = r.get('Reference Verse', '')
-                ex_widx  = str(r.get('Word Index', '') or '').strip()
-                if ex_vowel == key_vowel and ex_ref == key_ref:
-                    if (ex_widx == key_widx) or (ex_widx == '' or key_widx == ''):
-                        match_idx = i
-                        break
-
-            if match_idx is not None:
-                # Show confirm modal with diff if requested
-                if require_confirm and ui_parent is not None:
-                    try:
-                        if not self._confirm_overwrite_modal(ui_parent, headers, existing_rows[match_idx], row):
-                            return False, None, None
-                    except Exception:
-                        pass
-                # Replace the existing row (store normalized keys so writer can map to BOM-safe headers)
-                existing_rows[match_idx] = dict(row)
+                    pass
+                row_no = match_idx + 1
+                try:
+                    messagebox.showinfo("Saved", f"Saved to {path} (row #{row_no} overwritten)")
+                except Exception:
+                    pass
+                print(f"[Save] overwrite row #{row_no}")
+                self._invalidate_derived_cache()
+                return True, row_no, 'overwrite'
+        else:
+            # Create file with header if missing, then append
+            if (not file_exists) or file_empty:
                 with open(path, 'w', encoding='utf-8', newline='') as f:
                     try:
                         f.write('\ufeff')
@@ -8149,100 +8183,66 @@ class GrammarApp:
                         pass
                     writer = csv.DictWriter(f, fieldnames=headers)
                     writer.writeheader()
-                    for r in existing_rows:
-                        out = {h: '' for h in headers}
-                        for k, v in (r or {}).items():
-                            try:
-                                nk = str(k)
-                            except Exception:
-                                nk = k
-                            if isinstance(nk, str) and nk.startswith('\ufeff'):
-                                nk = nk[1:]
-                            if nk in out:
-                                out[nk] = v
-                        writer.writerow(out)
                     try:
                         f.flush(); os.fsync(f.fileno())
                     except Exception:
                         pass
-                    row_no = match_idx + 1
-                    try:
-                        messagebox.showinfo("Saved", f"Saved to {path} (row #{row_no} overwritten)")
-                    except Exception:
-                        pass
-                    print(f"[Save] overwrite row #{row_no}")
-                    self._invalidate_derived_cache()
-                    return True, row_no, 'overwrite'
             else:
-                # Create file with header if missing, then append
-                if (not file_exists) or file_empty:
-                    with open(path, 'w', encoding='utf-8', newline='') as f:
-                        try:
-                            f.write('\ufeff')
-                        except Exception:
-                            pass
-                        writer = csv.DictWriter(f, fieldnames=headers)
-                        writer.writeheader()
-                        try:
-                            f.flush(); os.fsync(f.fileno())
-                        except Exception:
-                            pass
-                else:
-                    # If the existing CSV lacks 'Word Index' in its header, upgrade the file by rewriting
-                    try:
-                        existing_headers_norm = _norm_header_list(headers_from_file) if headers_from_file else []
-                    except Exception:
-                        existing_headers_norm = list(headers_from_file or [])
-                    if headers_from_file and 'Word Index' not in existing_headers_norm:
-                        try:
-                            with open(path, 'w', encoding='utf-8', newline='') as f:
-                                try:
-                                    f.write('\ufeff')
-                                except Exception:
-                                    pass
-                                writer = csv.DictWriter(f, fieldnames=headers)
-                                writer.writeheader()
-                                for r in existing_rows:
-                                    out = {h: '' for h in headers}
-                                    for k, v in (r or {}).items():
-                                        try:
-                                            nk = str(k)
-                                        except Exception:
-                                            nk = k
-                                        if isinstance(nk, str) and nk.startswith('\ufeff'):
-                                            nk = nk[1:]
-                                        if nk in out:
-                                            out[nk] = v
-                                    writer.writerow(out)
-                                try:
-                                    f.flush(); os.fsync(f.fileno())
-                                except Exception:
-                                    pass
-                        except Exception:
-                            # If upgrade fails, fall back to appending without Word Index to avoid misalignment
-                            headers = existing_headers_norm
-                with open(path, 'a', encoding='utf-8', newline='') as f:
-                    writer = csv.DictWriter(f, fieldnames=headers)
-                    # Build an output row aligned to headers (map normalized 'Vowel Ending' to BOM header if needed)
-                    out = {h: '' for h in headers}
-                    for k, v in (row or {}).items():
-                        if k in out:
-                            out[k] = v
-                        elif k == 'Vowel Ending' and '\ufeffVowel Ending' in out:
-                            out['\ufeffVowel Ending'] = v
-                    writer.writerow(out)
-                    try:
-                        f.flush(); os.fsync(f.fileno())
-                    except Exception:
-                        pass
-                row_no = (len(existing_rows) if existing_rows else 0) + 1
+                # If the existing CSV lacks 'Word Index' in its header, upgrade the file by rewriting
                 try:
-                    messagebox.showinfo("Saved", f"Saved to {path} (new row #{row_no})")
+                    existing_headers_norm = _norm_header_list(headers_from_file) if headers_from_file else []
+                except Exception:
+                    existing_headers_norm = list(headers_from_file or [])
+                if headers_from_file and 'Word Index' not in existing_headers_norm:
+                    try:
+                        with open(path, 'w', encoding='utf-8', newline='') as f:
+                            try:
+                                f.write('\ufeff')
+                            except Exception:
+                                pass
+                            writer = csv.DictWriter(f, fieldnames=headers)
+                            writer.writeheader()
+                            for r in existing_rows:
+                                out = {h: '' for h in headers}
+                                for k, v in (r or {}).items():
+                                    try:
+                                        nk = str(k)
+                                    except Exception:
+                                        nk = k
+                                    if isinstance(nk, str) and nk.startswith('\ufeff'):
+                                        nk = nk[1:]
+                                    if nk in out:
+                                        out[nk] = v
+                                writer.writerow(out)
+                            try:
+                                f.flush(); os.fsync(f.fileno())
+                            except Exception:
+                                pass
+                    except Exception:
+                        # If upgrade fails, fall back to appending without Word Index to avoid misalignment
+                        headers = existing_headers_norm
+            with open(path, 'a', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                # Build an output row aligned to headers (map normalized 'Vowel Ending' to BOM header if needed)
+                out = {h: '' for h in headers}
+                for k, v in (row or {}).items():
+                    if k in out:
+                        out[k] = v
+                    elif k == 'Vowel Ending' and '\ufeffVowel Ending' in out:
+                        out['\ufeffVowel Ending'] = v
+                writer.writerow(out)
+                try:
+                    f.flush(); os.fsync(f.fileno())
                 except Exception:
                     pass
-                print(f"[Save] new row #{row_no}")
-                self._invalidate_derived_cache()
-                return True, row_no, 'append'
+            row_no = (len(existing_rows) if existing_rows else 0) + 1
+            try:
+                messagebox.showinfo("Saved", f"Saved to {path} (new row #{row_no})")
+            except Exception:
+                pass
+            print(f"[Save] new row #{row_no}")
+            self._invalidate_derived_cache()
+            return True, row_no, 'append'
 
 
 
