@@ -690,6 +690,8 @@ _PROGRESS_COLUMNS = [
     "verse_key_norm",
 ]
 
+_TRACKER_QUEUE_INDEX_KEY = "_tracker_row_index"
+
 
 _KNOWN_PROGRESS_STATUSES = {"pending", "completed", "reanalysis_queued", "removed", "archived"}
 
@@ -1232,6 +1234,102 @@ def _word_index_key(value) -> str:
             return str(value)
         except Exception:
             return ""
+
+
+def _dt_match_key(value) -> str:
+    """Create a comparable string key for datetime-like values."""
+    if value is None or value == "":
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    if isinstance(value, pd.Timestamp):
+        try:
+            if value.tz is not None:
+                value = value.tz_convert('UTC').tz_localize(None)
+        except Exception:
+            try:
+                value = value.tz_localize(None)
+            except Exception:
+                pass
+        value = value.to_pydatetime()
+    if isinstance(value, datetime):
+        try:
+            return value.replace(microsecond=value.microsecond).isoformat()
+        except Exception:
+            return value.isoformat()
+    try:
+        return str(value).strip()
+    except Exception:
+        return ""
+
+
+def _progress_target_mask(prog_df: pd.DataFrame, base_mask: pd.Series, queue_record: dict) -> pd.Series:
+    """Return a boolean mask narrowed to the progress row being finalized."""
+    if prog_df is None or prog_df.empty or base_mask is None:
+        return base_mask
+
+    try:
+        candidates = prog_df.loc[base_mask].copy()
+    except Exception:
+        candidates = prog_df.loc[base_mask.fillna(False)] if hasattr(base_mask, 'fillna') else prog_df.iloc[0:0]
+
+    if candidates.empty:
+        return base_mask
+
+    row_idx = queue_record.get(_TRACKER_QUEUE_INDEX_KEY)
+    if row_idx in candidates.index:
+        return prog_df.index == row_idx
+
+    status_norm = _normalize_progress_status(queue_record.get('status')) if queue_record else None
+    if status_norm and 'status' in candidates.columns:
+        try:
+            status_mask = candidates['status'].map(_normalize_progress_status) == status_norm
+            if status_mask.any():
+                candidates = candidates.loc[status_mask]
+        except Exception:
+            pass
+
+    created_key = _dt_match_key(queue_record.get('created_at')) if queue_record else ""
+    if created_key and 'created_at' in candidates.columns:
+        try:
+            created_mask = candidates['created_at'].map(_dt_match_key) == created_key
+            if created_mask.any():
+                candidates = candidates.loc[created_mask]
+        except Exception:
+            pass
+
+    if candidates.shape[0] > 1 and 'selected_at' in candidates.columns:
+        selected_key = _dt_match_key(queue_record.get('selected_at')) if queue_record else ""
+        if selected_key:
+            try:
+                selected_mask = candidates['selected_at'].map(_dt_match_key) == selected_key
+                if selected_mask.any():
+                    candidates = candidates.loc[selected_mask]
+            except Exception:
+                pass
+
+    if candidates.empty:
+        candidates = prog_df.loc[base_mask]
+
+    if candidates.shape[0] > 1:
+        if 'created_at' in candidates.columns:
+            try:
+                created_series = pd.to_datetime(candidates['created_at'], errors='coerce')
+                if not created_series.isna().all():
+                    latest_idx = created_series.idxmax()
+                    return prog_df.index == latest_idx
+            except Exception:
+                pass
+        try:
+            return prog_df.index == candidates.index.max()
+        except Exception:
+            pass
+
+    return prog_df.index.isin(candidates.index)
+
 
 def _parse_page_value(val):
     try:
@@ -2504,6 +2602,10 @@ class GrammarApp:
                         except Exception:
                             df['_sel'] = pd.Series([None]*len(df))
                         df = df.sort_values(by=['_sel']).drop(columns=['_sel'])
+                    try:
+                        df[_TRACKER_QUEUE_INDEX_KEY] = df.index
+                    except Exception:
+                        df[_TRACKER_QUEUE_INDEX_KEY] = list(df.index)
                     self._word_driver_queue = df.to_dict('records')
                 except Exception:
                     self._word_driver_queue = []
@@ -2541,6 +2643,7 @@ class GrammarApp:
             self._word_driver_norm = norm
             self._word_driver_index = 0
             self._word_driver_current_verse = None
+            self._word_driver_current_record = None
 
             # Integrated driver controls are part of the ABW windows; no floating controller.
             # Open first verse immediately
@@ -2646,11 +2749,13 @@ class GrammarApp:
                 return
             queue = getattr(self, '_word_driver_queue', []) or []
             idx = getattr(self, '_word_driver_index', 0)
+            self._word_driver_current_record = None
             if idx >= len(queue):
                 # done
                 self._word_driver_complete_word_if_done()
                 return
             rec = queue[idx]
+            self._word_driver_current_record = rec
             verse = str(rec.get('verse', ''))
             if not verse.strip():
                 # Skip invalid
@@ -2693,6 +2798,7 @@ class GrammarApp:
             if idx < total:
                 self._word_driver_index = idx + 1
             self._word_driver_current_verse = None
+            self._word_driver_current_record = None
             # refresh controller UI
             self._word_driver_update_ui()
         except Exception:
@@ -2712,35 +2818,64 @@ class GrammarApp:
                     mask_verse = (prog_df.get('verse', pd.Series(dtype=str)).astype(str)
                                   .map(lambda s: _normalize_simple(s)) == _normalize_simple(verse))
                     mask = mask_word & mask_verse
+                    current_record = getattr(self, '_word_driver_current_record', {}) or {}
                     if mask.any():
-                        prev_status = prog_df.loc[mask, 'status'].map(_normalize_progress_status) if 'status' in prog_df.columns else pd.Series([], dtype=str)
-                        now = datetime.now()
-                        if 'status' in prog_df.columns:
-                            prog_df.loc[mask, 'status'] = 'completed'
-                        if 'completed_at' in prog_df.columns:
-                            prog_df.loc[mask, 'completed_at'] = now
-                        if 'reanalyzed_count' in prog_df.columns and not prev_status.empty:
-                            try:
-                                counts = prog_df.loc[mask, 'reanalyzed_count'].fillna(0).astype(int)
-                                requeue_flags = prev_status.eq('reanalysis_queued').astype(int)
-                                prog_df.loc[mask, 'reanalyzed_count'] = counts.add(requeue_flags, fill_value=0).astype(int)
-                            except Exception:
-                                pass
-                        if 'last_reanalyzed_at' in prog_df.columns and not prev_status.empty:
-                            try:
-                                needs_ts = prev_status.eq('reanalysis_queued')
-                                if needs_ts.any():
-                                    prog_df.loc[prev_status.index[needs_ts], 'last_reanalyzed_at'] = now
-                            except Exception:
-                                pass
-                        if 'superseded_at' in prog_df.columns:
-                            try:
-                                prog_df.loc[mask, 'superseded_at'] = None
-                            except Exception:
-                                pass
-                        _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
+                        target_mask = _progress_target_mask(prog_df, mask, current_record)
+                        if isinstance(target_mask, pd.Series):
+                            target_mask = target_mask.reindex(prog_df.index, fill_value=False)
+                        else:
+                            target_mask = pd.Series(target_mask, index=prog_df.index)
+                        target_mask = target_mask & mask
+                        if target_mask.any():
+                            prev_status = (
+                                prog_df.loc[target_mask, 'status'].map(_normalize_progress_status)
+                                if 'status' in prog_df.columns else pd.Series([], dtype=str)
+                            )
+                            now = datetime.now()
+                            others_mask = mask & ~target_mask
+                            others_superseded_count = None
+                            others_superseded_snapshot = None
+                            if 'superseded_at' in prog_df.columns and others_mask.any():
+                                try:
+                                    others_superseded_snapshot = prog_df.loc[others_mask, 'superseded_at'].copy()
+                                    others_superseded_count = prog_df.loc[others_mask, 'superseded_at'].notna().sum()
+                                except Exception:
+                                    others_superseded_snapshot = None
+                                    others_superseded_count = None
+                            if 'status' in prog_df.columns:
+                                prog_df.loc[target_mask, 'status'] = 'completed'
+                            if 'completed_at' in prog_df.columns:
+                                prog_df.loc[target_mask, 'completed_at'] = now
+                            if 'reanalyzed_count' in prog_df.columns and not prev_status.empty:
+                                try:
+                                    counts = prog_df.loc[target_mask, 'reanalyzed_count'].fillna(0).astype(int)
+                                    requeue_flags = prev_status.eq('reanalysis_queued').astype(int)
+                                    prog_df.loc[target_mask, 'reanalyzed_count'] = counts.add(requeue_flags, fill_value=0).astype(int)
+                                except Exception:
+                                    pass
+                            if 'last_reanalyzed_at' in prog_df.columns and not prev_status.empty:
+                                try:
+                                    needs_ts = prev_status.eq('reanalysis_queued')
+                                    if needs_ts.any():
+                                        prog_df.loc[prev_status.index[needs_ts], 'last_reanalyzed_at'] = now
+                                except Exception:
+                                    pass
+                            if 'superseded_at' in prog_df.columns:
+                                try:
+                                    prog_df.loc[target_mask, 'superseded_at'] = None
+                                except Exception:
+                                    pass
+                                if others_superseded_snapshot is not None:
+                                    try:
+                                        after_count = prog_df.loc[others_mask, 'superseded_at'].notna().sum()
+                                        if others_superseded_count is not None and after_count != others_superseded_count:
+                                            prog_df.loc[others_mask, 'superseded_at'] = others_superseded_snapshot
+                                    except Exception:
+                                        prog_df.loc[others_mask, 'superseded_at'] = others_superseded_snapshot
+                            _save_tracker(tracker_path, words_df, prog_df, others, TRACKER_WORDS_SHEET, TRACKER_PROGRESS_SHEET)
                 except Exception:
                     pass
+            self._word_driver_current_record = None
             # advance index
             self._word_driver_in_progress = False
             self._word_driver_index += 1
