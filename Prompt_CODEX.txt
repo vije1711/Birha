@@ -1,27 +1,30 @@
 Objective:
-In `_build_user_input_grammar`, preselect "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ" (Part of Speech), and "Type" based on frequency counts from `1.1.1_birha.csv`, using ONLY rows where:
-  (a) the CSV column “Vowel Ending” EXACTLY equals the current word under analysis (handle BOM variant “\ufeffVowel Ending”),
-  (b) the CSV column “Evaluation” == "Derived".
+In `_build_user_input_grammar`, auto-select and highlight suggested defaults for "Number / ਵਚਨ", "Gender / ਲਿੰਗ", and "Type" based on frequency counts from `1.1.1_birha.csv`. Use only rows where:
+  (a) the “Vowel Ending” column exactly matches the current word under analysis (BOM-safe; handle "\ufeffVowel Ending"), and
+  (b) the “Evaluation” column equals "Derived".
+Additionally, ensure these suggestions refresh **immediately after every CSV update** so changes reflect as the session proceeds.
 
 Details:
-- Load `1.1.1_birha.csv` once (cache DataFrame). Normalize headers to gracefully handle BOM on “Vowel Ending”.
-- Filter: `df[(vowel_ending_col == current_word) & (Evaluation == "Derived")]`.
-- Compute value counts for each target field: ["Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Type"].
-- Decision rule per field:
-    * If there is a single top candidate AND it passes a dominance threshold (e.g., support ≥ 3 and top_ratio ≥ 0.60), preselect that radio in the grammar UI.
-    * Otherwise leave the field unset.
-- Do NOT use “Vowel Ending” itself in comparisons for highlighting or decisions (only for filtering).
+- Load/cache `1.1.1_birha.csv` with BOM-safe headers.
+- Add freshness logic:
+  - After each successful save (`on_accept_detailed_grammar` → `_append_birha_csv_row`), invalidate the cached DataFrame.
+  - In `get_derived_suggestions_by_vowel_ending`, re-load on cache-miss OR when file mtime has changed.
+- Filter by exact Vowel Ending and Evaluation="Derived".
+- For each target field (Number / ਵਚਨ, Gender / ਲਿੰਗ, Type), compute value counts.
+- If a single candidate meets dominance (support ≥ 3 and top_ratio ≥ 0.60), **auto-select** that radio and apply a **constant highlight** (e.g., LightYellow bg) to the selected option. If ttk bg is blocked, wrap the radio in a small Frame carrying the highlight color.
+- No use of “Vowel Ending” in comparisons (only for filtering).
 
 Integration points:
-- Add helper: `get_derived_suggestions_by_vowel_ending(word) -> {"Number / ਵਚਨ": (value, n, ratio) | None, "Grammar / ਵਯਾਕਰਣ": ..., "Type": ...}`
-- Call this helper near the end of `_build_user_input_grammar` after radio groups are constructed; set the associated `tk.Variable`s for fields that meet the rule.
-- Ensure BOM-safe access: check both "Vowel Ending" and "\ufeffVowel Ending" and pick whichever exists.
+- Helper: `get_derived_suggestions_by_vowel_ending(word) -> {"Number / ਵਚਨ": (value, n, ratio) | None, "Gender / ਲਿੰਗ": ..., "Type": ...}` with mtime-guarded reloads.
+- In `_build_user_input_grammar`, after constructing radio groups, call the helper; for each qualifying field, set the `tk.Variable` to the suggested value and apply the highlight styling.
+- After `_append_birha_csv_row` success, call a small invalidation hook (e.g., `self._derived_cache = None` and store `self._derived_cache_mtime`).
 
 Acceptance:
-- With CSV rows matching the current word (by Vowel Ending) and Evaluation="Derived", the most frequent qualifying values prefill the three fields when dominance condition holds; else nothing is auto-set.
-- No regressions to layout, saving, or other flows.
+- Suggested options for Number, Gender, and Type are **auto-selected and highlighted** when dominance holds.
+- Opening the next word (or reopening the dialog) after a save uses the **updated** CSV without restarting the app.
+- No regressions to layout, saving, scrolling, or other flows.
 
-Branch: feat/derived-preselect-by-vowel-ending
-PR Title: Preselect grammar fields from CSV frequencies filtered by Vowel Ending and Evaluation=Derived
+Branch: feat/auto-select-and-refresh-derived-suggestions
+PR Title: Auto-select + highlight derived grammar suggestions and refresh after each CSV save
 PR Description:
-Implements smart defaults in `_build_user_input_grammar` by counting ["Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Type"] from `1.1.1_birha.csv` rows where Vowel Ending exactly equals the current word (BOM-safe) and Evaluation="Derived". No multisense/raag context used (CSV lacks it).
+Implements frequency-based auto-selection and constant highlight for Number/Gender/Type in `_build_user_input_grammar`, filtered by exact Vowel Ending (BOM-safe) and Evaluation="Derived". Adds cache invalidation on save and mtime-guarded reloads so suggestions update immediately as the session progresses.
