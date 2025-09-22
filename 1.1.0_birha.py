@@ -3260,11 +3260,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
-            mgr = self._wm_for(win)
-            if mgr:
-                mgr.enable_safe_maximize(0)
         except Exception:
             pass
+        self._enable_safe_maximize_after_idle(win, 0)
 
         tk.Label(
             win,
@@ -3434,11 +3432,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
-            mgr = self._wm_for(win)
-            if mgr:
-                mgr.enable_safe_maximize(0)
         except Exception:
             pass
+        self._enable_safe_maximize_after_idle(win, 0)
 
         header_var = tk.StringVar()
         tk.Label(win, textvariable=header_var, font=('Arial', 14, 'bold'), bg='light gray').pack(padx=12, pady=(12, 6), anchor='w')
@@ -3760,11 +3756,9 @@ class GrammarApp:
         win.configure(bg='light gray')
         try:
             win.transient(self.root)
-            mgr = self._wm_for(win)
-            if mgr:
-                mgr.enable_safe_maximize(0)
         except Exception:
             pass
+        self._enable_safe_maximize_after_idle(win, 0)
 
         tk.Label(
             win,
@@ -4585,6 +4579,25 @@ class GrammarApp:
             return mgr
         except Exception:
             return None
+
+    def _enable_safe_maximize_after_idle(self, win, margin_px: int = 0):
+        """Ensure 'enable_safe_maximize' runs after Tk realizes the native window."""
+        mgr = self._wm_for(win)
+        if not mgr:
+            return None
+
+        def _apply():
+            try:
+                mgr.enable_safe_maximize(margin_px)
+            except Exception:
+                pass
+
+        try:
+            win.after_idle(_apply)
+        except Exception:
+            _apply()
+
+        return mgr
 
     def _wm_apply(self, win, margin_px: int | None = None, defer: bool = True):
         """Attach WindowManager to 'win' and optionally maximize.
