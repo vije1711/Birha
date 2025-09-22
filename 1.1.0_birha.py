@@ -3384,12 +3384,24 @@ class GrammarApp:
             grammar_df = grammar_df.loc[state_norm.isin(allowed_states)]
 
         grammar_lookup: dict[tuple[str, str], dict[str, str]] = {}
+        grammar_priority: dict[tuple[str, str], int] = {}
         if not grammar_df.empty and ve_col:
             subset = grammar_df.loc[grammar_df[ve_col].map(_normalize_simple) == norm_key]
             for _, row in subset.iterrows():
                 idx_key = _word_index_key(row.get(idx_col)) if idx_col else ""
                 verse_key = _normalize_verse_key(row.get(ref_col, "")) if ref_col else ""
                 key = (idx_key, verse_key)
+                if state_col:
+                    try:
+                        state_value = str(row.get(state_col, "") or "")
+                    except Exception:
+                        state_value = ""
+                    state_norm = _normalize_simple(state_value)
+                else:
+                    state_norm = ""
+                priority = 1 if state_norm == "active" else 0
+                if key in grammar_lookup and priority < grammar_priority.get(key, -1):
+                    continue
                 grammar_lookup[key] = {
                     "number": str(row.get(num_col, "") or ""),
                     "grammar": str(row.get(gram_col, "") or ""),
@@ -3397,6 +3409,7 @@ class GrammarApp:
                     "root": str(row.get(root_col, "") or ""),
                     "type": str(row.get(type_col, "") or ""),
                 }
+                grammar_priority[key] = priority
 
         def _chips(idx_key: str, verse_key: str) -> str:
             detail = grammar_lookup.get((idx_key, verse_key))
