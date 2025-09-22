@@ -156,14 +156,25 @@ class ReanalysisSupersededTest(unittest.TestCase):
                 pass
 
         class FakeFrame:
-            def __init__(self, *_args, **_kwargs):
-                pass
+            def __init__(self, *_args, **kwargs):
+                self._bg = kwargs.get("bg", "")
 
             def pack(self, *_args, **_kwargs):
                 pass
 
             def bind(self, *_args, **_kwargs):
                 pass
+
+            def cget(self, key):
+                if key == "bg":
+                    return self._bg
+                return ""
+
+            def destroy(self):
+                pass
+
+            def winfo_children(self):
+                return []
 
         class FakeScrollbar:
             def __init__(self, *_args, **_kwargs):
@@ -199,53 +210,39 @@ class ReanalysisSupersededTest(unittest.TestCase):
                 if "text" in kwargs:
                     self.tab_text[frame] = kwargs["text"]
 
-        class FakeTreeview:
+        class FakeProgressCardList:
             instances = []
 
-            def __init__(self, *_args, **kwargs):
-                self.columns = kwargs.get("columns", ())
-                self._items = []
+            def __init__(self, *_args, on_selection_change=None, **_kwargs):
+                self.on_selection_change = on_selection_change
+                self.records = []
                 self._selection = []
-                self._bindings = {}
-                FakeTreeview.instances.append(self)
+                FakeProgressCardList.instances.append(self)
 
-            def heading(self, *_args, **_kwargs):
-                pass
-
-            def column(self, *_args, **_kwargs):
-                pass
-
-            def configure(self, *_args, **_kwargs):
-                pass
-
-            def pack(self, *_args, **_kwargs):
-                pass
-
-            def yview(self, *_args, **_kwargs):
-                pass
-
-            def xview(self, *_args, **_kwargs):
-                pass
-
-            def get_children(self):
-                return [item["id"] for item in self._items]
-
-            def delete(self, item_id):
-                self._items = [item for item in self._items if item["id"] != item_id]
-
-            def insert(self, _parent, _index, values=()):
-                item_id = f"item{len(self._items) + 1}"
-                self._items.append({"id": item_id, "values": values})
-                return item_id
+            def set_records(self, records):
+                self.records = list(records)
+                if callable(self.on_selection_change):
+                    self.on_selection_change()
 
             def selection(self):
-                return tuple(self._selection)
+                return list(self._selection)
 
-            def bind(self, event, handler):
-                self._bindings[event] = handler
+            def has_selection(self):
+                return bool(self._selection)
 
-            def set_selection(self, items):
-                self._selection = list(items)
+            def clear_selection(self):
+                self._selection = []
+
+            def ensure_selected(self, *_args, **_kwargs):
+                pass
+
+            def destroy(self):
+                pass
+
+            def select_indices(self, indices):
+                self._selection = [self.records[i] for i in indices if 0 <= i < len(self.records)]
+                if callable(self.on_selection_change):
+                    self.on_selection_change()
 
         class FakeButton:
             instances = []
@@ -262,6 +259,8 @@ class ReanalysisSupersededTest(unittest.TestCase):
             def config(self, **kwargs):
                 if "state" in kwargs:
                     self.state = kwargs["state"]
+                if "text" in kwargs:
+                    self.text = kwargs["text"]
 
             configure = config
 
@@ -269,8 +268,8 @@ class ReanalysisSupersededTest(unittest.TestCase):
                 if callable(self.command):
                     self.command()
 
-        FakeTreeview.instances = []
         FakeButton.instances = []
+        FakeProgressCardList.instances = []
 
         app = mod.GrammarApp.__new__(mod.GrammarApp)
         app.root = object()
@@ -393,14 +392,13 @@ class ReanalysisSupersededTest(unittest.TestCase):
             mock.patch.object(mod.tk, "Scrollbar", FakeScrollbar), \
             mock.patch.object(mod.tk, "Button", FakeButton), \
             mock.patch.object(mod.ttk, "Notebook", FakeNotebook), \
-            mock.patch.object(mod.ttk, "Treeview", FakeTreeview):
+            mock.patch.object(mod, "ProgressCardList", FakeProgressCardList):
             app.show_word_progress_board(word, initial_tab="completed")
 
-            self.assertGreaterEqual(len(FakeTreeview.instances), 2, "Expected pending and completed treeviews")
-            pending_tree, completed_tree = FakeTreeview.instances[:2]
-            self.assertEqual(len(completed_tree._items), 1, "Should load existing completed record")
-            completed_id = completed_tree._items[0]["id"]
-            completed_tree.set_selection([completed_id])
+            self.assertGreaterEqual(len(FakeProgressCardList.instances), 2, "Expected pending and completed card lists")
+            pending_cards, completed_cards = FakeProgressCardList.instances[:2]
+            self.assertEqual(len(completed_cards.records), 1, "Should load existing completed record")
+            completed_cards.select_indices([0])
 
             re_btn = next((btn for btn in FakeButton.instances if btn.text == "Re-analyze Selected"), None)
             self.assertIsNotNone(re_btn, "Reanalysis button should exist")
@@ -412,14 +410,14 @@ class ReanalysisSupersededTest(unittest.TestCase):
         self.assertIn("reanalysis_queued", progress_after["status"].values)
         self.assertTrue(any(state[-1] == "Superseded" for state in updated_states))
 
-        # The completed tree should now prefer the active grammar chips
-        self.assertEqual(len(FakeTreeview.instances[1]._items), 1)
-        chips_value = FakeTreeview.instances[1]._items[0]["values"][-1]
+        # The completed cards should now prefer the active grammar chips
+        self.assertEqual(len(completed_cards.records), 1)
+        chips_value = completed_cards.records[0]["chips"]
         self.assertEqual(chips_value, expected_chips)
 
-        # Pending tree should show the queued row with the same chips source
-        self.assertEqual(len(FakeTreeview.instances[0]._items), 1)
-        pending_chips = FakeTreeview.instances[0]._items[0]["values"][-1]
+        # Pending cards should show the queued row with the same chips source
+        self.assertEqual(len(pending_cards.records), 1)
+        pending_chips = pending_cards.records[0]["chips"]
         self.assertEqual(pending_chips, expected_chips)
 
 

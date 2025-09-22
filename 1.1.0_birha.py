@@ -2064,6 +2064,427 @@ def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, p
     return True
 
 
+CHIP_DISPLAY_ORDER = [
+    ("number", "Number / ਵਚਨ"),
+    ("grammar", "Grammar / ਵਯਾਕਰਣ"),
+    ("gender", "Gender / ਲਿੰਗ"),
+    ("root", "Word Root"),
+    ("type", "Type"),
+]
+
+CHIP_STYLE_CONFIG = {
+    "number": {"bg": "#E8F1FF", "fg": "#1D4ED8"},
+    "grammar": {"bg": "#E6F8F1", "fg": "#047857"},
+    "gender": {"bg": "#F5E8FF", "fg": "#6B21A8"},
+    "root": {"bg": "#FEF3C7", "fg": "#B45309"},
+    "type": {"bg": "#FFE4E6", "fg": "#BE123C"},
+}
+
+DETAIL_FIELD_ORDER = [
+    ("darpan_translation", "Darpan Translation"),
+    ("darpan_meaning", "Darpan Meaning"),
+    ("chatgpt_commentary", "ChatGPT Commentary"),
+    ("word_index_display", "Word Index"),
+]
+
+
+class ProgressCardList:
+    """Scrollable collection of verse records rendered as selectable cards."""
+
+    def __init__(self, parent, on_selection_change=None, background="light gray"):
+        self.parent = parent
+        self.on_selection_change = on_selection_change
+        self.background = background
+        self._canvas = tk.Canvas(parent, highlightthickness=0, bd=0, bg=background)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._vsb = tk.Scrollbar(parent, orient=tk.VERTICAL, command=self._canvas.yview)
+        self._vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self._canvas.configure(yscrollcommand=self._vsb.set)
+        self._inner = tk.Frame(self._canvas, bg=background)
+        self._window_id = self._canvas.create_window((0, 0), window=self._inner, anchor="nw")
+        self._inner.bind("<Configure>", self._on_inner_configure)
+        self._canvas.bind("<Configure>", self._on_canvas_configure)
+        self._canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self._canvas.bind("<Button-4>", self._on_mousewheel)
+        self._canvas.bind("<Button-5>", self._on_mousewheel)
+        self._counter = 0
+        self._cards: dict[str, dict] = {}
+        self._order: list[str] = []
+        self._selected: set[str] = set()
+        self._selected_bg = "#DBEAFE"  # light indigo
+
+    # ------------------------------------------------------------------
+    # Canvas plumbing
+    # ------------------------------------------------------------------
+    def _on_inner_configure(self, _event=None):
+        try:
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        except Exception:
+            pass
+
+    def _on_canvas_configure(self, event=None):
+        if not event:
+            return
+        try:
+            self._canvas.itemconfigure(self._window_id, width=event.width)
+        except Exception:
+            pass
+
+    def _on_mousewheel(self, event):
+        try:
+            if hasattr(event, "delta") and event.delta:
+                step = -1 if event.delta > 0 else 1
+            elif getattr(event, "num", None) == 4:
+                step = -1
+            elif getattr(event, "num", None) == 5:
+                step = 1
+            else:
+                return
+            self._canvas.yview_scroll(step, "units")
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def set_records(self, records: list[dict]):
+        """Replace the card contents with ``records``."""
+        self._clear_cards()
+        for record in records:
+            self._add_card(record)
+        try:
+            self._canvas.yview_moveto(0)
+        except Exception:
+            pass
+        self._notify_selection_change()
+
+    def selection(self) -> list[dict]:
+        """Return the currently selected record dictionaries."""
+        ordered = []
+        for card_id in self._order:
+            if card_id in self._selected:
+                info = self._cards.get(card_id)
+                if info:
+                    ordered.append(info.get("record"))
+        return ordered
+
+    def has_selection(self) -> bool:
+        return bool(self._selected)
+
+    def clear_selection(self):
+        changed = False
+        for card_id in list(self._selected):
+            self._apply_selection(card_id, False)
+            self._selected.discard(card_id)
+            changed = True
+        if changed:
+            self._notify_selection_change()
+
+    def ensure_selected(self, card_id: str):
+        if card_id not in self._selected:
+            self._selected.add(card_id)
+            self._apply_selection(card_id, True)
+            self._notify_selection_change()
+
+    def destroy(self):
+        try:
+            self._canvas.destroy()
+        except Exception:
+            pass
+        try:
+            self._vsb.destroy()
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Card management
+    # ------------------------------------------------------------------
+    def _clear_cards(self):
+        for info in self._cards.values():
+            frame = info.get("frame")
+            try:
+                if frame is not None:
+                    frame.destroy()
+            except Exception:
+                pass
+        self._cards.clear()
+        self._order.clear()
+        self._selected.clear()
+
+    def _add_card(self, record: dict):
+        card_id = f"card_{self._counter}"
+        self._counter += 1
+
+        card = tk.Frame(self._inner, bg="#FFFFFF", bd=1, relief="ridge", highlightthickness=1, highlightbackground="#D1D5DB")
+        card.pack(fill=tk.X, padx=8, pady=6)
+
+        highlight_targets: list[tuple[tk.Widget, str]] = []
+
+        def _register_bg(widget, default_bg=None):
+            try:
+                actual = default_bg if default_bg is not None else widget.cget("bg")
+            except Exception:
+                actual = default_bg or "#FFFFFF"
+            highlight_targets.append((widget, actual))
+
+        _register_bg(card, "#FFFFFF")
+
+        header = tk.Frame(card, bg="#FFFFFF")
+        header.pack(fill=tk.X)
+        _register_bg(header, "#FFFFFF")
+
+        verse_snippet = str(record.get("verse_snippet", "") or "").strip() or "(No verse text)"
+        verse_label = tk.Label(
+            header,
+            text=verse_snippet,
+            justify=tk.LEFT,
+            anchor="w",
+            wraplength=760,
+            font=("Arial", 12, "bold"),
+            bg="#FFFFFF",
+        )
+        verse_label.pack(fill=tk.X)
+        _register_bg(verse_label, "#FFFFFF")
+
+        def _adjust_wrap(event, label=verse_label):
+            try:
+                label.config(wraplength=max(260, event.width - 40))
+            except Exception:
+                pass
+
+        card.bind("<Configure>", _adjust_wrap)
+
+        meta_row = tk.Frame(card, bg="#FFFFFF")
+        meta_row.pack(fill=tk.X, pady=(6, 0))
+        _register_bg(meta_row, "#FFFFFF")
+
+        def _meta_block(parent, title, value):
+            block = tk.Frame(parent, bg="#FFFFFF")
+            block.pack(side=tk.LEFT, padx=(0, 14))
+            _register_bg(block, "#FFFFFF")
+            title_lbl = tk.Label(block, text=title, font=("Arial", 9, "bold"), bg="#FFFFFF", fg="#374151")
+            title_lbl.pack(anchor="w")
+            _register_bg(title_lbl, "#FFFFFF")
+            value_lbl = tk.Label(block, text=value or "—", font=("Arial", 10), bg="#FFFFFF", fg="#111827")
+            value_lbl.pack(anchor="w")
+            _register_bg(value_lbl, "#FFFFFF")
+
+        _meta_block(meta_row, "Page", str(record.get("page", "") or "—"))
+        _meta_block(meta_row, "Status", str(record.get("status_label") or record.get("status", "") or "—"))
+        _meta_block(meta_row, "Updated", str(record.get("last_updated", "") or "—"))
+
+        chips_container = tk.Frame(card, bg="#FFFFFF")
+        chips_container.pack(fill=tk.X, pady=(8, 4))
+        _register_bg(chips_container, "#FFFFFF")
+
+        _render_grammar_chips(
+            chips_container,
+            record,
+            ensure_selected=lambda: self.ensure_selected(card_id),
+            highlight_targets=highlight_targets,
+            base_bg="#FFFFFF",
+        )
+
+        self._cards[card_id] = {
+            "frame": card,
+            "record": record,
+            "bg_targets": highlight_targets,
+        }
+        self._order.append(card_id)
+
+        self._attach_card_bindings(card, card_id)
+
+    # ------------------------------------------------------------------
+    # Selection helpers
+    # ------------------------------------------------------------------
+    def _attach_card_bindings(self, widget, card_id):
+        try:
+            widget.bind("<Button-1>", lambda event, cid=card_id: self._on_card_click(event, cid), add="+")
+        except Exception:
+            return
+        try:
+            children = widget.winfo_children()
+        except Exception:
+            children = []
+        for child in children:
+            self._attach_card_bindings(child, card_id)
+
+    def _on_card_click(self, event, card_id):
+        ctrl = bool(event and (event.state & 0x0004 or event.state & 0x20000))
+        shift = bool(event and (event.state & 0x0001))
+
+        changed = False
+        if ctrl or shift:
+            if card_id in self._selected:
+                self._selected.remove(card_id)
+                self._apply_selection(card_id, False)
+                changed = True
+            else:
+                self._selected.add(card_id)
+                self._apply_selection(card_id, True)
+                changed = True
+        else:
+            if self._selected != {card_id}:
+                for existing in list(self._selected):
+                    if existing == card_id:
+                        continue
+                    self._selected.remove(existing)
+                    self._apply_selection(existing, False)
+                    changed = True
+                if card_id not in self._selected:
+                    self._selected.add(card_id)
+                    self._apply_selection(card_id, True)
+                    changed = True
+
+        if changed:
+            self._notify_selection_change()
+
+    def _apply_selection(self, card_id, selected: bool):
+        info = self._cards.get(card_id)
+        if not info:
+            return
+        frame = info.get("frame")
+        if frame is not None:
+            try:
+                frame.configure(highlightbackground="#2563EB" if selected else "#D1D5DB")
+            except Exception:
+                pass
+        targets = info.get("bg_targets", [])
+        for widget, default_bg in targets:
+            try:
+                widget.configure(bg=self._selected_bg if selected else default_bg)
+            except Exception:
+                pass
+
+    def _notify_selection_change(self):
+        if callable(self.on_selection_change):
+            try:
+                self.on_selection_change()
+            except Exception:
+                pass
+
+
+def _render_grammar_chips(
+    container,
+    record: dict,
+    ensure_selected=None,
+    highlight_targets: list[tuple[tk.Widget, str]] | None = None,
+    base_bg: str = "#FFFFFF",
+):
+    """Render grammar chips and the expandable detail panel for a record."""
+
+    detail = record.get("chips_detail") or {}
+    extended_defaults = {
+        "word_index_display": record.get("word_index")
+            or detail.get("word_index")
+            or record.get("word_index_key")
+            or "",
+    }
+    detail = {**detail, **extended_defaults}
+
+    def _register(widget, default_bg=None):
+        if highlight_targets is None:
+            return
+        try:
+            bg_val = default_bg if default_bg is not None else widget.cget("bg")
+        except Exception:
+            bg_val = default_bg or base_bg
+        highlight_targets.append((widget, bg_val))
+
+    chips_row = tk.Frame(container, bg=base_bg)
+    chips_row.pack(fill=tk.X)
+    _register(chips_row, base_bg)
+
+    chips_holder = tk.Frame(chips_row, bg=base_bg)
+    chips_holder.pack(side=tk.LEFT, fill=tk.X, expand=True)
+    _register(chips_holder, base_bg)
+
+    chips_rendered = False
+    for key, display in CHIP_DISPLAY_ORDER:
+        value = detail.get(key) or ""
+        value = str(value).strip()
+        if not value:
+            continue
+        chips_rendered = True
+        style = CHIP_STYLE_CONFIG.get(key, {"bg": "#E5E7EB", "fg": "#111827"})
+        chip = tk.Label(
+            chips_holder,
+            text=f"{display}: {value}",
+            bg=style.get("bg", "#E5E7EB"),
+            fg=style.get("fg", "#111827"),
+            font=("Arial", 10, "bold"),
+            padx=10,
+            pady=4,
+            bd=0,
+            relief="flat",
+        )
+        chip.pack(side=tk.LEFT, padx=(0, 8), pady=(0, 4))
+
+    if not chips_rendered:
+        empty_lbl = tk.Label(
+            chips_holder,
+            text="No grammar tags available",
+            bg=base_bg,
+            fg="#6B7280",
+            font=("Arial", 10, "italic"),
+        )
+        empty_lbl.pack(side=tk.LEFT, padx=(0, 8))
+        _register(empty_lbl, base_bg)
+
+    control_area = tk.Frame(chips_row, bg=base_bg)
+    control_area.pack(side=tk.RIGHT)
+    _register(control_area, base_bg)
+
+    detail_frame = tk.Frame(container, bg="#F3F4F6", bd=1, relief="solid")
+    detail_frame.pack(fill=tk.X, pady=(4, 0))
+    detail_frame.pack_forget()
+
+    def _toggle_detail():
+        if callable(ensure_selected):
+            try:
+                ensure_selected()
+            except Exception:
+                pass
+        visible = bool(detail_frame.winfo_ismapped())
+        if visible:
+            detail_frame.pack_forget()
+            toggle_btn.config(text="Show details ▾")
+        else:
+            detail_frame.pack(fill=tk.X, pady=(6, 0))
+            toggle_btn.config(text="Hide details ▴")
+
+    toggle_btn = tk.Button(
+        control_area,
+        text="Show details ▾",
+        font=("Arial", 9, "bold"),
+        relief="flat",
+        bg="#1F2937",
+        fg="#FFFFFF",
+        padx=8,
+        pady=2,
+        command=_toggle_detail,
+    )
+    toggle_btn.pack()
+
+    for field_key, display_name in DETAIL_FIELD_ORDER:
+        value = detail.get(field_key, "")
+        value = " ".join(str(value or "").split())
+        row = tk.Frame(detail_frame, bg="#F3F4F6")
+        row.pack(fill=tk.X, padx=10, pady=4)
+        label = tk.Label(row, text=f"{display_name}:", font=("Arial", 10, "bold"), bg="#F3F4F6", anchor="nw")
+        label.pack(side=tk.LEFT)
+        value_lbl = tk.Label(
+            row,
+            text=value if value else "—",
+            font=("Arial", 10),
+            bg="#F3F4F6",
+            wraplength=760,
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        value_lbl.pack(side=tk.LEFT, padx=(6, 0), fill=tk.X, expand=True)
+
+
 class GrammarApp:
     def __init__(self, root):
         """
@@ -3373,6 +3794,22 @@ class GrammarApp:
         type_col = _resolve_col(grammar_df, "Type", "Word Type") if not grammar_df.empty else None
         ref_col = _resolve_col(grammar_df, "Reference Verse", "Verse") if not grammar_df.empty else None
         idx_col = _resolve_col(grammar_df, "Word Index", "word_index") if not grammar_df.empty else None
+        darpan_trans_col = _resolve_col(
+            grammar_df,
+            "Darpan Translation",
+            "Darpan Translation (Raw)",
+            "Translation",
+        ) if not grammar_df.empty else None
+        darpan_meaning_col = _resolve_col(
+            grammar_df,
+            "Darpan Meaning",
+            "Selected Darpan Meaning",
+        ) if not grammar_df.empty else None
+        chatgpt_col = _resolve_col(
+            grammar_df,
+            "ChatGPT Commentary",
+            "ChatGPT Commentry",
+        ) if not grammar_df.empty else None
         state_col = _resolve_col(grammar_df, "Row State", "RowState") if not grammar_df.empty else None
 
         if state_col and not grammar_df.empty:
@@ -3402,12 +3839,40 @@ class GrammarApp:
                 priority = 1 if state_norm == "active" else 0
                 if key in grammar_lookup and priority < grammar_priority.get(key, -1):
                     continue
+                darpan_translation = ""
+                if darpan_trans_col:
+                    try:
+                        darpan_translation = str(row.get(darpan_trans_col, "") or "")
+                    except Exception:
+                        darpan_translation = str(row[darpan_trans_col]) if darpan_trans_col in row else ""
+                darpan_meaning = ""
+                if darpan_meaning_col:
+                    try:
+                        darpan_meaning = str(row.get(darpan_meaning_col, "") or "")
+                    except Exception:
+                        darpan_meaning = str(row[darpan_meaning_col]) if darpan_meaning_col in row else ""
+                chatgpt_commentary = ""
+                if chatgpt_col:
+                    try:
+                        chatgpt_commentary = str(row.get(chatgpt_col, "") or "")
+                    except Exception:
+                        chatgpt_commentary = str(row[chatgpt_col]) if chatgpt_col in row else ""
+                idx_value = ""
+                if idx_col:
+                    try:
+                        idx_value = str(row.get(idx_col, "") or "")
+                    except Exception:
+                        idx_value = str(row[idx_col]) if idx_col in row else ""
                 grammar_lookup[key] = {
                     "number": str(row.get(num_col, "") or ""),
                     "grammar": str(row.get(gram_col, "") or ""),
                     "gender": str(row.get(gender_col, "") or ""),
                     "root": str(row.get(root_col, "") or ""),
                     "type": str(row.get(type_col, "") or ""),
+                    "darpan_translation": darpan_translation,
+                    "darpan_meaning": darpan_meaning,
+                    "chatgpt_commentary": chatgpt_commentary,
+                    "word_index": idx_value,
                 }
                 grammar_priority[key] = priority
 
@@ -3475,32 +3940,11 @@ class GrammarApp:
         notebook.add(pending_frame, text="Pending")
         notebook.add(completed_frame, text="Completed")
 
-        def _build_tree(parent_frame):
-            tree = ttk.Treeview(parent_frame, columns=("verse", "page", "status", "updated", "chips"), show='headings', selectmode='extended')
-            tree.heading("verse", text="Verse")
-            tree.heading("page", text="Page")
-            tree.heading("status", text="Status")
-            tree.heading("updated", text="Last Updated")
-            tree.heading("chips", text="Grammar Chips")
-            tree.column("verse", width=420, anchor='w')
-            tree.column("page", width=80, anchor='center')
-            tree.column("status", width=150, anchor='center')
-            tree.column("updated", width=160, anchor='center')
-            tree.column("chips", width=260, anchor='w')
-            vsb = tk.Scrollbar(parent_frame, orient=tk.VERTICAL, command=tree.yview)
-            hsb = tk.Scrollbar(parent_frame, orient=tk.HORIZONTAL, command=tree.xview)
-            tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-            tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            vsb.pack(side=tk.RIGHT, fill=tk.Y)
-            hsb.pack(side=tk.BOTTOM, fill=tk.X)
-            return tree
+        pending_cards = ProgressCardList(pending_frame, background=pending_frame.cget('bg'))
+        completed_cards = ProgressCardList(completed_frame, background=completed_frame.cget('bg'))
 
-        pending_tree = _build_tree(pending_frame)
-        completed_tree = _build_tree(completed_frame)
-
-        pending_index_map: dict[str, dict] = {}
-        completed_index_map: dict[str, dict] = {}
         state = {"pending": [], "completed": [], "words": None, "prog": None, "others": None}
+        self._progress_board_state = state
 
         def _after_tracker_update():
             _refresh_tables()
@@ -3539,6 +3983,7 @@ class GrammarApp:
                     verse_text = row.get('verse', '')
                     idx_key = _word_index_key(row.get('word_index'))
                     verse_key = _normalize_verse_key(verse_text)
+                    detail = grammar_lookup.get((idx_key, verse_key), {})
                     record = {
                         'row_index': idx,
                         'word': row.get('word', word),
@@ -3547,9 +3992,11 @@ class GrammarApp:
                         'page': row.get('page_number', ''),
                         'status': status_norm,
                         'chips': _chips(idx_key, verse_key),
+                        'chips_detail': detail,
                         'last_updated': _best_timestamp(row),
                         'word_index_key': idx_key,
                         'verse_key_norm': verse_key,
+                        'word_index': row.get('word_index'),
                     }
                     if status_norm in _PENDING_STATUSES:
                         label = "Reanalysis Queued" if status_norm == 'reanalysis_queued' else "Pending"
@@ -3563,19 +4010,8 @@ class GrammarApp:
             pending_rows.sort(key=lambda r: (r.get('last_updated') or '', r.get('verse_snippet') or ''))
             completed_rows.sort(key=lambda r: (r.get('last_updated') or '', r.get('verse_snippet') or ''), reverse=True)
 
-            pending_index_map.clear()
-            for item in pending_tree.get_children():
-                pending_tree.delete(item)
-            for record in pending_rows:
-                item_id = pending_tree.insert('', tk.END, values=(record['verse_snippet'], record['page'], record['status_label'], record['last_updated'], record['chips']))
-                pending_index_map[item_id] = record
-
-            completed_index_map.clear()
-            for item in completed_tree.get_children():
-                completed_tree.delete(item)
-            for record in completed_rows:
-                item_id = completed_tree.insert('', tk.END, values=(record['verse_snippet'], record['page'], record['status_label'], record['last_updated'], record['chips']))
-                completed_index_map[item_id] = record
+            pending_cards.set_records(pending_rows)
+            completed_cards.set_records(completed_rows)
 
             state['pending'] = pending_rows
             state['completed'] = completed_rows
@@ -3586,10 +4022,10 @@ class GrammarApp:
             _update_action_states()
 
         def _selected_pending_records():
-            return [pending_index_map[iid] for iid in pending_tree.selection() if iid in pending_index_map]
+            return pending_cards.selection()
 
         def _selected_completed_records():
-            return [completed_index_map[iid] for iid in completed_tree.selection() if iid in completed_index_map]
+            return completed_cards.selection()
 
         def _remove_pending():
             records = _selected_pending_records()
@@ -3692,8 +4128,8 @@ class GrammarApp:
         tk.Button(action_bar, text="Close", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(6, 0))
 
         def _update_action_states(event=None):
-            has_pending = bool(pending_tree.selection())
-            has_completed = bool(completed_tree.selection())
+            has_pending = pending_cards.has_selection()
+            has_completed = completed_cards.has_selection()
             try:
                 remove_btn.config(state=tk.NORMAL if has_pending else tk.DISABLED)
                 reanalyze_btn.config(state=tk.NORMAL if has_completed else tk.DISABLED)
@@ -3701,8 +4137,8 @@ class GrammarApp:
             except Exception:
                 pass
 
-        pending_tree.bind('<<TreeviewSelect>>', _update_action_states)
-        completed_tree.bind('<<TreeviewSelect>>', _update_action_states)
+        pending_cards.on_selection_change = _update_action_states
+        completed_cards.on_selection_change = _update_action_states
         notebook.bind('<<NotebookTabChanged>>', _update_action_states)
 
         initial_tab_value = initial_tab.lower() if isinstance(initial_tab, str) else 'pending'
