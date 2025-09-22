@@ -1400,19 +1400,38 @@ def append_to_word_tracker(
                     p_add[c] = p_add[c].astype("boolean")
                 except Exception:
                     pass
-        for c in ["reanalyzed_count", "word_index"]:
-            if c in p_add.columns:
-                try:
-                    # Avoid 'errors="ignore"' to tame FutureWarning; coerce invalid to NaN
-                    p_add[c] = pd.to_numeric(p_add[c], errors="coerce")
-                except Exception:
-                    pass
         if 'reanalyzed_count' in p_add.columns:
             try:
-                p_add['reanalyzed_count'] = p_add['reanalyzed_count'].fillna(0).astype(int)
+                numeric = pd.to_numeric(p_add['reanalyzed_count'], errors="coerce")
             except Exception:
+                numeric = None
+            if numeric is not None:
+                try:
+                    p_add['reanalyzed_count'] = numeric.fillna(0).astype(int)
+                except Exception:
+                    p_add['reanalyzed_count'] = numeric.fillna(0)
+            else:
                 try:
                     p_add['reanalyzed_count'] = p_add['reanalyzed_count'].fillna(0)
+                except Exception:
+                    pass
+        if 'word_index' in p_add.columns:
+            idx_numeric = None
+            try:
+                idx_numeric = pd.to_numeric(p_add['word_index'], errors="coerce")
+            except Exception:
+                idx_numeric = None
+            if idx_numeric is not None:
+                try:
+                    p_add['word_index'] = pd.Series(idx_numeric, dtype="Int64")
+                except Exception:
+                    try:
+                        p_add['word_index'] = idx_numeric.astype("Int64")
+                    except Exception:
+                        p_add['word_index'] = idx_numeric
+            else:
+                try:
+                    p_add['word_index'] = pd.Series(p_add['word_index'], dtype="Int64")
                 except Exception:
                     pass
         now = datetime.now()
@@ -1437,6 +1456,13 @@ def append_to_word_tracker(
         # Drop all-NA columns to avoid concat FutureWarnings
         p_add = p_add.dropna(axis=1, how="all")
         prog_df = pd.concat([prog_df, p_add], ignore_index=True)
+
+    if 'word_index' in prog_df.columns:
+        try:
+            numeric = pd.to_numeric(prog_df['word_index'], errors="coerce")
+            prog_df['word_index'] = pd.Series(numeric, dtype="Int64")
+        except Exception:
+            pass
 
     _save_tracker(tracker_path, words_df, prog_df, others, words_sheet, progress_sheet)
     return True
@@ -1492,6 +1518,80 @@ def _word_index_key(value) -> str:
             return str(value)
         except Exception:
             return ""
+
+
+def _coerce_word_index_int(value) -> int | None:
+    """Attempt to coerce ``value`` to an integer word index."""
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (int, np.integer)):
+            return int(value)
+        if isinstance(value, float):
+            if math.isnan(value):
+                return None
+            if value.is_integer():
+                return int(value)
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        numeric = float(text)
+        if not float(numeric).is_integer():
+            return None
+        return int(numeric)
+    except Exception:
+        return None
+
+
+def load_word_index_lookup(csv_path: str = "1.1.1_birha.csv") -> dict[tuple[str, str], int]:
+    """Map ``(normalized_word, normalized_verse)`` pairs to a unique word index."""
+    try:
+        df = pd.read_csv(csv_path, encoding="utf-8-sig")
+    except Exception:
+        try:
+            df = pd.read_csv(csv_path)
+        except Exception:
+            return {}
+
+    if getattr(df, "empty", True):
+        return {}
+
+    df = df.copy()
+    df.columns = [str(c).lstrip("\ufeff") for c in df.columns]
+
+    word_col = _resolve_col(df, "\ufeffVowel Ending", "Vowel Ending")
+    verse_col = _resolve_col(df, "Reference Verse", "Verse")
+    idx_col = _resolve_col(df, "Word Index", "word_index")
+    if not word_col or not verse_col or not idx_col:
+        return {}
+
+    state_col = _resolve_col(df, "Row State", "RowState")
+    if state_col:
+        try:
+            state_norm = df[state_col].astype(str).map(_normalize_simple)
+        except Exception:
+            state_norm = df[state_col].map(_normalize_simple)
+        allowed_states = {"", "active"}
+        df = df.loc[state_norm.isin(allowed_states)]
+
+    lookup: dict[tuple[str, str], set[int]] = {}
+    for _, row in df.iterrows():
+        word_norm = _normalize_simple(row.get(word_col, ""))
+        verse_norm = _normalize_verse_key(row.get(verse_col, ""))
+        if not word_norm or not verse_norm:
+            continue
+        idx_value = _coerce_word_index_int(row.get(idx_col))
+        if idx_value is None:
+            continue
+        key = (word_norm, verse_norm)
+        lookup.setdefault(key, set()).add(idx_value)
+
+    unique: dict[tuple[str, str], int] = {}
+    for key, values in lookup.items():
+        if len(values) == 1:
+            unique[key] = next(iter(values))
+    return unique
 
 
 def _dt_match_key(value) -> str:
@@ -3162,6 +3262,8 @@ class GrammarApp:
             rows = []
             now = datetime.now()
             norm = self._norm_tok(word)
+            norm_key = _normalize_simple(norm)
+            word_index_map = load_word_index_lookup("1.1.1_birha.csv")
             for idx in selected:
                 try:
                     idx = int(idx)
@@ -3171,6 +3273,8 @@ class GrammarApp:
                     continue
                 rec = hits[idx]
                 verse_text = rec.get('verse', rec.get('Verse', ''))
+                verse_key = _normalize_verse_key(verse_text)
+                idx_value = word_index_map.get((norm_key, verse_key))
                 rows.append({
                     'word': word,
                     'word_key_norm': norm,
@@ -3180,8 +3284,9 @@ class GrammarApp:
                     'selected_at': now,
                     'created_at': now,
                     'status': 'pending',
-                    'verse_key_norm': _normalize_verse_key(verse_text),
+                    'verse_key_norm': verse_key,
                     'reanalyzed_count': 0,
+                    **({'word_index': idx_value} if idx_value is not None else {}),
                 })
             if not rows:
                 return
@@ -3876,7 +3981,15 @@ class GrammarApp:
                 }
                 grammar_priority[key] = priority
 
+        verse_index_candidates: dict[str, set[str]] = {}
+        for idx_key, verse_key in grammar_lookup.keys():
+            if not verse_key or not idx_key:
+                continue
+            verse_index_candidates.setdefault(verse_key, set()).add(idx_key)
+
         def _chips(idx_key: str, verse_key: str) -> str:
+            if not idx_key:
+                return ""
             detail = grammar_lookup.get((idx_key, verse_key))
             if not detail:
                 return ""
@@ -3981,9 +4094,31 @@ class GrammarApp:
                 for idx, row in df.iterrows():
                     status_norm = _normalize_progress_status(row.get('status'))
                     verse_text = row.get('verse', '')
-                    idx_key = _word_index_key(row.get('word_index'))
                     verse_key = _normalize_verse_key(verse_text)
-                    detail = grammar_lookup.get((idx_key, verse_key), {})
+                    raw_word_index = row.get('word_index')
+                    idx_key = _word_index_key(raw_word_index)
+                    resolved_idx_key = idx_key
+                    resolved_word_index = _coerce_word_index_int(raw_word_index)
+                    if not resolved_idx_key:
+                        candidates = verse_index_candidates.get(verse_key, set())
+                        if len(candidates) == 1:
+                            resolved_idx_key = next(iter(candidates))
+                            if resolved_word_index is None:
+                                resolved_word_index = _coerce_word_index_int(resolved_idx_key)
+                    detail = grammar_lookup.get((resolved_idx_key, verse_key), {}) if resolved_idx_key else {}
+                    chips_text = _chips(resolved_idx_key, verse_key) if resolved_idx_key else ""
+                    display_index = resolved_word_index
+                    if display_index is None:
+                        value = raw_word_index
+                        try:
+                            if isinstance(value, str):
+                                display_index = value.strip() or None
+                            elif pd.isna(value):
+                                display_index = None
+                            else:
+                                display_index = value
+                        except Exception:
+                            display_index = value
                     record = {
                         'row_index': idx,
                         'word': row.get('word', word),
@@ -3991,12 +4126,12 @@ class GrammarApp:
                         'verse_snippet': _snippet(verse_text),
                         'page': row.get('page_number', ''),
                         'status': status_norm,
-                        'chips': _chips(idx_key, verse_key),
+                        'chips': chips_text,
                         'chips_detail': detail,
                         'last_updated': _best_timestamp(row),
-                        'word_index_key': idx_key,
+                        'word_index_key': resolved_idx_key or '',
                         'verse_key_norm': verse_key,
-                        'word_index': row.get('word_index'),
+                        'word_index': display_index,
                     }
                     if status_norm in _PENDING_STATUSES:
                         label = "Reanalysis Queued" if status_norm == 'reanalysis_queued' else "Pending"
