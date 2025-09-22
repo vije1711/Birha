@@ -3373,6 +3373,15 @@ class GrammarApp:
         type_col = _resolve_col(grammar_df, "Type", "Word Type") if not grammar_df.empty else None
         ref_col = _resolve_col(grammar_df, "Reference Verse", "Verse") if not grammar_df.empty else None
         idx_col = _resolve_col(grammar_df, "Word Index", "word_index") if not grammar_df.empty else None
+        state_col = _resolve_col(grammar_df, "Row State", "RowState") if not grammar_df.empty else None
+
+        if state_col and not grammar_df.empty:
+            try:
+                state_norm = grammar_df[state_col].astype(str).map(lambda s: _normalize_simple(s))
+            except Exception:
+                state_norm = grammar_df[state_col].map(lambda s: _normalize_simple(s))
+            allowed_states = {"", "active"}
+            grammar_df = grammar_df.loc[state_norm.isin(allowed_states)]
 
         grammar_lookup: dict[tuple[str, str], dict[str, str]] = {}
         if not grammar_df.empty and ve_col:
@@ -3381,8 +3390,6 @@ class GrammarApp:
                 idx_key = _word_index_key(row.get(idx_col)) if idx_col else ""
                 verse_key = _normalize_verse_key(row.get(ref_col, "")) if ref_col else ""
                 key = (idx_key, verse_key)
-                if key in grammar_lookup:
-                    continue
                 grammar_lookup[key] = {
                     "number": str(row.get(num_col, "") or ""),
                     "grammar": str(row.get(gram_col, "") or ""),
