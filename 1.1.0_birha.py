@@ -3258,11 +3258,15 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("Continue Incomplete - Choose Word")
         win.configure(bg='light gray')
-        try:
-            win.transient(self.root)
-        except Exception:
-            pass
-        self._enable_safe_maximize_after_idle(win, 0)
+
+        # Launch maximized, keep native controls
+        win.state('zoomed')
+        win.resizable(True, True)
+
+        # Attach WM so future maximizes honor the bottom safety gap
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+
+        # Important: do NOT call win.transient(self.root) here
 
         tk.Label(
             win,
@@ -3430,11 +3434,15 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title(f"Assess by Word - Progress: {word}")
         win.configure(bg='light gray')
-        try:
-            win.transient(self.root)
-        except Exception:
-            pass
-        self._enable_safe_maximize_after_idle(win, 0)
+
+        # Launch maximized, keep native controls
+        win.state('zoomed')
+        win.resizable(True, True)
+
+        # Attach WM so future maximizes honor the bottom safety gap
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+
+        # Important: do NOT call win.transient(self.root) here; it breaks maximize on Windows
 
         header_var = tk.StringVar()
         tk.Label(win, textvariable=header_var, font=('Arial', 14, 'bold'), bg='light gray').pack(padx=12, pady=(12, 6), anchor='w')
@@ -3754,11 +3762,15 @@ class GrammarApp:
         win = tk.Toplevel(self.root)
         win.title("View Completed - Choose Word")
         win.configure(bg='light gray')
-        try:
-            win.transient(self.root)
-        except Exception:
-            pass
-        self._enable_safe_maximize_after_idle(win, 0)
+
+        # Launch maximized, keep native controls
+        win.state('zoomed')
+        win.resizable(True, True)
+
+        # Attach WM so future maximizes honor the bottom safety gap
+        self._wm_apply(win, margin_px=BOTTOM_PAD, defer=True)
+
+        # Important: do NOT call win.transient(self.root) here; it breaks maximize on Windows
 
         tk.Label(
             win,
