@@ -4248,6 +4248,233 @@ class GrammarApp:
         def _add_verses():
             self.show_word_verse_hits_modal(word, parent=win, on_refresh=_after_tracker_update)
 
+        def _compute_word_stats():
+            try:
+                df = pd.read_csv("1.1.1_birha.csv", encoding="utf-8-sig")
+            except FileNotFoundError:
+                raise
+            except Exception as exc:
+                raise RuntimeError("Failed to load grammar dataset") from exc
+
+            if df is None or df.empty:
+                return []
+
+            try:
+                df.columns = [str(col).replace('\ufeff', '').strip() for col in df.columns]
+            except Exception:
+                pass
+
+            ve_col = _resolve_col(df, "\ufeffVowel Ending", "Vowel Ending")
+            if not ve_col:
+                return []
+
+            try:
+                vowel_norm = df[ve_col].map(_normalize_simple)
+            except Exception:
+                vowel_norm = df[ve_col].astype(str).map(_normalize_simple)
+
+            subset = df.loc[vowel_norm == norm_key].copy()
+            if subset.empty:
+                return []
+
+            state_col = _resolve_col(subset, "Row State", "RowState")
+            if state_col:
+                try:
+                    state_norm = subset[state_col].map(_normalize_simple)
+                except Exception:
+                    state_norm = subset[state_col].astype(str).map(_normalize_simple)
+                allowed_states = {"", "active", "completed", "complete"}
+                subset = subset.loc[state_norm.isin(allowed_states)].copy()
+            if subset.empty:
+                return []
+
+            def _clean_cell(value):
+                if pd.isna(value):
+                    return ""
+                try:
+                    s = str(value)
+                except Exception:
+                    return ""
+                s = s.strip()
+                if not s or s.lower() == "nan":
+                    return ""
+                return s
+
+            metrics = [
+                ("Number / ਵਚਨ", (COL_NUMBER, "Number", "Number / ਵਚਨ")),
+                ("Gender / ਲਿੰਗ", (COL_GENDER, "Gender", "Gender / ਲਿੰਗ")),
+                (
+                    "Grammar / ਵਯਾਕਰਣ",
+                    (COL_GRAMMAR, "Grammar Case / ਵਯਾਕਰਣ", "Grammar"),
+                ),
+                ("Word Root", ("Word Root", "Root")),
+                ("Type", ("Type", "Word Type")),
+            ]
+
+            stats_results = []
+            for label, candidates in metrics:
+                col_name = _resolve_col(subset, *candidates)
+                if not col_name:
+                    continue
+                series = subset[col_name].map(_clean_cell)
+                series = series[series != ""]
+                total = int(series.shape[0])
+                rows = []
+                if total > 0:
+                    counts = series.value_counts(dropna=False)
+                    sorted_counts = sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))
+                    for value, count in sorted_counts:
+                        try:
+                            percent = (count / total) * 100
+                        except Exception:
+                            percent = 0
+                        if isinstance(percent, float) and percent.is_integer():
+                            percent_text = f"{int(percent)}%"
+                        else:
+                            percent_text = f"{percent:.1f}%"
+                        rows.append({
+                            "value": str(value),
+                            "count": int(count),
+                            "percent": percent_text,
+                        })
+                stats_results.append({
+                    "label": label,
+                    "total": total,
+                    "rows": rows,
+                })
+
+            return stats_results
+
+        def _open_stats_panel():
+            try:
+                stats = _compute_word_stats()
+            except FileNotFoundError:
+                try:
+                    messagebox.showerror(
+                        "Stats Unavailable",
+                        "The grammar dataset (1.1.1_birha.csv) could not be found.",
+                    )
+                except Exception:
+                    pass
+                return
+            except Exception:
+                logging.exception("Failed to compute stats for word '%s'", word)
+                try:
+                    messagebox.showerror(
+                        "Stats Error",
+                        "Unable to compute grammar statistics for this word.",
+                    )
+                except Exception:
+                    pass
+                return
+
+            if not stats:
+                try:
+                    messagebox.showinfo(
+                        "No Data",
+                        "No grammar statistics are available for this word.",
+                    )
+                except Exception:
+                    pass
+                return
+
+            panel = tk.Toplevel(win)
+            panel.title(f"{word} – Grammar Stats")
+            panel.configure(bg='white')
+            panel.transient(win)
+            panel.resizable(True, True)
+            panel.minsize(420, 320)
+            try:
+                panel.grab_set()
+            except Exception:
+                pass
+
+            header = tk.Label(
+                panel,
+                text=f"Grammar summary for {word}",
+                font=('Arial', 13, 'bold'),
+                bg='white',
+                anchor='w'
+            )
+            header.pack(fill=tk.X, padx=12, pady=(12, 4))
+
+            subhead = tk.Label(
+                panel,
+                text="Counts and percentages exclude blank entries.",
+                font=('Arial', 10, 'italic'),
+                bg='white',
+                anchor='w'
+            )
+            subhead.pack(fill=tk.X, padx=12)
+
+            tree_frame = tk.Frame(panel, bg='white')
+            tree_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
+
+            tree = ttk.Treeview(
+                tree_frame,
+                columns=('count', 'percent'),
+                show='tree headings',
+                height=12,
+            )
+            tree.heading('#0', text='Value', anchor='w')
+            tree.heading('count', text='Count', anchor='center')
+            tree.heading('percent', text='Percent', anchor='center')
+            tree.column('#0', anchor='w', stretch=True, minwidth=200)
+            tree.column('count', width=80, anchor='center', stretch=False)
+            tree.column('percent', width=100, anchor='center', stretch=False)
+
+            vsb = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
+            tree.configure(yscrollcommand=vsb.set)
+            vsb.pack(side=tk.RIGHT, fill=tk.Y)
+            tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            try:
+                tree.tag_configure('section', font=('Arial', 11, 'bold'))
+                tree.tag_configure('empty', font=('Arial', 10, 'italic'))
+            except Exception:
+                pass
+
+            for section in stats:
+                label = section.get('label', '')
+                total = section.get('total', 0)
+                summary = f"{label} (n={total})" if label else f"n={total}"
+                parent = tree.insert(
+                    '',
+                    'end',
+                    text=summary,
+                    values=(total if total else '', '100%' if total else ''),
+                    open=True,
+                    tags=('section',)
+                )
+                rows = section.get('rows') or []
+                if not rows:
+                    tree.insert(parent, 'end', text='No data available', values=('', ''), tags=('empty',))
+                    continue
+                for row in rows:
+                    value = row.get('value', '')
+                    display_value = value if value else '(blank)'
+                    tree.insert(
+                        parent,
+                        'end',
+                        text=display_value,
+                        values=(row.get('count', ''), row.get('percent', '')),
+                    )
+
+            action = tk.Frame(panel, bg='white')
+            action.pack(fill=tk.X, padx=12, pady=(0, 12))
+            tk.Button(action, text="Close", bg='gray', fg='white', font=('Arial', 11), command=panel.destroy).pack(side=tk.RIGHT)
+
+            try:
+                panel.bind('<Escape>', lambda e: panel.destroy())
+            except Exception:
+                pass
+
+            panel.lift()
+            try:
+                panel.focus_set()
+            except Exception:
+                pass
+
         action_bar = tk.Frame(win, bg='light gray')
         action_bar.pack(fill=tk.X, padx=12, pady=(0, 12))
         add_btn = tk.Button(action_bar, text="Add Verses", bg='dark cyan', fg='white', font=('Arial', 11, 'bold'), command=_add_verses)
@@ -4260,6 +4487,8 @@ class GrammarApp:
         delete_btn.pack(side=tk.RIGHT, padx=(6, 0))
         remove_btn = tk.Button(action_bar, text="Remove Pending", bg='orange', fg='white', font=('Arial', 11, 'bold'), command=_remove_pending)
         remove_btn.pack(side=tk.RIGHT, padx=(6, 0))
+        stats_btn = tk.Button(action_bar, text="Stats", bg='#4b6cb7', fg='white', font=('Arial', 11, 'bold'), command=_open_stats_panel)
+        stats_btn.pack(side=tk.RIGHT, padx=(6, 0))
         tk.Button(action_bar, text="Close", bg='gray', fg='white', font=('Arial', 11), command=win.destroy).pack(side=tk.RIGHT, padx=(6, 0))
 
         def _update_action_states(event=None):
