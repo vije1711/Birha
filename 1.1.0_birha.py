@@ -4381,11 +4381,16 @@ class GrammarApp:
             panel = tk.Toplevel(win)
             panel.title(f"{word} – Grammar Stats")
             panel.configure(bg='white')
-            panel.transient(win)
+
+            # Launch maximized with native controls and keep taskbar-safe bottom margin
+            panel.state('zoomed')
             panel.resizable(True, True)
-            panel.minsize(420, 320)
+            self._wm_apply(panel, margin_px=BOTTOM_PAD, defer=True)
+
+            # Keep modal behavior without using transient (which suppresses maximize)
             try:
                 panel.grab_set()
+                panel.focus_set()
             except Exception:
                 pass
 
