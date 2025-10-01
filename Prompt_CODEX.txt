@@ -3,112 +3,97 @@ Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only r
 You may only add new functions, dataclasses, constants, and unit tests.
 No renames, no signature changes, no in-place edits, no deleted lines in existing code.
 
-# Full prompt (thorough)
+Context
+Enhancing Birha v1.1.0, Task 4 requires a Pause/Resume Driver for Axioms, similar in spirit to ABW but isolated. Use AxiomWorkqueue schema from Task 2 for persistence. All changes must be additive.
 
-**Scope**
-Implement **T3. Axiom Workbench (UI Shell)** per the engineering contract: a dedicated, additive window to review per-verse flags, computed category, links, and contributions, with actions to create/link axioms. No rewiring of existing flows. 
+Non-negotiables
 
-**Non-negotiables (repeat):**
+Do not alter any existing functions in 1.1.0_birha.py.
 
-* **Do not alter any existing functions or strings** in `1.1.0_birha.py`. Treat current code as read-only.
-* No renames, signature changes, in-place edits, or deletions.
-* **Keep canonical Punjabi headers** as-is; do not change `_resolve_col()`/`col()` or related constants.
-* All additions must be under a new section header.
+No renames, refactors, in-place edits, or deletions.
 
-**Files**
+All additions under new header:
+# === Axioms T4: Pause/Resume Driver (additive only) ===
 
-* Code: append to `1.1.0_birha.py` under:
-  `# === Axioms T3: Workbench UI Shell (additive only) ===`
-* Tests: `tests/axioms/test_task3_workbench.py`
+Canonical constants/strings must remain untouched.
 
-**What to build (additive classes + public launchers)**
+Deliverables
 
-1. **UI class**
-   `class AxiomsWorkbench(tk.Toplevel):`
+Controller function
 
-* Pure **shell** (no takeover): creates a toplevel window with these regions:
+def start_axiom_driver_for(selection: list[str], store_path: Optional[Union[str, Path]] = None) -> None:
+    """Iterate through given verse_keys with Next/Prev/Pause controls, persisting to AxiomWorkqueue."""
 
-  * Header: “Axioms (beta)” + verse selector (Combobox) + status line.
-  * Flags panel: checkboxes for `Framework?`, `Explicit?`; computed **Category badge** using T1 `derive_axiom_category()`.
-  * Axioms panel:
 
-    * Search box + results (listbox or tree) backed by T2 `AxiomsStore.find_axioms(query)`.
-    * Buttons: **Create Axiom**, **Link Selected**, **View Linked**.
-  * Linked contributions (read-only list for now) via T2 `AxiomContribStore.list_contributions(verse_key=...)`.
-  * Footer: Close button.
-* Layout should be resilient (pack/grid), with wraplength adjustments like existing UI components.
-* **No modal blocking**; window is independent and can be opened/closed freely.
+Driver window (Tk)
 
-2. **Public launchers (no changes to existing methods)**
-   Add **new** functions only:
+Non-modal Toplevel with:
+• Current verse display
+• Buttons: Next, Prev, Pause/Resume, Close
 
-```python
-def open_axioms_workbench_from_dashboard(app: "GrammarApp") -> None:
-    """Open Workbench without verse preselected; verse selector enabled."""
+Updates AxiomWorkqueue on each state change (status = pending/in_progress/done).
 
-def open_axioms_workbench_for_verse(app: "GrammarApp", verse_text: str | None = None, verse_key: str | None = None) -> None:
-    """Open Workbench with a specific verse context (prepopulates selector, flags if available)."""
-```
+On Pause: writes current index + status.
 
-* These must **not** modify existing `GrammarApp` members; they can **read** from public state if available, but must not rely on it.
-* Both functions create `AxiomsWorkbench(app.root)` and pass context via constructor kwargs or setter.
+On Resume: reloads from store, continues at last index.
 
-3. **Verse selector model**
+Persistence
 
-* If verse context is supplied: set selector to that single verse; otherwise allow manual selection via an entry field (verse text) + a derived `verse_key` (`_normalize_verse_key` helper is available).
-* Show computed **Category** immediately when flags are toggled (no persistence yet).
+Use AxiomWorkqueueStore from T2.
 
-4. **Data adapters (re-use T2)**
+Fields updated: status, analysis_started_at, analysis_completed_at, reanalysis_started_at, reanalysis_completed_at.
 
-* Use `AxiomsStore`, `AxiomContribStore` to **read** catalog & contributions.
-* For T3 **shell**, writes are minimal:
+Restart check: if queue has entries with in_progress/paused, resume from that verse.
 
-  * **Create Axiom** → `AxiomsStore.create_axiom(law_text)` then refresh list.
-  * **Link Selected** → `AxiomContribStore.link_contribution(axiom_id, verse_key, category, notes="")` (category from current flags).
-* No schema changes; column order remains the same as T2. 
+Keyboard shortcuts
 
-5. **Flag state handling**
+Arrow Right = Next, Arrow Left = Prev, Space = Pause/Resume.
 
-* Don’t persist `Framework?`/`Explicit?` to assessment in T3; the workbench just holds **current working values** in memory and uses T1’s `derive_axiom_category()` for the badge. (Persistence to assessment/Excel belongs to later tasks.) 
+Must not break ABW or existing driver behavior.
 
-6. **Additive hooks (optional, safe)**
+Acceptance Criteria
 
-* Provide an **optional** helper `register_axioms_workbench_menu(root)` that **adds a new top-level menu** (“Axioms → Open Workbench”) to the root window **without editing existing functions**. This must only be called manually by the maintainer later; do **not** call it automatically.
+Start driver with a verse list → Workqueue populated with pending items.
 
-**Acceptance Criteria (show evidence in PR)**
+Clicking Next marks current as done, advances to next.
 
-* A new `AxiomsWorkbench` window class exists and renders (headless smoke test creates/destroys without errors).
-* `open_axioms_workbench_from_dashboard(...)` opens the window with no verse preselected; `open_axioms_workbench_for_verse(...)` opens it with verse context applied.
-* Flags `Framework?` & `Explicit?` are editable in the shell; category badge updates live using `derive_axiom_category()`. (T1 mapping: `(True,True)→Primary`, `(True,False)→Secondary`.) 
-* Axiom search returns results via `AxiomsStore.find_axioms`; **Create Axiom** inserts a new record; **Link Selected** writes one contribution row; both refresh the lists.
-* No changes to existing functions/strings/constants; diff shows only appended code.
-* Tests pass locally (see below).
+Pause closes the driver and persists state; Resume reopens at the same verse.
 
-**Tests (pytest), `tests/axioms/test_task3_workbench.py`**
+Restarting app and calling driver resumes at last position.
 
-* **Headless smoke:** create a root (`tk.Tk()`), instantiate `AxiomsWorkbench(root)`, then `destroy()`; assert no exceptions.
-* **Category logic:** param test calling `derive_axiom_category()` from T1; verify badge text produced by the UI helper matches mapping.
-* **Stores round-trip (reuse T2 temp file):** create temp `1.3.0_axioms.xlsx`, create axiom via store, call workbench search method (non-GUI helper), link contribution for a dummy `verse_key`, assert contribution exists.
-* **No-touch guard:** assert that **no existing function names** are modified by checking a list of known entry points (import and inspect source or use a regex check).
+Headless test simulates queue persistence and resume without GUI crash.
 
-**UI copy (minimal):**
+No regressions to ABW.
 
-* Window title: “Axioms (beta) — Workbench”
-* Buttons: “Create Axiom”, “Link Selected”, “View Linked”, “Close”
-* Flags: “Framework?”, “Explicit?”, Category badge: “Category: Primary/Secondary/None”
+Tests
+File: tests/axioms/test_task4_driver.py
 
-**PR workflow**
+test_queue_created_and_resumed_correctly() using TemporaryDirectory for store.
 
-* Branch: `feature/axioms-T3-workbench-shell`
-* Commit: `feat(axioms): T3 add AxiomsWorkbench UI shell + public launchers (additive only)`
-* PR: `Axioms T3 — Workbench UI Shell (additive, uses T1/T2)`
-* Include screenshots or a short GIF of the window (optional) and this checklist:
+test_pause_and_resume_updates_status() ensures statuses persist.
 
-  * [ ] No edits to existing functions/strings/constants (diff = appended section only)
-  * [ ] Workbench opens via both public launchers
-  * [ ] Flags editable; category badge updates via T1
-  * [ ] Axiom search/create/link uses T2 stores and refreshes UI
-  * [ ] Headless tests green; lints pass
+test_next_and_prev_navigation() simulates multiple verses.
 
----
+test_resume_after_restart() loads persisted queue and resumes correctly.
 
+Skip Tk tests if no DISPLAY available.
+
+PR workflow
+
+Branch: feature/axioms-T4-pause-resume-driver
+
+Commit: feat(axioms): T4 add pause/resume driver with workqueue persistence (additive only)
+
+PR: Axioms T4 — Pause/Resume Driver (Workqueue, additive)
+
+Checklist:
+
+ Additive only, no edits to existing functions/constants
+
+ Driver UI shell opens and controls Next/Prev/Pause
+
+ Workqueue persistence verified
+
+ Resume works across app restarts
+
+ Tests passing in both local and CI (headless skip included)

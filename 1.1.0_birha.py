@@ -15960,3 +15960,410 @@ def register_axioms_workbench_menu(root: tk.Misc) -> tk.Menu:
     axioms_menu.add_command(label="Open Workbench", command=_open)
     menu_bar.add_cascade(label="Axioms", menu=axioms_menu)
     return axioms_menu
+# === Axioms T4: Pause/Resume Driver (additive only) ===
+
+from dataclasses import dataclass
+from typing import Callable, Sequence
+
+
+@dataclass
+class AxiomQueueItem:
+    verse_key: str
+    status: str
+    translation_revision_seen: int = 0
+    analysis_started_at: Optional[str] = None
+    analysis_completed_at: Optional[str] = None
+    reanalysis_started_at: Optional[str] = None
+    reanalysis_completed_at: Optional[str] = None
+
+    @classmethod
+    def from_record(cls, record: dict) -> "AxiomQueueItem":
+        return cls(
+            verse_key=str(record.get("verse_key", "")),
+            status=str(record.get("status", "pending")),
+            translation_revision_seen=int(record.get("translation_revision_seen", 0) or 0),
+            analysis_started_at=record.get("analysis_started_at"),
+            analysis_completed_at=record.get("analysis_completed_at"),
+            reanalysis_started_at=record.get("reanalysis_started_at"),
+            reanalysis_completed_at=record.get("reanalysis_completed_at"),
+        )
+
+    def to_record(self) -> dict:
+        return {
+            "verse_key": self.verse_key,
+            "status": self.status,
+            "translation_revision_seen": int(self.translation_revision_seen or 0),
+            "analysis_started_at": self.analysis_started_at,
+            "analysis_completed_at": self.analysis_completed_at,
+            "reanalysis_started_at": self.reanalysis_started_at,
+            "reanalysis_completed_at": self.reanalysis_completed_at,
+        }
+
+    @property
+    def is_done(self) -> bool:
+        return self.status == "done"
+
+    @property
+    def is_in_progress(self) -> bool:
+        return self.status == "in_progress"
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status in {"pending", "reanalysis_required"}
+
+
+class AxiomDriverSession:
+    """Queue manager for the additive Axiom driver."""
+
+    def __init__(
+        self,
+        selection: Sequence[str] | None,
+        *,
+        store_path: Optional[Union[str, Path]] = None,
+        clock: Optional[Callable[[], str]] = None,
+    ) -> None:
+        self.store = AxiomWorkqueueStore(store_path=store_path)
+        self._clock = clock or self.store._timestamp
+        self.items: list[AxiomQueueItem] = []
+        self.current_index: Optional[int] = None
+        self._load_or_seed_queue(selection)
+        self._ensure_current_pointer()
+
+    def _now(self) -> str:
+        return self._clock()
+
+    def _load_or_seed_queue(self, selection: Sequence[str] | None) -> None:
+        existing = [AxiomQueueItem.from_record(r) for r in self.store.list_queue()]
+        active_statuses = {"pending", "in_progress", "reanalysis_required"}
+        has_active = any(item.status in active_statuses for item in existing)
+        if has_active or not selection:
+            self.items = existing
+            return
+
+        deduped = []
+        seen: set[str] = set()
+        for verse in selection:
+            token = (verse or "").strip()
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            deduped.append(token)
+
+        for verse_key in deduped:
+            record = self.store.enqueue_or_update(
+                verse_key,
+                status="pending",
+                translation_revision_seen=0,
+                analysis_started_at=None,
+                analysis_completed_at=None,
+                reanalysis_started_at=None,
+                reanalysis_completed_at=None,
+            )
+            self.items.append(AxiomQueueItem.from_record(record))
+
+        # Include any pre-existing records not in the new selection to preserve history order.
+        existing_keys = {item.verse_key for item in self.items}
+        for item in existing:
+            if item.verse_key not in existing_keys:
+                self.items.append(item)
+
+    def _ensure_current_pointer(self) -> None:
+        if not self.items:
+            self.current_index = None
+            return
+        for idx, item in enumerate(self.items):
+            if item.status == "in_progress":
+                self.current_index = idx
+                return
+        for idx, item in enumerate(self.items):
+            if item.status in {"pending", "reanalysis_required"}:
+                self._set_current(idx)
+                return
+        self.current_index = None
+
+    def _persist(self, item: AxiomQueueItem) -> None:
+        payload = item.to_record()
+        self.store.enqueue_or_update(
+            verse_key=payload["verse_key"],
+            status=payload["status"],
+            translation_revision_seen=payload["translation_revision_seen"],
+            analysis_started_at=payload["analysis_started_at"],
+            analysis_completed_at=payload["analysis_completed_at"],
+            reanalysis_started_at=payload["reanalysis_started_at"],
+            reanalysis_completed_at=payload["reanalysis_completed_at"],
+        )
+
+    def _set_current(self, index: int, *, previous_was_completed: bool = False) -> None:
+        if not (0 <= index < len(self.items)):
+            return
+        if self.current_index is not None and self.current_index != index:
+            previous = self.items[self.current_index]
+            if previous.is_in_progress and not previous_was_completed:
+                previous.status = "pending"
+                self._persist(previous)
+        self.current_index = index
+        current = self.items[index]
+        now = self._now()
+        if current.analysis_started_at is None and not current.is_done:
+            current.analysis_started_at = now
+        if current.is_done:
+            if current.reanalysis_started_at is None or (
+                current.reanalysis_completed_at is not None
+            ):
+                current.reanalysis_started_at = now
+                current.reanalysis_completed_at = None
+        current.status = "in_progress"
+        self._persist(current)
+
+    def _complete_current(self) -> None:
+        if self.current_index is None:
+            return
+        current = self.items[self.current_index]
+        now = self._now()
+        if current.analysis_started_at is None:
+            current.analysis_started_at = now
+        if current.analysis_completed_at is None:
+            current.analysis_completed_at = now
+        else:
+            if current.reanalysis_started_at is None:
+                current.reanalysis_started_at = now
+            current.reanalysis_completed_at = now
+        current.status = "done"
+        self._persist(current)
+
+    def _next_index(self, start: int) -> Optional[int]:
+        if start >= len(self.items):
+            return None
+        return start
+
+    @property
+    def current_item(self) -> Optional[AxiomQueueItem]:
+        if self.current_index is None:
+            return None
+        if 0 <= self.current_index < len(self.items):
+            return self.items[self.current_index]
+        return None
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.items
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(self.items) and all(item.is_done for item in self.items)
+
+    def has_next(self) -> bool:
+        return self.current_index is not None and self.current_index < len(self.items) - 1
+
+    def has_previous(self) -> bool:
+        if not self.items:
+            return False
+        if self.current_index is None:
+            return len(self.items) > 0
+        return self.current_index > 0
+
+    def advance(self) -> Optional[AxiomQueueItem]:
+        if self.current_index is None:
+            return None
+        previous_index = self.current_index
+        self._complete_current()
+        next_index = self._next_index(previous_index + 1)
+        if next_index is None:
+            self.current_index = None
+            return None
+        self._set_current(next_index, previous_was_completed=True)
+        return self.current_item
+
+    def go_back(self) -> Optional[AxiomQueueItem]:
+        if not self.items:
+            return None
+        if self.current_index is None:
+            target = len(self.items) - 1
+            self._set_current(target)
+            return self.current_item
+        if self.current_index == 0:
+            return self.current_item
+        target = self.current_index - 1
+        self._set_current(target)
+        return self.current_item
+
+    def pause(self) -> None:
+        current = self.current_item
+        if current is None:
+            return
+        if current.analysis_started_at is None:
+            current.analysis_started_at = self._now()
+        current.status = "in_progress"
+        self._persist(current)
+
+
+class AxiomDriverWindow(tk.Toplevel):
+    """Non-modal controller window for the Axioms pause/resume driver."""
+
+    def __init__(self, master: tk.Misc | None, session: AxiomDriverSession) -> None:
+        super().__init__(master=master)
+        self.session = session
+        self.title("Axioms Pause/Resume Driver")
+        self.configure(bg="white")
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._build_ui()
+        self._bind_keys()
+        self._refresh_view()
+        self.deiconify()
+        try:
+            self.focus_force()
+        except Exception:
+            pass
+
+    def _build_ui(self) -> None:
+        self.progress_var = tk.StringVar(value="")
+        self.status_var = tk.StringVar(value="")
+        self.current_var = tk.StringVar(value="")
+
+        container = tk.Frame(self, bg="white", padx=20, pady=20)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        progress_lbl = tk.Label(
+            container,
+            textvariable=self.progress_var,
+            font=("Arial", 12, "bold"),
+            bg="white",
+            anchor="w",
+        )
+        progress_lbl.pack(fill=tk.X, pady=(0, 10))
+
+        verse_lbl = tk.Label(
+            container,
+            textvariable=self.current_var,
+            font=("Arial", 16),
+            bg="white",
+            justify=tk.LEFT,
+            wraplength=480,
+            anchor="w",
+        )
+        verse_lbl.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        status_lbl = tk.Label(
+            container,
+            textvariable=self.status_var,
+            font=("Arial", 11),
+            bg="white",
+            fg="gray20",
+            anchor="w",
+        )
+        status_lbl.pack(fill=tk.X, pady=(0, 20))
+
+        btn_row = tk.Frame(container, bg="white")
+        btn_row.pack(fill=tk.X)
+
+        self.prev_btn = tk.Button(
+            btn_row,
+            text="Prev",
+            width=10,
+            command=self._on_prev,
+        )
+        self.prev_btn.pack(side=tk.LEFT, padx=5)
+
+        self.next_btn = tk.Button(
+            btn_row,
+            text="Next",
+            width=10,
+            command=self._on_next,
+        )
+        self.next_btn.pack(side=tk.LEFT, padx=5)
+
+        self.pause_btn = tk.Button(
+            btn_row,
+            text="Pause/Resume",
+            width=12,
+            command=self._on_pause,
+        )
+        self.pause_btn.pack(side=tk.LEFT, padx=5)
+
+        close_btn = tk.Button(
+            btn_row,
+            text="Close",
+            width=10,
+            command=self._on_close,
+        )
+        close_btn.pack(side=tk.LEFT, padx=5)
+
+    def _bind_keys(self) -> None:
+        self.bind("<Right>", lambda event: self._on_next())
+        self.bind("<Left>", lambda event: self._on_prev())
+        self.bind("<space>", lambda event: self._on_pause())
+
+    def _refresh_view(self) -> None:
+        item = self.session.current_item
+        total = len(self.session.items)
+        if item is None:
+            self.current_var.set("All selected verses are processed.")
+            self.progress_var.set(f"Total verses: {total}")
+            self.status_var.set("Queue complete. Use Prev to revisit a verse if needed.")
+            self.next_btn.configure(state=tk.DISABLED)
+            self.pause_btn.configure(state=tk.DISABLED)
+            if total > 0:
+                self.prev_btn.configure(state=tk.NORMAL)
+            else:
+                self.prev_btn.configure(state=tk.DISABLED)
+            return
+
+        index_display = (self.session.current_index or 0) + 1
+        self.progress_var.set(f"Verse {index_display} of {total}")
+        self.current_var.set(item.verse_key)
+        if item.analysis_completed_at and item.status == "in_progress":
+            self.status_var.set("Reanalysis in progress")
+        elif item.analysis_started_at:
+            self.status_var.set("Analysis started")
+        else:
+            self.status_var.set("Ready to analyze")
+
+        self.prev_btn.configure(state=tk.NORMAL if self.session.has_previous() else tk.DISABLED)
+        self.next_btn.configure(state=tk.NORMAL if self.session.has_next() else tk.DISABLED)
+        self.pause_btn.configure(state=tk.NORMAL)
+
+    def _on_next(self) -> None:
+        self.session.advance()
+        self._refresh_view()
+
+    def _on_prev(self) -> None:
+        self.session.go_back()
+        self._refresh_view()
+
+    def _on_pause(self) -> None:
+        self.session.pause()
+        self.destroy()
+
+    def _on_close(self) -> None:
+        self.session.pause()
+        self.destroy()
+
+
+def start_axiom_driver_for(
+    selection: list[str],
+    store_path: Optional[Union[str, Path]] = None,
+) -> None:
+    """Iterate through given verse_keys with Next/Prev/Pause controls, persisting to AxiomWorkqueue."""
+    session = AxiomDriverSession(selection, store_path=store_path)
+    if session.is_empty:
+        messagebox.showinfo("Axiom Driver", "No verses were provided for the Axioms driver queue.")
+        return
+    if session.is_complete and session.current_item is None:
+        messagebox.showinfo("Axiom Driver", "All selected verses are already completed.")
+        return
+
+    root = tk._get_default_root()
+    created_root = False
+    if root is None:
+        root = tk.Tk()
+        root.withdraw()
+        created_root = True
+
+    window = AxiomDriverWindow(root, session=session)
+
+    if created_root:
+        window.wait_window()
+        try:
+            root.destroy()
+        except Exception:
+            pass
