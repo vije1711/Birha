@@ -16680,3 +16680,103 @@ def scan_for_axiom_work(
             )
 
     return results
+
+# === Axioms T6: Axiom Catalog CRUD (additive only) ===
+
+from typing import Iterable as _Iterable
+
+
+def create_axiom(
+    law_text: str,
+    *,
+    status: str = "active",
+    store_path: Optional[Union[str, Path]] = None,
+) -> dict:
+    """Create a new axiom record with unique id and timestamps."""
+    store = AxiomsStore(store_path=store_path)
+    return store.create_axiom(law_text, status=status)
+
+
+def update_axiom(
+    axiom_id: str,
+    *,
+    law_text: Optional[str] = None,
+    status: Optional[str] = None,
+    store_path: Optional[Union[str, Path]] = None,
+) -> Optional[dict]:
+    """Update axiom law and/or status, returning the updated record."""
+    if not axiom_id:
+        raise ValueError("axiom_id is required")
+    payload = {}
+    if law_text is not None:
+        payload["axiom_law"] = law_text
+    if status is not None:
+        payload["status"] = status
+    if not payload:
+        raise ValueError("At least one update field must be provided")
+    store = AxiomsStore(store_path=store_path)
+    return store.update_axiom(axiom_id, **payload)
+
+
+def find_axioms(
+    query: str,
+    *,
+    status: Optional[str] = None,
+    store_path: Optional[Union[str, Path]] = None,
+    limit: Optional[int] = None,
+) -> List[dict]:
+    """Search axioms by law text, with optional status filter and limit."""
+    store = AxiomsStore(store_path=store_path)
+    results = store.find_axioms(query)
+    if status is not None:
+        results = [item for item in results if item.get("status") == status]
+    if limit is not None and limit >= 0:
+        results = results[:limit]
+    return results
+
+
+def link_contribution(
+    axiom_id: str,
+    verse_key: str,
+    *,
+    category: str,
+    notes: str = "",
+    translation_revision_seen: int = 0,
+    store_path: Optional[Union[str, Path]] = None,
+) -> dict:
+    """Link a verse to an axiom, preventing duplicate contributions."""
+    contrib_store = AxiomContribStore(store_path=store_path)
+    return contrib_store.link_contribution(
+        axiom_id=axiom_id,
+        verse_key=verse_key,
+        category=category,
+        contribution_notes=notes,
+        translation_revision_seen=translation_revision_seen,
+    )
+
+
+def link_contributions_bulk(
+    axiom_id: str,
+    verse_keys: _Iterable[str],
+    *,
+    category: str,
+    notes: str = "",
+    translation_revision_seen: int = 0,
+    store_path: Optional[Union[str, Path]] = None,
+) -> List[dict]:
+    """Convenience helper to link many verses to the same axiom."""
+    results: List[dict] = []
+    for verse_key in verse_keys:
+        cleaned = (verse_key or "").strip()
+        if not cleaned:
+            continue
+        record = link_contribution(
+            axiom_id,
+            cleaned,
+            category=category,
+            notes=notes,
+            translation_revision_seen=translation_revision_seen,
+            store_path=store_path,
+        )
+        results.append(record)
+    return results
