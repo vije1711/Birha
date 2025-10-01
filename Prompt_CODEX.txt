@@ -3,10 +3,10 @@ Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only r
 You may only add new functions, dataclasses, constants, and unit tests.
 No renames, no signature changes, no in-place edits, no deleted lines in existing code.
 
-Full Prompt (Thorough) – Task 7
+Full Prompt (Thorough) – Task 8
 
 Context
-You are enhancing Birha v1.1.0 (Tkinter app). The source of truth is @Prompt_CODEX.txt and its reference @0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx. Implement Task 7 only: Prompt Generator for finalizing Axioms for a given verse. All changes must be additive.
+You are enhancing Birha v1.1.0 (Tkinter app). The source of truth is @Prompt_CODEX.txt and @0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx. Implement Task 8 only: the Descriptions Engine, handling both verse-specific and axiom-specific descriptions with append/redraft decision logic. All changes must be additive.
 
 Non-negotiables
 
@@ -15,105 +15,109 @@ Do not alter any existing functions, constants, or strings in 1.1.0_birha.py. Tr
 No renames, refactors, in-place edits, or deletions.
 
 Add all new code only under this header:
-# === Axioms T7: Finalize Axiom Prompt Generator (additive only) ===
+# === Axioms T8: Descriptions Engine (additive only) ===
 
 Canonical headers and string constants must remain untouched.
 
 Deliverables
 
-New function
+New functions
 
-def build_axiom_finalization_prompt(
-    verse_key: str,
+def build_description_prompt(
+    axiom_id: str,
+    verse_key: Optional[str] = None,
     store_path: Optional[Union[str, Path]] = None
 ) -> str:
     """
-    Build a structured prompt containing:
-      - Verse text (from assessment_data.xlsx)
-      - Current translation
-      - Grammar highlights (optional: may be stubbed now, to be extended later)
-      - Framework? and Explicit? flags, and derived Category (via T1)
-      - Existing linked Axioms from AxiomsStore
-      - Guidance text to either create new Axioms or link existing ones
-    Returns a markdown/plaintext string for downstream use.
+    Build a structured prompt that includes:
+      - Prior verse-specific descriptions (for the verse, if any)
+      - Current axiom-specific description (latest revision)
+      - Decision instruction: append a new verse-specific description or redraft axiom-specific one
+    Returns a markdown/plaintext string suitable for downstream use.
+    """
+
+def save_description(
+    axiom_id: str,
+    type: str,
+    text: str,
+    verse_key: Optional[str] = None,
+    store_path: Optional[Union[str, Path]] = None
+) -> dict:
+    """
+    Save a description record into AxiomDescriptions.
+      - If type == 'verse_specific': create a new row with verse_key.
+      - If type == 'axiom_specific': increment revision if text changed, preserve prior rows for history.
+    Returns the saved record.
     """
 
 
 Content rules
 
-Prompt must include verse text and translation from assessment_data.xlsx (via helper).
+Verse-specific descriptions: tied to a verse_key; each save creates a new row.
 
-Include Framework? and Explicit? values with category computed using T1’s derive_axiom_category().
+Axiom-specific descriptions: tied only to axiom_id; if text changes, increment revision and preserve history.
 
-Query AxiomsStore.find_axioms() for catalog excerpts (law text + IDs).
+Prompt must present both prior verse-specific entries and the latest axiom-specific text, then instruct whether to append (verse) or redraft (axiom).
 
-If contributions exist (via AxiomContribStore.list_contributions), include them.
-
-Output should be formatted in markdown with clear sections:
-
-Verse Context
-
-Flags & Category
-
-Existing Axioms
-
-Actions → “Create new Axiom” / “Link existing Axiom(s)” / “Link multiple”.
+Format prompt in markdown with clear sections: Verse-Specific Descriptions, Axiom-Specific Description, Decision Guidance.
 
 Optional helpers
 
-_format_axiom_catalog(records: list[dict]) -> str to keep output neat.
+_fetch_descriptions(axiom_id, type, verse_key) to isolate store lookups.
 
-_fetch_verse_context(verse_key: str) to isolate assessment lookups.
+_format_description_history(records) for neat markdown output.
 
 Acceptance Criteria
 
-Calling build_axiom_finalization_prompt(verse_key) returns a markdown/plaintext string with:
+build_description_prompt(axiom_id, verse_key) returns a string containing:
 
-The verse text and translation.
+Any prior verse-specific descriptions for that verse.
 
-Flags (Framework, Explicit) + Category.
+The latest axiom-specific description (with revision number).
 
-Current catalog of Axioms (if any).
+Clear guidance on whether to append or redraft.
 
-Contribution info if verse is already linked.
+save_description() correctly:
 
-Clear next-step guidance (create/link/link multiple).
+Adds new verse-specific description rows.
 
-Prompt is well-structured and readable (section headers, bullet lists where appropriate).
+Creates a new axiom-specific row with incremented revision when text differs from the latest.
 
-Unit tests confirm all elements appear given mock data.
+History of descriptions preserved; no overwrites.
 
-No changes to existing code outside the additive header.
+Unit tests confirm correct saving, revision increments, and prompt output.
+
+No modifications to existing code; all additions in the Task 8 header block.
 
 Tests
-File: tests/axioms/test_task7_prompt.py
+File: tests/axioms/test_task8_descriptions.py
 
-test_prompt_includes_flags_and_category() → verify category text appears.
+test_save_and_fetch_verse_specific_description() → create a verse-specific record and verify prompt shows it.
 
-test_prompt_includes_existing_axioms() → mock AxiomsStore and confirm output lists them.
+test_save_axiom_specific_creates_revision() → saving new axiom-specific text increments revision, old revision still retrievable.
 
-test_prompt_includes_contributions_if_present() → ensure contributions section shows up.
+test_prompt_includes_prior_descriptions() → prompt output includes past verse-specific entries and axiom-specific description.
 
-test_prompt_structure_sections_present() → assert sections (Verse Context, Flags & Category, Existing Axioms, Actions).
+test_prompt_structure_sections_present() → assert sections appear in markdown.
 
-Use a TemporaryDirectory and mock Excel/CSV stores for isolation.
+Use TemporaryDirectory and mock Excel stores for isolation.
 
 PR Workflow
 
-Branch: feature/axioms-T7-finalize-prompt
+Branch: feature/axioms-T8-descriptions-engine
 
-Commit: feat(axioms): T7 add prompt generator for finalizing axioms (additive only)
+Commit: feat(axioms): T8 add descriptions engine for verse/axiom-specific records (additive only)
 
-PR Title: Axioms T7 — Finalize Axiom Prompt Generator
+PR Title: Axioms T8 — Descriptions Engine (verse-specific & axiom-specific)
 
 PR Body Checklist:
 
  Additive only, no edits to existing functions/constants
 
- Prompt generator returns correct markdown/plaintext output
+ build_description_prompt() returns structured output with history and guidance
 
- Existing axioms and contributions appear in prompt
+ save_description() handles both verse-specific and axiom-specific correctly
 
- Sections present and clearly labeled
+ Revisions increment properly; history preserved
 
  Unit tests green
