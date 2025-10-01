@@ -15537,3 +15537,426 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
     root.mainloop()
+
+# === Axioms T3: Workbench UI Shell (additive only) ===
+
+class AxiomsWorkbench(tk.Toplevel):
+    """Additive shell window for reviewing and linking axioms."""
+
+    def __init__(
+        self,
+        master: tk.Misc | None = None,
+        *,
+        axioms_store: Optional[AxiomsStore] = None,
+        contrib_store: Optional[AxiomContribStore] = None,
+        verse_text: Optional[str] = None,
+        verse_key: Optional[str] = None,
+    ) -> None:
+        super().__init__(master=master)
+        self.withdraw()
+        self.title("Axioms (beta) - Workbench")
+        self.transient(master)
+        self.resizable(True, True)
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", lambda event: self.close())
+
+        if axioms_store is not None:
+            self.axioms_store = axioms_store
+        else:
+            self.axioms_store = AxiomsStore()
+        if contrib_store is not None:
+            self.contrib_store = contrib_store
+        else:
+            store_path = getattr(self.axioms_store, "store_path", None)
+            self.contrib_store = AxiomContribStore(store_path=store_path)
+
+        self._context_locked = bool(verse_text or verse_key)
+        self._suspend_verse_trace = False
+
+        self.verse_text_var = tk.StringVar(value=(verse_text or "").strip())
+        self.verse_key_var = tk.StringVar(value="")
+        self._verse_key_display_var = tk.StringVar(value="Verse key: (auto)")
+        self.framework_var = tk.BooleanVar(value=True)
+        self.explicit_var = tk.BooleanVar(value=False)
+        self.category_badge_var = tk.StringVar(value=self.format_category_badge("None"))
+        self.status_var = tk.StringVar(value="Initializing...")
+        self.search_var = tk.StringVar()
+        self._search_results: List[dict] = []
+        self._linked_contributions: List[dict] = []
+
+        self._build_ui()
+        self._configure_traces()
+        self._apply_context(verse_text=verse_text, verse_key=verse_key)
+        self._update_category_badge()
+        self._refresh_linked_contributions()
+        self.status_var.set("Ready")
+        self.deiconify()
+        self.after(100, self._focus_search_entry)
+
+    def _build_ui(self) -> None:
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(2, weight=1)
+        self.rowconfigure(3, weight=1)
+
+        header = ttk.Frame(self)
+        header.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 6))
+        header.columnconfigure(1, weight=1)
+
+        title_label = ttk.Label(header, text="Axioms (beta)")
+        title_label.grid(row=0, column=0, sticky="w")
+
+        self.verse_selector = ttk.Combobox(header, textvariable=self.verse_text_var, width=60)
+        self.verse_selector.grid(row=0, column=1, sticky="ew")
+        self.verse_selector.bind("<<ComboboxSelected>>", self._on_verse_selection)
+        self.verse_selector.bind("<FocusOut>", self._on_verse_text_commit)
+        self.verse_selector.bind("<Return>", self._on_verse_text_commit)
+
+        verse_key_label = ttk.Label(header, textvariable=self._verse_key_display_var, foreground="#555555")
+        verse_key_label.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        status_label = ttk.Label(header, textvariable=self.status_var, foreground="#555555", wraplength=520)
+        status_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(2, 0))
+
+        flags_frame = ttk.Labelframe(self, text="Flags")
+        flags_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 10))
+        flags_frame.columnconfigure(2, weight=1)
+
+        ttk.Checkbutton(
+            flags_frame,
+            text="Framework?",
+            variable=self.framework_var,
+            command=self._update_category_badge,
+        ).grid(row=0, column=0, sticky="w", padx=(6, 12), pady=6)
+        ttk.Checkbutton(
+            flags_frame,
+            text="Explicit?",
+            variable=self.explicit_var,
+            command=self._update_category_badge,
+        ).grid(row=0, column=1, sticky="w", padx=(0, 12), pady=6)
+
+        category_label = ttk.Label(
+            flags_frame,
+            textvariable=self.category_badge_var,
+            padding=(8, 2),
+            relief=tk.GROOVE,
+        )
+        category_label.grid(row=0, column=2, sticky="e", padx=(0, 6))
+
+        axioms_frame = ttk.Labelframe(self, text="Axioms Catalog")
+        axioms_frame.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 10))
+        axioms_frame.columnconfigure(0, weight=1)
+        axioms_frame.columnconfigure(1, weight=0)
+
+        search_row = ttk.Frame(axioms_frame)
+        search_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(6, 4), padx=(4, 4))
+        search_row.columnconfigure(1, weight=1)
+
+        ttk.Label(search_row, text="Search").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.search_entry = ttk.Entry(search_row, textvariable=self.search_var)
+        self.search_entry.grid(row=0, column=1, sticky="ew")
+        self.search_entry.bind("<Return>", self._on_search_submit)
+        ttk.Button(search_row, text="Go", command=self._trigger_search).grid(row=0, column=2, sticky="ew", padx=(8, 0))
+
+        self.results_list = tk.Listbox(axioms_frame, height=8, exportselection=False)
+        self.results_list.grid(row=1, column=0, sticky="nsew", padx=(4, 0), pady=(0, 4))
+        self.results_list.bind("<<ListboxSelect>>", self._on_result_select)
+        results_scroll = ttk.Scrollbar(axioms_frame, orient="vertical", command=self.results_list.yview)
+        results_scroll.grid(row=1, column=1, sticky="ns", pady=(0, 4), padx=(0, 4))
+        self.results_list.configure(yscrollcommand=results_scroll.set)
+
+        button_row = ttk.Frame(axioms_frame)
+        button_row.grid(row=2, column=0, columnspan=2, sticky="ew", padx=(4, 4), pady=(4, 6))
+
+        ttk.Button(button_row, text="Create Axiom", command=self._on_create_axiom).grid(row=0, column=0, sticky="w")
+        ttk.Button(button_row, text="Link Selected", command=self._on_link_selected).grid(row=0, column=1, sticky="w", padx=(8, 0))
+        ttk.Button(button_row, text="View Linked", command=self._on_view_linked).grid(row=0, column=2, sticky="w", padx=(8, 0))
+
+        linked_frame = ttk.Labelframe(self, text="Linked Contributions")
+        linked_frame.grid(row=3, column=0, sticky="nsew", padx=12, pady=(0, 10))
+        linked_frame.columnconfigure(0, weight=1)
+
+        self.linked_list = tk.Listbox(linked_frame, height=6)
+        self.linked_list.grid(row=0, column=0, sticky="nsew", padx=(4, 0), pady=4)
+        linked_scroll = ttk.Scrollbar(linked_frame, orient="vertical", command=self.linked_list.yview)
+        linked_scroll.grid(row=0, column=1, sticky="ns", pady=4, padx=(0, 4))
+        self.linked_list.configure(yscrollcommand=linked_scroll.set)
+
+        footer = ttk.Frame(self)
+        footer.grid(row=4, column=0, sticky="ew", padx=12, pady=(0, 12))
+        footer.columnconfigure(0, weight=1)
+        ttk.Button(footer, text="Close", command=self.close).grid(row=0, column=1, sticky="e")
+
+    def _configure_traces(self) -> None:
+        self.verse_text_var.trace_add("write", self._on_verse_text_var_changed)
+
+    def _apply_context(self, verse_text: Optional[str], verse_key: Optional[str]) -> None:
+        if verse_text:
+            self._set_verse_text(verse_text)
+        if verse_key:
+            self._set_verse_key(verse_key, refresh=True)
+        else:
+            computed = _normalize_verse_key(self.current_verse_text) if self.current_verse_text else ""
+            self._set_verse_key(computed, refresh=True)
+        if self._context_locked:
+            selector_values = ()
+            if self.current_verse_text:
+                selector_values = (self.current_verse_text,)
+            elif self.current_verse_key:
+                selector_values = (self.current_verse_key,)
+            self.verse_selector.configure(state="readonly", values=selector_values)
+        else:
+            self.verse_selector.configure(state="normal")
+
+    @property
+    def current_verse_text(self) -> str:
+        return self.verse_text_var.get().strip()
+
+    @property
+    def current_verse_key(self) -> str:
+        return self.verse_key_var.get().strip()
+
+    @property
+    def current_category(self) -> str:
+        return derive_axiom_category(self.framework_var.get(), self.explicit_var.get())
+
+    def _set_verse_text(self, value: str) -> None:
+        self._suspend_verse_trace = True
+        self.verse_text_var.set((value or "").strip())
+        self._suspend_verse_trace = False
+
+    def _set_verse_key(self, value: str, *, refresh: bool = False) -> None:
+        key = (value or "").strip()
+        if key == self.verse_key_var.get():
+            return
+        self.verse_key_var.set(key)
+        display = key or "(auto)"
+        self._verse_key_display_var.set(f"Verse key: {display}")
+        if refresh:
+            self._refresh_linked_contributions()
+
+    def _on_verse_text_var_changed(self, *_: object) -> None:
+        if self._suspend_verse_trace or self._context_locked:
+            return
+        text = self.current_verse_text
+        computed = _normalize_verse_key(text) if text else ""
+        self._set_verse_key(computed, refresh=True)
+
+    def _on_verse_selection(self, *_: object) -> None:
+        self._on_verse_text_commit()
+
+    def _on_verse_text_commit(self, *_: object) -> None:
+        if self._context_locked:
+            return
+        text = self.current_verse_text
+        computed = _normalize_verse_key(text) if text else ""
+        self._set_verse_key(computed, refresh=True)
+
+    def _focus_search_entry(self) -> None:
+        try:
+            self.search_entry.focus_set()
+        except tk.TclError:
+            pass
+
+    def _set_status(self, message: str) -> None:
+        self.status_var.set(message)
+
+    def _update_category_badge(self) -> None:
+        self.category_badge_var.set(self.format_category_badge(self.current_category))
+
+    @staticmethod
+    def format_category_badge(category: str) -> str:
+        label = category or "None"
+        return f"Category: {label}"
+
+    def search_axioms(self, query: str) -> List[dict]:
+        results = self.axioms_store.find_axioms(query)
+        self._populate_results(results)
+        return results
+
+    def _trigger_search(self) -> None:
+        query = self.search_var.get().strip()
+        if not query:
+            self._populate_results([])
+            self._set_status("Enter a search term to find axioms.")
+            return
+        results = self.search_axioms(query)
+        self._set_status(f"Found {len(results)} matching axioms.")
+
+    def _on_search_submit(self, *_: object) -> None:
+        self._trigger_search()
+
+    def _populate_results(self, results: List[dict]) -> None:
+        self._search_results = results or []
+        self.results_list.configure(state="normal")
+        self.results_list.delete(0, tk.END)
+        if not self._search_results:
+            return
+        for record in self._search_results:
+            self.results_list.insert(tk.END, self._format_result_label(record))
+
+    def _format_result_label(self, record: dict) -> str:
+        axiom_id = record.get("axiom_id") or "(unknown)"
+        law = (record.get("axiom_law") or "").strip()
+        if law:
+            return f"{axiom_id} | {law}"
+        return axiom_id
+
+    def _select_result_by_id(self, axiom_id: str) -> None:
+        if not axiom_id:
+            return
+        for index, record in enumerate(self._search_results):
+            if record.get("axiom_id") == axiom_id:
+                self.results_list.selection_clear(0, tk.END)
+                self.results_list.selection_set(index)
+                self.results_list.see(index)
+                break
+
+    def _get_selected_index(self) -> Optional[int]:
+        selection = self.results_list.curselection()
+        if not selection:
+            return None
+        return int(selection[0])
+
+    def _get_selected_record(self) -> Optional[dict]:
+        index = self._get_selected_index()
+        if index is None:
+            return None
+        if index >= len(self._search_results):
+            return None
+        return self._search_results[index]
+
+    def _on_result_select(self, *_: object) -> None:
+        record = self._get_selected_record()
+        if record is None:
+            return
+        axiom_id = record.get("axiom_id") or ""
+        self._set_status(f"Selected axiom {axiom_id}.")
+
+    def _on_create_axiom(self) -> None:
+        law = simpledialog.askstring("Create Axiom", "Enter axiom law:", parent=self)
+        if not law:
+            return
+        try:
+            record = self.axioms_store.create_axiom(law)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            messagebox.showerror("Create Axiom", str(exc), parent=self)
+            return
+        self.search_var.set(law)
+        self.search_axioms(law)
+        self._select_result_by_id(record.get("axiom_id") or "")
+        self._set_status(f"Created axiom {record.get('axiom_id')}.")
+
+    def link_axiom_to_current_verse(self, axiom_id: str, category: Optional[str] = None) -> Optional[dict]:
+        verse_key = self.current_verse_key
+        if not axiom_id or not verse_key:
+            return None
+        category_value = category or self.current_category
+        record = self.contrib_store.link_contribution(axiom_id, verse_key, category_value, contribution_notes="")
+        self._refresh_linked_contributions()
+        return record
+
+    def _on_link_selected(self) -> None:
+        record = self._get_selected_record()
+        if record is None:
+            messagebox.showinfo("Link Selected", "Select an axiom to link.", parent=self)
+            return
+        if not self.current_verse_key:
+            messagebox.showinfo("Link Selected", "Provide a verse before linking.", parent=self)
+            return
+        try:
+            linked = self.link_axiom_to_current_verse(record.get("axiom_id") or "")
+        except Exception as exc:  # pragma: no cover - defensive guard
+            messagebox.showerror("Link Selected", str(exc), parent=self)
+            return
+        if linked is None:
+            return
+        self._set_status("Linked verse to axiom successfully.")
+
+    def _on_view_linked(self) -> None:
+        verse_key = self.current_verse_key
+        if not verse_key:
+            messagebox.showinfo("View Linked", "No verse selected.", parent=self)
+            return
+        contributions = self.contrib_store.list_contributions(verse_key=verse_key)
+        if not contributions:
+            messagebox.showinfo("View Linked", "No contributions linked yet.", parent=self)
+            return
+        lines = []
+        for item in contributions:
+            category = item.get("category") or "None"
+            axiom_id = item.get("axiom_id") or ""
+            lines.append(f"{category} | {axiom_id}")
+        messagebox.showinfo("View Linked", "\n".join(lines), parent=self)
+
+    def _refresh_linked_contributions(self) -> None:
+        verse_key = self.current_verse_key
+        self.linked_list.configure(state="normal")
+        self.linked_list.delete(0, tk.END)
+        self._linked_contributions = []
+        if not verse_key:
+            self.linked_list.insert(tk.END, "No verse selected.")
+            self.linked_list.itemconfig(0, foreground="#777777")
+            return
+        contributions = self.contrib_store.list_contributions(verse_key=verse_key)
+        self._linked_contributions = contributions
+        if not contributions:
+            self.linked_list.insert(tk.END, "No contributions yet.")
+            self.linked_list.itemconfig(0, foreground="#777777")
+            return
+        for item in contributions:
+            category = item.get("category") or "None"
+            axiom_id = item.get("axiom_id") or ""
+            self.linked_list.insert(tk.END, f"{category} | {axiom_id}")
+
+    def close(self) -> None:
+        self.destroy()
+
+
+def _resolve_root_widget(app: Union["GrammarApp", tk.Misc]) -> tk.Misc:
+    if isinstance(app, tk.Misc):
+        return app
+    root = getattr(app, "root", None)
+    if isinstance(root, tk.Misc):
+        return root
+    raise ValueError("Unable to resolve Tk root window from GrammarApp.")
+
+
+def open_axioms_workbench_from_dashboard(app: "GrammarApp") -> None:
+    root = _resolve_root_widget(app)
+    window = AxiomsWorkbench(root)
+    window.lift()
+    window.focus_set()
+
+
+def open_axioms_workbench_for_verse(
+    app: "GrammarApp",
+    verse_text: Optional[str] = None,
+    verse_key: Optional[str] = None,
+) -> None:
+    root = _resolve_root_widget(app)
+    window = AxiomsWorkbench(root, verse_text=verse_text, verse_key=verse_key)
+    window.lift()
+    window.focus_set()
+
+
+def register_axioms_workbench_menu(root: tk.Misc) -> tk.Menu:
+    if not isinstance(root, tk.Misc):
+        raise ValueError("root must be a Tk widget")
+    existing = root.cget("menu")
+    if existing:
+        menu_bar = root.nametowidget(existing)
+    else:
+        menu_bar = tk.Menu(root)
+        root.config(menu=menu_bar)
+
+    def _open() -> None:
+        app = getattr(root, "app", None)
+        if app is None:
+            messagebox.showwarning("Axioms", "No GrammarApp context available.", parent=root)
+            return
+        open_axioms_workbench_from_dashboard(app)
+
+    axioms_menu = tk.Menu(menu_bar, tearoff=False)
+    axioms_menu.add_command(label="Open Workbench", command=_open)
+    menu_bar.add_cascade(label="Axioms", menu=axioms_menu)
+    return axioms_menu
