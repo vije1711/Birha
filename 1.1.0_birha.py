@@ -16032,6 +16032,7 @@ class AxiomDriverSession:
     def _now(self) -> str:
         return self._clock()
 
+
     def _load_or_seed_queue(self, selection: Sequence[str] | None) -> None:
         existing = [AxiomQueueItem.from_record(r) for r in self.store.list_queue()]
         active_statuses = {"pending", "in_progress", "reanalysis_required"}
@@ -16049,7 +16050,13 @@ class AxiomDriverSession:
             seen.add(token)
             deduped.append(token)
 
+        existing_by_key = {item.verse_key: item for item in existing}
+
         for verse_key in deduped:
+            existing_item = existing_by_key.get(verse_key)
+            if existing_item is not None:
+                self.items.append(existing_item)
+                continue
             record = self.store.enqueue_or_update(
                 verse_key,
                 status="pending",
@@ -16066,6 +16073,7 @@ class AxiomDriverSession:
         for item in existing:
             if item.verse_key not in existing_keys:
                 self.items.append(item)
+
 
     def _ensure_current_pointer(self) -> None:
         if not self.items:

@@ -92,6 +92,32 @@ class AxiomDriverSessionTest(unittest.TestCase):
             self.assertIsNotNone(next_item)
             self.assertEqual(next_item.verse_key, "verse-c")
 
+    def test_reseeding_preserves_completed_history(self):
+        with TemporaryDirectory() as tmp:
+            store_path = Path(tmp) / "1.3.0_axioms.xlsx"
+            session = AxiomDriverSession(["verse-x", "verse-y"], store_path=store_path)
+            while session.current_item is not None:
+                session.advance()
+
+            records_before = session.store.list_queue()
+            self.assertTrue(records_before)
+            self.assertTrue(all(record["status"] == "done" for record in records_before))
+            snapshot = {
+                record["verse_key"]: (record["status"], record.get("analysis_completed_at"))
+                for record in records_before
+            }
+
+            reseeded = AxiomDriverSession(["verse-x", "verse-y"], store_path=store_path)
+            self.assertTrue(reseeded.is_complete)
+            self.assertIsNone(reseeded.current_item)
+
+            records_after = reseeded.store.list_queue()
+            self.assertEqual(len(records_after), len(records_before))
+            for record in records_after:
+                status, completed_at = snapshot[record["verse_key"]]
+                self.assertEqual(record["status"], status)
+                self.assertEqual(record.get("analysis_completed_at"), completed_at)
+
 
 class AxiomDriverWindowTest(unittest.TestCase):
     @unittest.skipIf(HEADLESS_DISPLAY, "no display available")
