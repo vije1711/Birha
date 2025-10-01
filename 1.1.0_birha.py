@@ -15815,7 +15815,7 @@ class AxiomsWorkbench(tk.Toplevel):
         selection = self.results_list.curselection()
         if not selection:
             return None
-        return selection[0]
+        return int(selection[0])
 
     def _get_selected_record(self) -> Optional[dict]:
         index = self._get_selected_index()

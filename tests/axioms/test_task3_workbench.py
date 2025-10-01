@@ -89,6 +89,23 @@ class AxiomsWorkbenchUITest(unittest.TestCase):
             finally:
                 root.destroy()
 
+
+    def test_selection_returns_record(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            window = AxiomsWorkbench(root)
+            try:
+                sample = [{"axiom_id": "AX-TEST", "axiom_law": "Sample Law"}]
+                window._populate_results(sample)
+                window.results_list.selection_set(0)
+                record = window._get_selected_record()
+                self.assertEqual(record, sample[0])
+            finally:
+                window.destroy()
+        finally:
+            root.destroy()
+
     def test_existing_function_source_guard(self):
         expectations = {
             "derive_axiom_category": '''def derive_axiom_category(framework: bool, explicit: bool) -> str:
