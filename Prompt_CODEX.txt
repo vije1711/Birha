@@ -1,104 +1,212 @@
-Context
-You are enhancing Birha v1.1.0. The source of truth is "0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx". Implement Task 1 only in a fully additive way.
-
 Non-negotiable constraint
-
 Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only reference.
-
 You may only add new functions, dataclasses, constants, and unit tests.
-
 No renames, no signature changes, no in-place edits, no deleted lines in existing code.
 
-Files
+Context & Rule
 
-Code: 1.1.0_birha.py (add code at the end under a clear region header).
+Enhance Birha v1.1.0 additively. Do not change any existing functions in 1.1.0_birha.py. New code only (helpers, classes, constants, tests).
 
-Tests: create tests/axioms/test_task1_category.py.
+Implement Task 2 only: a read/write adapter for the Axiom stores.
 
-Task 1: Framework Defaults & Category Mapping
-Add the following new functions (pure and testable):
+Target file(s)
 
-Category mapping utility
+Code: 1.1.0_birha.py (append code at the end, under a clear header like # === Axioms T2: Workfile Adapter (additive only) ===).
 
-# === Axioms T1: Framework Defaults & Category Mapping ===
-def derive_axiom_category(framework: bool, explicit: bool) -> str:
-    """
-    Return 'Primary' | 'Secondary' | 'Tertiary' | 'None' per contract mapping.
-    Mapping (extensible):
-      - framework=True  and explicit=True  -> 'Primary'
-      - framework=True  and explicit=False -> 'Secondary'
-      - else -> 'None'
-    """
+Tests: tests/axioms/test_task2_store_adapter.py
 
+Persistence choice (make both easy)
 
-Defaulting helper (non-mutating; returns a copy)
+Primary store: Excel at 1.3.0_axioms.xlsx with fixed sheets.
 
-def apply_framework_default(record: dict, key: str = 'Framework?') -> dict:
-    """
-    Return a shallow copy of 'record' with Framework? defaulted to True
-    when the key is missing or is None/''.
-    Existing True/False values are preserved.
-    No side effects on input.
-    """
+Also expose CSV import/export helpers for each sheet (no wiring yet).
 
+Schemas (exact column order)
 
-Do not wire these into existing save flows in this task (to honor the no-edits rule).
+Axioms (sheet name: Axioms)
+Columns:
 
-Provide a short docstring showing how later tasks can call these helpers from the save path.
+axiom_id (str, unique)
 
-Acceptance Criteria (prove in PR):
+axiom_law (str, required, non-empty)
 
-derive_axiom_category(True, True) == 'Primary'.
+created_at (ISO8601 str)
 
-derive_axiom_category(True, False) == 'Secondary'.
+updated_at (ISO8601 str)
 
-derive_axiom_category(False, True) == 'None'.
+status (str in {active,deprecated})
 
-derive_axiom_category(False, False) == 'None'.
+AxiomDescriptions (sheet: AxiomDescriptions)
 
-apply_framework_default({...}) returns a new dict with Framework? set to True when missing/empty, and leaves existing True/False untouched.
+axiom_id (str, required, FK to Axioms)
 
-Unit tests cover all four boolean pairs and defaulting edge cases (missing key, None, '', and pre-set values).
+type (str in {verse_specific,axiom_specific})
 
-Zero diffs inside any pre-existing function bodies in 1.1.0_birha.py.
+verse_key (str | empty)
 
-Lint/tests pass locally.
+description (str)
+
+revision (int >= 0)
+
+updated_at (ISO8601 str)
+
+AxiomContributions (sheet: AxiomContributions)
+
+axiom_id (str, required, FK to Axioms)
+
+verse_key (str, required)
+
+category (str in {Primary,Secondary,Tertiary,None})
+
+contribution_notes (str)
+
+translation_revision_seen (int >= 0, default 0)
+
+created_at (ISO8601 str)
+
+updated_at (ISO8601 str)
+
+AxiomKeywords (sheet: AxiomKeywords)
+
+axiom_id (str, required, FK to Axioms)
+
+bucket (str in {LiteralSyn,LiteralAnt,SpiritualSyn,SpiritualAnt})
+
+keyword (str, required)
+
+weight (int, default 1)
+
+source (str in {generated,edited})
+
+updated_at (ISO8601 str)
+
+AxiomWorkqueue (optional sheet: AxiomWorkqueue) — scaffold only
+
+verse_key (str, required, unique)
+
+status (str in {pending,in_progress,done,reanalysis_required})
+
+translation_revision_seen (int >= 0)
+
+Timestamps: analysis_started_at,analysis_completed_at,reanalysis_started_at,reanalysis_completed_at (ISO8601 str | empty)
+
+What to implement (additive classes + helpers)
+
+class _AxiomStoreBase: internal utilities (path mgmt, timestamp, dataframe load/save with locked headers).
+
+class AxiomsStore:
+
+ensure_store() → create 1.3.0_axioms.xlsx with all sheets/headers if missing.
+
+create_axiom(axiom_law: str, status: str = "active") -> dict (generate axiom_id, timestamps).
+
+get_axiom(axiom_id: str) -> dict | None
+
+find_axioms(query: str) -> list[dict] (substring match on axiom_law, case-insensitive).
+
+update_axiom(axiom_id: str, **fields) -> dict (touch updated_at).
+
+class AxiomDescStore:
+
+add_description(axiom_id: str, type: str, description: str, verse_key: str | None, revision: int) -> dict
+
+list_descriptions(axiom_id: str, type: str | None = None, verse_key: str | None = None) -> list[dict]
+
+class AxiomContribStore:
+
+link_contribution(axiom_id: str, verse_key: str, category: str, contribution_notes: str = "", translation_revision_seen: int = 0) -> dict (prevent duplicate (axiom_id, verse_key)).
+
+list_contributions(axiom_id: str | None = None, verse_key: str | None = None) -> list[dict]
+
+class AxiomKeywordsStore:
+
+add_keywords(axiom_id: str, bucket: str, keywords: list[str], weight: int = 1, source: str = "generated") -> int (dedupe case-insensitively within an axiom+bucket).
+
+list_keywords(axiom_id: str, bucket: str | None = None) -> list[dict]
+
+class AxiomWorkqueueStore: (optional scaffold)
+
+enqueue_or_update(verse_key: str, status: str, translation_revision_seen: int) -> dict
+
+list_queue(status: str | None = None) -> list[dict]
+
+Implementation notes
+
+Use pandas for Excel I/O; always write with the exact column order above.
+
+Generate IDs as AX-YYYYMMDD-HHMMSS-<6char> (or uuid4 shortened)—deterministic enough for tests.
+
+Timestamps: datetime.utcnow().isoformat(timespec="seconds") + "Z".
+
+Dedupe rules:
+
+Axioms: axiom_id unique; allow same axiom_law but discourage in tests.
+
+AxiomContributions: unique pair (axiom_id, verse_key).
+
+AxiomKeywords: unique triple (axiom_id, bucket, keyword.lower()).
+
+Unit tests (pytest) — prove round-trip & schema lock
+Create tests/axioms/test_task2_store_adapter.py:
+
+Setup uses a temp dir/file; DO NOT touch real 1.3.0_axioms.xlsx.
+
+test_ensure_store_creates_all_sheets_with_headers_in_order()
+
+test_create_and_get_axiom_round_trip()
+
+test_find_axioms_case_insensitive()
+
+test_add_and_list_descriptions_with_revision()
+
+test_link_contribution_dedup_by_axiom_and_verse_key()
+
+test_keywords_add_dedup_and_list()
+
+test_all_sheets_preserve_column_order_on_multiple_saves() (write/read/write)
+
+(Optional) test_workqueue_enqueue_and_list()
+
+Include a small sample (≥10 rows across sheets) to verify stable headers and no drift.
+
+Acceptance Criteria (show evidence in PR)
+
+File 1.3.0_axioms.xlsx auto-created on first use with all sheets and exact headers/ordering.
+
+CRUD ops for Axioms/Descriptions/Contributions/Keywords work and round-trip via Excel.
+
+Column order stays fixed across multiple writes.
+
+Dedupe rules hold (no duplicate (axiom_id, verse_key); no duplicate keyword within axiom+bucket ignoring case).
+
+Tests pass locally; lints are clean.
+
+Zero changes inside any existing functions (code is appended/additive).
 
 Deliverables
 
-New code appended under a clear header, e.g.,
-# === Axioms T1 (do not edit existing functions; additive only) ===
+New classes appended to 1.1.0_birha.py under a clear header.
 
-tests/axioms/test_task1_category.py (pytest) with:
+tests/axioms/test_task2_store_adapter.py with the cases above.
 
-parametrized tests for mapping,
-
-tests for defaulting behavior and immutability (input dict unchanged),
-
-a small README-style docstring explaining intended future integration points.
+(Optional) tiny utils within the same file for timestamp/id generation.
 
 Git / PR workflow
 
-Branch: feature/axioms-T1-framework-defaults-category
+Branch: feature/axioms-T2-workfile-adapter
 
-Commit: feat(axioms): T1 add category mapper and framework default helper (additive only)
+Commit: feat(axioms): T2 add Excel-backed stores for Axioms/Desc/Contrib/Keywords (additive only)
 
-PR title: Axioms T1 — Category mapping + Framework default (additive)
+PR: Axioms T2 — Workfile Adapter (Excel R/W, schema-locked)
 
-PR body must include:
+PR body checklist:
 
-Context: reference the contract doc and the no-edit constraint.
+ No edits to existing functions (diff shows additive only)
 
-Changes: bullets of new functions and tests.
+ Store classes created; file auto-init with headers
 
-Tests: list cases and results.
+ Round-trip tests passing; column order locked
 
-Acceptance Checklist:
-
- No edits to existing functions (verified by diff)
-
- derive_axiom_category() mappings pass
-
- apply_framework_default() default/immutability pass
+ Dedupe rules enforced
 
  Lint/tests green
