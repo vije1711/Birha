@@ -14988,6 +14988,23 @@ class GrammarApp:
 
         return total_match_count, max_match_percentage
 
+# === Axioms T1 (do not edit existing functions; additive only) ===
+
+def derive_axiom_category(framework: bool, explicit: bool) -> str:
+    """Return 'Primary', 'Secondary', or 'None' per contract mapping for later save-path use."""
+    if framework and explicit:
+        return "Primary"
+    if framework and not explicit:
+        return "Secondary"
+    return "None"
+
+
+def apply_framework_default(record: dict, key: str = "Framework?") -> dict:
+    """Return a copy with the framework flag defaulted so GrammarApp save flows can call it before persisting."""
+    updated = dict(record)
+    if key not in updated or updated[key] is None or updated[key] == "":
+        updated[key] = True
+    return updated
 
 if __name__ == "__main__":
     root = tk.Tk()

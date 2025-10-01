@@ -1,30 +1,104 @@
-Objective:
-In `_build_user_input_grammar`, auto-select and highlight suggested defaults for "Number / ਵਚਨ", "Gender / ਲਿੰਗ", and "Type" based on frequency counts from `1.1.1_birha.csv`. Use only rows where:
-  (a) the “Vowel Ending” column exactly matches the current word under analysis (BOM-safe; handle "\ufeffVowel Ending"), and
-  (b) the “Evaluation” column equals "Derived".
-Additionally, ensure these suggestions refresh **immediately after every CSV update** so changes reflect as the session proceeds.
+Context
+You are enhancing Birha v1.1.0. The source of truth is "0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx". Implement Task 1 only in a fully additive way.
 
-Details:
-- Load/cache `1.1.1_birha.csv` with BOM-safe headers.
-- Add freshness logic:
-  - After each successful save (`on_accept_detailed_grammar` → `_append_birha_csv_row`), invalidate the cached DataFrame.
-  - In `get_derived_suggestions_by_vowel_ending`, re-load on cache-miss OR when file mtime has changed.
-- Filter by exact Vowel Ending and Evaluation="Derived".
-- For each target field (Number / ਵਚਨ, Gender / ਲਿੰਗ, Type), compute value counts.
-- If a single candidate meets dominance (support ≥ 3 and top_ratio ≥ 0.60), **auto-select** that radio and apply a **constant highlight** (e.g., LightYellow bg) to the selected option. If ttk bg is blocked, wrap the radio in a small Frame carrying the highlight color.
-- No use of “Vowel Ending” in comparisons (only for filtering).
+Non-negotiable constraint
 
-Integration points:
-- Helper: `get_derived_suggestions_by_vowel_ending(word) -> {"Number / ਵਚਨ": (value, n, ratio) | None, "Gender / ਲਿੰਗ": ..., "Type": ...}` with mtime-guarded reloads.
-- In `_build_user_input_grammar`, after constructing radio groups, call the helper; for each qualifying field, set the `tk.Variable` to the suggested value and apply the highlight styling.
-- After `_append_birha_csv_row` success, call a small invalidation hook (e.g., `self._derived_cache = None` and store `self._derived_cache_mtime`).
+Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only reference.
 
-Acceptance:
-- Suggested options for Number, Gender, and Type are **auto-selected and highlighted** when dominance holds.
-- Opening the next word (or reopening the dialog) after a save uses the **updated** CSV without restarting the app.
-- No regressions to layout, saving, scrolling, or other flows.
+You may only add new functions, dataclasses, constants, and unit tests.
 
-Branch: feat/auto-select-and-refresh-derived-suggestions
-PR Title: Auto-select + highlight derived grammar suggestions and refresh after each CSV save
-PR Description:
-Implements frequency-based auto-selection and constant highlight for Number/Gender/Type in `_build_user_input_grammar`, filtered by exact Vowel Ending (BOM-safe) and Evaluation="Derived". Adds cache invalidation on save and mtime-guarded reloads so suggestions update immediately as the session progresses.
+No renames, no signature changes, no in-place edits, no deleted lines in existing code.
+
+Files
+
+Code: 1.1.0_birha.py (add code at the end under a clear region header).
+
+Tests: create tests/axioms/test_task1_category.py.
+
+Task 1: Framework Defaults & Category Mapping
+Add the following new functions (pure and testable):
+
+Category mapping utility
+
+# === Axioms T1: Framework Defaults & Category Mapping ===
+def derive_axiom_category(framework: bool, explicit: bool) -> str:
+    """
+    Return 'Primary' | 'Secondary' | 'Tertiary' | 'None' per contract mapping.
+    Mapping (extensible):
+      - framework=True  and explicit=True  -> 'Primary'
+      - framework=True  and explicit=False -> 'Secondary'
+      - else -> 'None'
+    """
+
+
+Defaulting helper (non-mutating; returns a copy)
+
+def apply_framework_default(record: dict, key: str = 'Framework?') -> dict:
+    """
+    Return a shallow copy of 'record' with Framework? defaulted to True
+    when the key is missing or is None/''.
+    Existing True/False values are preserved.
+    No side effects on input.
+    """
+
+
+Do not wire these into existing save flows in this task (to honor the no-edits rule).
+
+Provide a short docstring showing how later tasks can call these helpers from the save path.
+
+Acceptance Criteria (prove in PR):
+
+derive_axiom_category(True, True) == 'Primary'.
+
+derive_axiom_category(True, False) == 'Secondary'.
+
+derive_axiom_category(False, True) == 'None'.
+
+derive_axiom_category(False, False) == 'None'.
+
+apply_framework_default({...}) returns a new dict with Framework? set to True when missing/empty, and leaves existing True/False untouched.
+
+Unit tests cover all four boolean pairs and defaulting edge cases (missing key, None, '', and pre-set values).
+
+Zero diffs inside any pre-existing function bodies in 1.1.0_birha.py.
+
+Lint/tests pass locally.
+
+Deliverables
+
+New code appended under a clear header, e.g.,
+# === Axioms T1 (do not edit existing functions; additive only) ===
+
+tests/axioms/test_task1_category.py (pytest) with:
+
+parametrized tests for mapping,
+
+tests for defaulting behavior and immutability (input dict unchanged),
+
+a small README-style docstring explaining intended future integration points.
+
+Git / PR workflow
+
+Branch: feature/axioms-T1-framework-defaults-category
+
+Commit: feat(axioms): T1 add category mapper and framework default helper (additive only)
+
+PR title: Axioms T1 — Category mapping + Framework default (additive)
+
+PR body must include:
+
+Context: reference the contract doc and the no-edit constraint.
+
+Changes: bullets of new functions and tests.
+
+Tests: list cases and results.
+
+Acceptance Checklist:
+
+ No edits to existing functions (verified by diff)
+
+ derive_axiom_category() mappings pass
+
+ apply_framework_default() default/immutability pass
+
+ Lint/tests green
