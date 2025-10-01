@@ -1,5 +1,6 @@
 import importlib.util
 import inspect
+import os
 import textwrap
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ import tkinter as tk
 
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "1.1.0_birha.py"
+HEADLESS_DISPLAY = os.name != "nt" and "DISPLAY" not in os.environ
 
 
 def _load_birha_module():
@@ -28,6 +30,7 @@ apply_framework_default = BIRHA.apply_framework_default
 
 
 class AxiomsWorkbenchUITest(unittest.TestCase):
+    @unittest.skipIf(HEADLESS_DISPLAY, "no display available")
     def test_headless_smoke(self):
         with TemporaryDirectory() as tmp:
             store_path = Path(tmp) / "1.3.0_axioms.xlsx"
@@ -59,6 +62,7 @@ class AxiomsWorkbenchUITest(unittest.TestCase):
                 badge = AxiomsWorkbench.format_category_badge(category)
                 self.assertEqual(badge, expected)
 
+    @unittest.skipIf(HEADLESS_DISPLAY, "no display available")
     def test_store_round_trip_linkage(self):
         with TemporaryDirectory() as tmp:
             store_path = Path(tmp) / "1.3.0_axioms.xlsx"
@@ -90,6 +94,7 @@ class AxiomsWorkbenchUITest(unittest.TestCase):
                 root.destroy()
 
 
+    @unittest.skipIf(HEADLESS_DISPLAY, "no display available")
     def test_selection_returns_record(self):
         root = tk.Tk()
         root.withdraw()
