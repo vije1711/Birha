@@ -16780,3 +16780,206 @@ def link_contributions_bulk(
         )
         results.append(record)
     return results
+# === Axioms T7: Finalize Axiom Prompt Generator (additive only) ===
+
+from typing import Mapping as _Mapping
+
+
+def _load_assessment_context(
+    verse_key: str,
+    *,
+    assessment_path: Union[str, Path],
+) -> Optional[dict]:
+    path = Path(assessment_path)
+    if not path.exists():
+        return None
+
+    try:
+        df = pd.read_excel(path)
+    except Exception:
+        return None
+
+    if "Verse" not in df.columns:
+        return None
+
+    df = df.copy()
+    df["_norm_key"] = df["Verse"].map(_normalize_verse_key)
+    filtered = df[df["_norm_key"] == verse_key]
+    if filtered.empty:
+        return None
+
+    translation = ""
+    if "Translation" in filtered:
+        translations = filtered["Translation"].dropna().astype(str)
+        if not translations.empty:
+            translation = translations.iloc[0].strip()
+
+    revision = 0
+    if "Translation Revision" in filtered:
+        revisions = filtered["Translation Revision"].dropna()
+        if not revisions.empty:
+            revision = int(_coerce_int(revisions.max(), default=0))
+
+    framework_flag = True
+    if "Framework?" in filtered:
+        framework_flag = any(_coerce_bool(val, default=True) for val in filtered["Framework?"].tolist())
+
+    explicit_flag = False
+    if "Explicit?" in filtered:
+        explicit_flag = any(_coerce_bool(val, default=False) for val in filtered["Explicit?"].tolist())
+
+    verse_text = ""
+    verse_values = filtered["Verse"].dropna().astype(str)
+    if not verse_values.empty:
+        verse_text = verse_values.iloc[0].strip()
+
+    grammar_highlights: List[dict] = []
+    columns = {
+        "Word": "word",
+        "Selected Darpan Meaning": "meaning",
+        "Grammar / ਵਯਾਕਰਣ": "grammar",
+        "Type": "pos",
+        "Number / ਵਚਨ": "number",
+        "Gender / ਲਿੰਗ": "gender",
+    }
+    for _, row in filtered.iterrows():
+        entry = {alias: str(row.get(col, "") or "").strip() for col, alias in columns.items()}
+        word = entry.get("word", "")
+        if not word:
+            continue
+        grammar_highlights.append(entry)
+
+    # Deduplicate highlights by word + grammar signature while preserving order
+    seen_signatures: Set[Tuple[str, str, str]] = set()
+    unique_highlights: List[dict] = []
+    for entry in grammar_highlights:
+        signature = (
+            entry.get("word", ""),
+            entry.get("grammar", ""),
+            entry.get("pos", ""),
+        )
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        unique_highlights.append(entry)
+    grammar_highlights = unique_highlights[:8]
+
+    return {
+        "verse_text": verse_text,
+        "translation": translation,
+        "translation_revision": revision,
+        "is_framework": framework_flag,
+        "is_explicit": explicit_flag,
+        "grammar_highlights": grammar_highlights,
+    }
+
+
+def _load_axioms_index(store: AxiomsStore) -> _Mapping[str, dict]:
+    sheets = store._read_all_sheets()
+    frame = sheets.get("Axioms")
+    if frame is None or frame.empty:
+        return {}
+    return {
+        str(row["axiom_id"]): row
+        for _, row in frame.iterrows()
+        if isinstance(row.get("axiom_id"), str)
+    }
+
+
+def _format_bool(value: bool) -> str:
+    return "Yes" if value else "No"
+
+
+def build_axiom_finalization_prompt(
+    verse_key: str,
+    *,
+    assessment_path: Optional[Union[str, Path]] = None,
+    store_path: Optional[Union[str, Path]] = None,
+    include_catalog_rows: int = 10,
+) -> str:
+    """Return a structured markdown prompt to finalize axioms for the given verse."""
+    normalized_key = _normalize_verse_key(verse_key)
+    if not normalized_key:
+        raise ValueError("verse_key is required")
+
+    assessment_file = Path(assessment_path or "1.2.1 assessment_data.xlsx")
+    context = _load_assessment_context(normalized_key, assessment_path=assessment_file)
+    if context is None:
+        raise ValueError(f"No assessment data found for verse key: {normalized_key}")
+
+    contrib_store = AxiomContribStore(store_path=store_path)
+    contributions = contrib_store.list_contributions(verse_key=normalized_key)
+
+    axioms_store = AxiomsStore(store_path=store_path)
+    axioms_index = _load_axioms_index(axioms_store)
+
+    catalog_frame = axioms_store._read_all_sheets().get("Axioms")
+    recent_axioms: List[dict] = []
+    if catalog_frame is not None and not catalog_frame.empty:
+        sorted_frame = catalog_frame.sort_values(by="updated_at", ascending=False)
+        if include_catalog_rows >= 0:
+            sorted_frame = sorted_frame.head(include_catalog_rows)
+        recent_axioms = axioms_store._frame_to_records("Axioms", sorted_frame)
+
+    lines: List[str] = []
+    lines.append(f"# Finalize Axiom(s) for Verse: {normalized_key}")
+    lines.append("")
+    lines.append("## Verse Context")
+    lines.append(f"- Text: {context['verse_text'] or '(unavailable)'}")
+    lines.append(f"- Translation (rev {context['translation_revision']}): {context['translation'] or '(unavailable)'}")
+    lines.append(f"- Framework?: {_format_bool(context['is_framework'])}")
+    lines.append(f"- Explicit?: {_format_bool(context['is_explicit'])}")
+    lines.append("")
+
+    if context["grammar_highlights"]:
+        lines.append("### Grammar Highlights")
+        for entry in context["grammar_highlights"]:
+            word = entry.get("word", "")
+            pieces = []
+            if entry.get("meaning"):
+                pieces.append(f"meaning={entry['meaning']}")
+            if entry.get("grammar"):
+                pieces.append(f"grammar={entry['grammar']}")
+            if entry.get("pos"):
+                pieces.append(f"pos={entry['pos']}")
+            if entry.get("number"):
+                pieces.append(f"number={entry['number']}")
+            if entry.get("gender"):
+                pieces.append(f"gender={entry['gender']}")
+            detail = ", ".join(pieces) if pieces else "(no additional detail)"
+            lines.append(f"- **{word}** — {detail}")
+        lines.append("")
+
+    lines.append("## Existing Axiom Links")
+    if contributions:
+        for record in contributions:
+            axiom_id = str(record.get("axiom_id", ""))
+            axiom = axioms_index.get(axiom_id, {})
+            law = axiom.get("axiom_law", "(unknown law)")
+            category = record.get("category", "")
+            notes = record.get("contribution_notes", "") or ""
+            seen_revision = record.get("translation_revision_seen", 0)
+            lines.append(f"- **{law}** (`{axiom_id}`) — category: {category or 'NA'}, seen translation rev: {seen_revision}")
+            if notes:
+                lines.append(f"  - Notes: {notes}")
+    else:
+        lines.append("- None linked yet.")
+    lines.append("")
+
+    lines.append("## Recent Axiom Catalog Entries")
+    if recent_axioms:
+        for axiom in recent_axioms:
+            lines.append(
+                f"- **{axiom.get('axiom_law', '(no law)')}** (`{axiom.get('axiom_id', 'NA')}`) — status: {axiom.get('status', 'NA')}"
+            )
+    else:
+        lines.append("- Catalog is empty.")
+    lines.append("")
+
+    lines.append("## Guidance for Analyst")
+    lines.append("1. **Create New Axiom** — when the verse introduces a primary law that is absent above. Summarize the law as a concise statement.")
+    lines.append("2. **Link Existing Axiom(s)** — when the verse reinforces or elaborates on one or more catalog entries; select `Primary` or supporting category as appropriate.")
+    lines.append("3. **Link Multiple Axioms** — if the verse contributes to several laws, capture each contribution separately with notes describing the nuance.")
+    lines.append("4. Provide contribution notes capturing literal insight vs. spiritual inference for downstream descriptions.")
+
+    return "\n".join(lines)
