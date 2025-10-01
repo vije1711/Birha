@@ -16375,3 +16375,308 @@ def start_axiom_driver_for(
             root.destroy()
         except Exception:
             pass
+
+# === Axioms T5: Reanalysis Scanner (additive only) ===
+
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
+
+
+@dataclass
+class AxiomAssessmentVerse:
+    verse_key: str
+    translation_revision: int
+    is_framework: bool
+    is_explicit: bool
+    verse_text: str = ""
+
+
+@dataclass
+class AxiomScanResult:
+    verse_key: str
+    seen_translation_revision: int
+    current_translation_revision: int
+    is_framework: bool
+    is_explicit: bool
+    status: str
+    parents: Tuple[str, ...] = field(default_factory=tuple)
+    supporting: Tuple[str, ...] = field(default_factory=tuple)
+    source_axioms: Tuple[str, ...] = field(default_factory=tuple)
+    triggered_by_supporting: bool = False
+
+    def to_tuple(self) -> Tuple[str, int, int, bool, bool, Dict[str, Tuple[str, ...]]]:
+        return (
+            self.verse_key,
+            self.seen_translation_revision,
+            self.current_translation_revision,
+            self.is_framework,
+            self.is_explicit,
+            {
+                "parents": self.parents,
+                "supporting": self.supporting,
+            },
+        )
+
+
+@dataclass
+class _VerseScanState:
+    verse_key: str
+    current_revision: int
+    seen_revision: int
+    is_framework: bool
+    is_explicit: bool
+    parents: Set[str] = field(default_factory=set)
+    supporting: Set[str] = field(default_factory=set)
+    source_axioms: Set[str] = field(default_factory=set)
+    categories: Set[str] = field(default_factory=set)
+    status: Optional[str] = None
+    triggered_by_supporting: bool = False
+
+    def as_result(self) -> AxiomScanResult:
+        if not self.status:
+            raise ValueError("Cannot convert a state without a status to result")
+        return AxiomScanResult(
+            verse_key=self.verse_key,
+            seen_translation_revision=self.seen_revision,
+            current_translation_revision=self.current_revision,
+            is_framework=self.is_framework,
+            is_explicit=self.is_explicit,
+            status=self.status,
+            parents=tuple(sorted(self.parents)),
+            supporting=tuple(sorted(self.supporting)),
+            source_axioms=tuple(sorted(self.source_axioms)),
+            triggered_by_supporting=self.triggered_by_supporting,
+        )
+
+
+def _coerce_bool(value: object, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        try:
+            return bool(int(value))
+        except Exception:
+            return default
+    text = str(value).strip().lower()
+    if not text:
+        return default
+    if text in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    return default
+
+
+def _coerce_int(value: object, *, default: int = 0) -> int:
+    if value is None:
+        return default
+    try:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            if pd.isna(value):
+                return default
+            return int(value)
+        text = str(value).strip()
+        if not text:
+            return default
+        return int(float(text))
+    except Exception:
+        return default
+
+
+def _load_assessment_verses(assessment_path: Union[str, Path]) -> Dict[str, AxiomAssessmentVerse]:
+    path = Path(assessment_path)
+    if not path.exists():
+        return {}
+
+    try:
+        df = pd.read_excel(path)
+    except Exception:
+        return {}
+
+    if "Verse" not in df.columns:
+        return {}
+
+    verses: Dict[str, AxiomAssessmentVerse] = {}
+    grouped_keys = df["Verse"].map(_normalize_verse_key)
+    for verse_key, group in df.groupby(grouped_keys):
+        if not verse_key:
+            continue
+        translation_revisions = [
+            _coerce_int(value, default=0)
+            for value in group.get("Translation Revision", [])
+        ]
+        current_revision = max(translation_revisions, default=0)
+        framework_flags = [
+            _coerce_bool(value, default=True)
+            for value in group.get("Framework?", [])
+        ]
+        explicit_flags = [
+            _coerce_bool(value, default=False)
+            for value in group.get("Explicit?", [])
+        ]
+        verse_series = group.get("Verse")
+        verse_text = ""
+        if verse_series is not None and not verse_series.empty:
+            verse_text = str(verse_series.iloc[0])
+        verses[verse_key] = AxiomAssessmentVerse(
+            verse_key=verse_key,
+            translation_revision=current_revision,
+            is_framework=any(framework_flags) if framework_flags else True,
+            is_explicit=any(explicit_flags),
+            verse_text=verse_text,
+        )
+    return verses
+
+
+def _prepare_contribution_maps(contributions: Sequence[dict]) -> Tuple[
+    Dict[str, int],
+    Dict[str, Set[str]],
+    Dict[str, Set[str]],
+    Dict[str, Set[str]],
+    Dict[str, Set[str]],
+]:
+    verse_seen: Dict[str, int] = {}
+    verse_axioms: Dict[str, Set[str]] = {}
+    verse_categories: Dict[str, Set[str]] = {}
+    axiom_primary: Dict[str, Set[str]] = {}
+    axiom_supporting: Dict[str, Set[str]] = {}
+
+    for record in contributions:
+        verse_key = str(record.get("verse_key", "")).strip()
+        if not verse_key:
+            continue
+        axiom_id = str(record.get("axiom_id", "")).strip()
+        category = str(record.get("category", "")).strip() or "None"
+        seen_revision = _coerce_int(record.get("translation_revision_seen"), default=0)
+
+        existing_seen = verse_seen.get(verse_key)
+        if existing_seen is None or seen_revision < existing_seen:
+            verse_seen[verse_key] = seen_revision
+
+        if axiom_id:
+            verse_axioms.setdefault(verse_key, set()).add(axiom_id)
+            if category == "Primary":
+                axiom_primary.setdefault(axiom_id, set()).add(verse_key)
+            else:
+                axiom_supporting.setdefault(axiom_id, set()).add(verse_key)
+        verse_categories.setdefault(verse_key, set()).add(category)
+
+    return verse_seen, verse_axioms, verse_categories, axiom_primary, axiom_supporting
+
+
+def scan_for_axiom_work(
+    *,
+    assessment_path: Optional[Union[str, Path]] = None,
+    store_path: Optional[Union[str, Path]] = None,
+) -> List[AxiomScanResult]:
+    assessment_file = Path(assessment_path or "1.2.1 assessment_data.xlsx")
+    verses = _load_assessment_verses(assessment_file)
+
+    contrib_store = AxiomContribStore(store_path=store_path)
+    contributions = contrib_store.list_contributions()
+    (
+        verse_seen,
+        verse_axioms,
+        verse_categories,
+        axiom_primary,
+        axiom_supporting,
+    ) = _prepare_contribution_maps(contributions)
+
+    states: Dict[str, _VerseScanState] = {}
+
+    def _get_state(verse_key: str) -> _VerseScanState:
+        state = states.get(verse_key)
+        if state is not None:
+            return state
+        assessment = verses.get(verse_key)
+        categories = verse_categories.get(verse_key, set())
+        default_framework = True if categories else False
+        if "Primary" in categories:
+            default_framework = True
+        state = _VerseScanState(
+            verse_key=verse_key,
+            current_revision=(assessment.translation_revision if assessment else verse_seen.get(verse_key, 0)),
+            seen_revision=verse_seen.get(verse_key, 0),
+            is_framework=(assessment.is_framework if assessment else default_framework),
+            is_explicit=(assessment.is_explicit if assessment else False),
+        )
+        state.source_axioms.update(verse_axioms.get(verse_key, set()))
+        state.categories.update(categories)
+        states[verse_key] = state
+        return state
+
+    for verse_key, assessment in verses.items():
+        state = _get_state(verse_key)
+        state.current_revision = max(state.current_revision, assessment.translation_revision)
+        state.is_framework = assessment.is_framework
+        state.is_explicit = assessment.is_explicit
+        if verse_key not in verse_seen:
+            state.seen_revision = 0
+
+    for verse_key, seen_revision in verse_seen.items():
+        state = _get_state(verse_key)
+        if state.seen_revision:
+            state.seen_revision = min(state.seen_revision, seen_revision)
+        else:
+            state.seen_revision = seen_revision
+
+    for verse_key, categories in verse_categories.items():
+        state = _get_state(verse_key)
+        state.categories.update(categories)
+
+    for verse_key, axiom_ids in verse_axioms.items():
+        state = _get_state(verse_key)
+        state.source_axioms.update(axiom_ids)
+
+    for axiom_id, primary_keys in axiom_primary.items():
+        supporting_keys = axiom_supporting.get(axiom_id, set())
+        for primary in primary_keys:
+            primary_state = _get_state(primary)
+            primary_state.supporting.update(key for key in supporting_keys if key != primary)
+        for supporting in supporting_keys:
+            supporting_state = _get_state(supporting)
+            supporting_state.parents.update(primary_keys)
+
+    for state in states.values():
+        if state.verse_key not in verse_seen:
+            if state.is_framework:
+                state.status = "pending"
+            continue
+        if state.current_revision > state.seen_revision:
+            state.status = "reanalysis_required"
+
+    for state in list(states.values()):
+        if state.status != "reanalysis_required":
+            continue
+        categories = state.categories or verse_categories.get(state.verse_key, set())
+        is_supporting = any(category and category != "Primary" for category in categories)
+        if not is_supporting:
+            continue
+        for parent_key in state.parents:
+            parent_state = _get_state(parent_key)
+            parent_state.status = "reanalysis_required"
+            parent_state.triggered_by_supporting = True
+
+    results = [state.as_result() for state in states.values() if state.status]
+    results.sort(key=lambda item: item.verse_key)
+
+    if results:
+        queue_store = AxiomWorkqueueStore(store_path=store_path)
+        existing_records = {record["verse_key"]: record for record in queue_store.list_queue()}
+        for result in results:
+            existing = existing_records.get(result.verse_key, {})
+            queue_store.enqueue_or_update(
+                verse_key=result.verse_key,
+                status=result.status,
+                translation_revision_seen=result.seen_translation_revision,
+                analysis_started_at=existing.get("analysis_started_at"),
+                analysis_completed_at=existing.get("analysis_completed_at"),
+                reanalysis_started_at=existing.get("reanalysis_started_at"),
+                reanalysis_completed_at=existing.get("reanalysis_completed_at"),
+            )
+
+    return results
