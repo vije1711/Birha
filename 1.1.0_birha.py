@@ -15006,6 +15006,533 @@ def apply_framework_default(record: dict, key: str = "Framework?") -> dict:
         updated[key] = True
     return updated
 
+
+# === Axioms T2: Workfile Adapter (additive only) ===
+
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence, Union
+
+import pandas as pd
+
+
+class _AxiomStoreBase:
+    """Shared utilities for Excel-backed Axiom stores."""
+
+    STORE_FILENAME = "1.3.0_axioms.xlsx"
+
+    SHEET_SCHEMAS: Dict[str, Sequence[str]] = {
+        "Axioms": (
+            "axiom_id",
+            "axiom_law",
+            "created_at",
+            "updated_at",
+            "status",
+        ),
+        "AxiomDescriptions": (
+            "axiom_id",
+            "type",
+            "verse_key",
+            "description",
+            "revision",
+            "updated_at",
+        ),
+        "AxiomContributions": (
+            "axiom_id",
+            "verse_key",
+            "category",
+            "contribution_notes",
+            "translation_revision_seen",
+            "created_at",
+            "updated_at",
+        ),
+        "AxiomKeywords": (
+            "axiom_id",
+            "bucket",
+            "keyword",
+            "weight",
+            "source",
+            "updated_at",
+        ),
+        "AxiomWorkqueue": (
+            "verse_key",
+            "status",
+            "translation_revision_seen",
+            "analysis_started_at",
+            "analysis_completed_at",
+            "reanalysis_started_at",
+            "reanalysis_completed_at",
+        ),
+    }
+
+    INT_COLUMNS: Dict[str, Sequence[str]] = {
+        "AxiomDescriptions": ("revision",),
+        "AxiomContributions": ("translation_revision_seen",),
+        "AxiomKeywords": ("weight",),
+        "AxiomWorkqueue": ("translation_revision_seen",),
+    }
+
+    AXIOM_STATUSES = {"active", "deprecated"}
+    DESC_TYPES = {"verse_specific", "axiom_specific"}
+    CONTRIBUTION_CATEGORIES = {"Primary", "Secondary", "Tertiary", "None"}
+    KEYWORD_BUCKETS = {"LiteralSyn", "LiteralAnt", "SpiritualSyn", "SpiritualAnt"}
+    KEYWORD_SOURCES = {"generated", "edited"}
+    WORKQUEUE_STATUSES = {"pending", "in_progress", "done", "reanalysis_required"}
+
+    def __init__(self, store_path: Optional[Union[str, Path]] = None) -> None:
+        self.store_path = self._resolve_store_path(store_path)
+        self._ensure_store_exists()
+
+    @classmethod
+    def ensure_store(cls, store_path: Optional[Union[str, Path]] = None) -> Path:
+        """Public helper to guarantee the Excel workfile exists."""
+        instance = cls(store_path=store_path)
+        return instance.store_path
+
+    @classmethod
+    def _resolve_store_path(cls, store_path: Optional[Union[str, Path]]) -> Path:
+        if store_path is None:
+            return Path(__file__).resolve().parent / cls.STORE_FILENAME
+        return Path(store_path).resolve()
+
+    def _ensure_store_exists(self) -> None:
+        if self.store_path.exists():
+            return
+        self.store_path.parent.mkdir(parents=True, exist_ok=True)
+        with pd.ExcelWriter(self.store_path, engine="openpyxl") as writer:
+            for sheet, columns in self.SHEET_SCHEMAS.items():
+                pd.DataFrame(columns=columns).to_excel(writer, sheet_name=sheet, index=False)
+
+    @staticmethod
+    def _timestamp() -> str:
+        # Use timezone.utc for Python 3.10 compatibility; normalize to 'Z'
+        return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    @staticmethod
+    def _generate_axiom_id() -> str:
+        token = uuid.uuid4().hex[:6].upper()
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        return f"AX-{stamp}-{token}"
+
+    def _read_all_sheets(self) -> Dict[str, pd.DataFrame]:
+        self._ensure_store_exists()
+        sheets: Dict[str, pd.DataFrame] = {}
+        with pd.ExcelFile(self.store_path) as workbook:
+            existing = set(workbook.sheet_names)
+            for sheet, columns in self.SHEET_SCHEMAS.items():
+                if sheet in existing:
+                    frame = pd.read_excel(workbook, sheet_name=sheet, dtype=object)
+                    if frame.empty:
+                        frame = pd.DataFrame(columns=columns)
+                    else:
+                        frame = frame.reindex(columns=columns)
+                else:
+                    frame = pd.DataFrame(columns=columns)
+                sheets[sheet] = frame
+        return sheets
+
+    def _prepare_frame_for_write(self, sheet: str, frame: pd.DataFrame) -> pd.DataFrame:
+        expected = list(self.SHEET_SCHEMAS[sheet])
+        working = frame.copy()
+        for column in expected:
+            if column not in working.columns:
+                working[column] = pd.Series([pd.NA] * len(working), dtype="object")
+        working = working[expected]
+        for column in self.INT_COLUMNS.get(sheet, ()): 
+            if column in working.columns:
+                working[column] = pd.to_numeric(working[column], errors="coerce").astype("Int64")
+        return working
+
+    def _write_all_sheets(self, sheets: Dict[str, pd.DataFrame]) -> None:
+        with pd.ExcelWriter(self.store_path, engine="openpyxl") as writer:
+            for sheet in self.SHEET_SCHEMAS:
+                frame = sheets.get(sheet)
+                if frame is None:
+                    frame = pd.DataFrame(columns=self.SHEET_SCHEMAS[sheet])
+                prepared = self._prepare_frame_for_write(sheet, frame)
+                prepared.to_excel(writer, sheet_name=sheet, index=False)
+
+    def _frame_to_records(self, sheet: str, frame: pd.DataFrame) -> List[dict]:
+        records: List[dict] = []
+        int_columns = set(self.INT_COLUMNS.get(sheet, ()))
+        for raw in frame.to_dict(orient="records"):
+            cleaned = {}
+            for key, value in raw.items():
+                if pd.isna(value):
+                    cleaned[key] = None
+                elif key in int_columns:
+                    cleaned[key] = int(value)
+                else:
+                    cleaned[key] = value
+            records.append(cleaned)
+        return records
+
+    def _export_sheet_to_csv(self, sheet: str, csv_path: Union[str, Path]) -> Path:
+        destination = Path(csv_path)
+        frame = self._prepare_frame_for_write(sheet, self._read_all_sheets()[sheet])
+        frame.to_csv(destination, index=False)
+        return destination
+
+    def _import_sheet_from_csv(self, sheet: str, csv_path: Union[str, Path]) -> int:
+        source = Path(csv_path)
+        if not source.exists():
+            raise FileNotFoundError(source)
+        frame = pd.read_csv(source, dtype=object)
+        frame = frame.reindex(columns=self.SHEET_SCHEMAS[sheet])
+        sheets = self._read_all_sheets()
+        sheets[sheet] = frame
+        self._write_all_sheets(sheets)
+        return len(frame)
+
+
+class AxiomsStore(_AxiomStoreBase):
+    """CRUD helpers for the Axioms sheet."""
+
+    def create_axiom(self, axiom_law: str, status: str = "active") -> dict:
+        law = (axiom_law or "").strip()
+        if not law:
+            raise ValueError("axiom_law is required")
+        if status not in self.AXIOM_STATUSES:
+            raise ValueError(f"status must be one of {sorted(self.AXIOM_STATUSES)}")
+
+        sheets = self._read_all_sheets()
+        frame = sheets["Axioms"]
+        existing_ids = set(frame["axiom_id"].dropna()) if not frame.empty else set()
+        axiom_id = self._generate_axiom_id()
+        while axiom_id in existing_ids:
+            axiom_id = self._generate_axiom_id()
+
+        timestamp = self._timestamp()
+        record = {
+            "axiom_id": axiom_id,
+            "axiom_law": law,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+            "status": status,
+        }
+
+        sheets["Axioms"] = pd.concat([frame, pd.DataFrame([record])], ignore_index=True)
+        self._write_all_sheets(sheets)
+        return record
+
+    def get_axiom(self, axiom_id: str) -> Optional[dict]:
+        if not axiom_id:
+            return None
+        frame = self._read_all_sheets()["Axioms"]
+        match = frame[frame["axiom_id"] == axiom_id]
+        if match.empty:
+            return None
+        return self._frame_to_records("Axioms", match)[0]
+
+    def find_axioms(self, query: str) -> List[dict]:
+        needle = (query or "").strip().lower()
+        if not needle:
+            return []
+        frame = self._read_all_sheets()["Axioms"]
+        if frame.empty:
+            return []
+        mask = frame["axiom_law"].fillna("").str.lower().str.contains(needle)
+        return self._frame_to_records("Axioms", frame[mask])
+
+    def update_axiom(self, axiom_id: str, **fields: Union[str, None]) -> Optional[dict]:
+        allowed = {"axiom_law", "status"}
+        unexpected = set(fields) - allowed
+        if unexpected:
+            raise ValueError(f"Unsupported fields: {sorted(unexpected)}")
+
+        sheets = self._read_all_sheets()
+        frame = sheets["Axioms"]
+        candidates = frame.index[frame["axiom_id"] == axiom_id].tolist()
+        if not candidates:
+            return None
+        idx = candidates[0]
+        if "axiom_law" in fields:
+            law = (fields["axiom_law"] or "").strip()
+            if not law:
+                raise ValueError("axiom_law is required")
+            frame.at[idx, "axiom_law"] = law
+        if "status" in fields:
+            status = fields["status"]
+            if status not in self.AXIOM_STATUSES:
+                raise ValueError(f"status must be one of {sorted(self.AXIOM_STATUSES)}")
+            frame.at[idx, "status"] = status
+        frame.at[idx, "updated_at"] = self._timestamp()
+        sheets["Axioms"] = frame
+        self._write_all_sheets(sheets)
+        return self._frame_to_records("Axioms", frame.loc[[idx]])[0]
+
+    def export_axioms_csv(self, csv_path: Union[str, Path]) -> Path:
+        return self._export_sheet_to_csv("Axioms", csv_path)
+
+    def import_axioms_csv(self, csv_path: Union[str, Path]) -> int:
+        return self._import_sheet_from_csv("Axioms", csv_path)
+
+
+class AxiomDescStore(_AxiomStoreBase):
+    """Access helpers for axiom descriptions."""
+
+    def add_description(
+        self,
+        axiom_id: str,
+        type: str,
+        description: str,
+        verse_key: Optional[str],
+        revision: int,
+    ) -> dict:
+        if not axiom_id:
+            raise ValueError("axiom_id is required")
+        if type not in self.DESC_TYPES:
+            raise ValueError(f"type must be one of {sorted(self.DESC_TYPES)}")
+        if revision is None or int(revision) < 0:
+            raise ValueError("revision must be >= 0")
+
+        sheets = self._read_all_sheets()
+        frame = sheets["AxiomDescriptions"]
+        timestamp = self._timestamp()
+        record = {
+            "axiom_id": axiom_id,
+            "type": type,
+            "verse_key": verse_key or None,
+            "description": description or "",
+            "revision": int(revision),
+            "updated_at": timestamp,
+        }
+        sheets["AxiomDescriptions"] = pd.concat([frame, pd.DataFrame([record])], ignore_index=True)
+        self._write_all_sheets(sheets)
+        return record
+
+    def list_descriptions(
+        self,
+        axiom_id: str,
+        type: Optional[str] = None,
+        verse_key: Optional[str] = None,
+    ) -> List[dict]:
+        frame = self._read_all_sheets()["AxiomDescriptions"]
+        if frame.empty:
+            return []
+        mask = frame["axiom_id"] == axiom_id
+        if type is not None:
+            mask &= frame["type"] == type
+        if verse_key is not None:
+            mask &= frame["verse_key"].fillna("") == verse_key
+        return self._frame_to_records("AxiomDescriptions", frame[mask])
+
+    def export_descriptions_csv(self, csv_path: Union[str, Path]) -> Path:
+        return self._export_sheet_to_csv("AxiomDescriptions", csv_path)
+
+    def import_descriptions_csv(self, csv_path: Union[str, Path]) -> int:
+        return self._import_sheet_from_csv("AxiomDescriptions", csv_path)
+
+
+class AxiomContribStore(_AxiomStoreBase):
+    """Helpers for linking verses to axioms."""
+
+    def link_contribution(
+        self,
+        axiom_id: str,
+        verse_key: str,
+        category: str,
+        contribution_notes: str = "",
+        translation_revision_seen: int = 0,
+    ) -> dict:
+        if not axiom_id or not verse_key:
+            raise ValueError("axiom_id and verse_key are required")
+        if category not in self.CONTRIBUTION_CATEGORIES:
+            raise ValueError(f"category must be one of {sorted(self.CONTRIBUTION_CATEGORIES)}")
+        if translation_revision_seen is None or int(translation_revision_seen) < 0:
+            raise ValueError("translation_revision_seen must be >= 0")
+
+        sheets = self._read_all_sheets()
+        frame = sheets["AxiomContributions"]
+        existing_mask = (frame["axiom_id"] == axiom_id) & (frame["verse_key"] == verse_key)
+        timestamp = self._timestamp()
+        if existing_mask.any():
+            idx = frame.index[existing_mask][0]
+            frame.at[idx, "category"] = category
+            frame.at[idx, "contribution_notes"] = contribution_notes or ""
+            frame.at[idx, "translation_revision_seen"] = int(translation_revision_seen)
+            frame.at[idx, "updated_at"] = timestamp
+            sheets["AxiomContributions"] = frame
+            self._write_all_sheets(sheets)
+            return self._frame_to_records("AxiomContributions", frame.loc[[idx]])[0]
+
+        record = {
+            "axiom_id": axiom_id,
+            "verse_key": verse_key,
+            "category": category,
+            "contribution_notes": contribution_notes or "",
+            "translation_revision_seen": int(translation_revision_seen),
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+        sheets["AxiomContributions"] = pd.concat([frame, pd.DataFrame([record])], ignore_index=True)
+        self._write_all_sheets(sheets)
+        return record
+
+    def list_contributions(
+        self,
+        axiom_id: Optional[str] = None,
+        verse_key: Optional[str] = None,
+    ) -> List[dict]:
+        frame = self._read_all_sheets()["AxiomContributions"]
+        if frame.empty:
+            return []
+        mask = pd.Series([True] * len(frame))
+        if axiom_id is not None:
+            mask &= frame["axiom_id"] == axiom_id
+        if verse_key is not None:
+            mask &= frame["verse_key"] == verse_key
+        return self._frame_to_records("AxiomContributions", frame[mask])
+
+    def export_contributions_csv(self, csv_path: Union[str, Path]) -> Path:
+        return self._export_sheet_to_csv("AxiomContributions", csv_path)
+
+    def import_contributions_csv(self, csv_path: Union[str, Path]) -> int:
+        return self._import_sheet_from_csv("AxiomContributions", csv_path)
+
+
+class AxiomKeywordsStore(_AxiomStoreBase):
+    """Keyword management per axiom bucket."""
+
+    def add_keywords(
+        self,
+        axiom_id: str,
+        bucket: str,
+        keywords: Iterable[str],
+        weight: int = 1,
+        source: str = "generated",
+    ) -> int:
+        if not axiom_id:
+            raise ValueError("axiom_id is required")
+        if bucket not in self.KEYWORD_BUCKETS:
+            raise ValueError(f"bucket must be one of {sorted(self.KEYWORD_BUCKETS)}")
+        if source not in self.KEYWORD_SOURCES:
+            raise ValueError(f"source must be one of {sorted(self.KEYWORD_SOURCES)}")
+        if weight is None or int(weight) <= 0:
+            raise ValueError("weight must be >= 1")
+
+        cleaned: List[str] = []
+        local_seen: set[str] = set()
+        for word in keywords or []:
+            token = (word or "").strip()
+            if not token:
+                continue
+            lowered = token.lower()
+            if lowered in local_seen:
+                continue
+            local_seen.add(lowered)
+            cleaned.append(token)
+        if not cleaned:
+            return 0
+
+        sheets = self._read_all_sheets()
+        frame = sheets["AxiomKeywords"]
+        existing = frame[(frame["axiom_id"] == axiom_id) & (frame["bucket"] == bucket)]
+        existing_keys = {str(v).lower() for v in existing["keyword"].dropna()} if not existing.empty else set()
+
+        timestamp = self._timestamp()
+        new_rows = []
+        for keyword in cleaned:
+            lowered = keyword.lower()
+            if lowered in existing_keys:
+                continue
+            existing_keys.add(lowered)
+            new_rows.append(
+                {
+                    "axiom_id": axiom_id,
+                    "bucket": bucket,
+                    "keyword": keyword,
+                    "weight": int(weight),
+                    "source": source,
+                    "updated_at": timestamp,
+                }
+            )
+
+        if not new_rows:
+            return 0
+
+        sheets["AxiomKeywords"] = pd.concat([frame, pd.DataFrame(new_rows)], ignore_index=True)
+        self._write_all_sheets(sheets)
+        return len(new_rows)
+
+    def list_keywords(self, axiom_id: str, bucket: Optional[str] = None) -> List[dict]:
+        frame = self._read_all_sheets()["AxiomKeywords"]
+        if frame.empty:
+            return []
+        mask = frame["axiom_id"] == axiom_id
+        if bucket is not None:
+            mask &= frame["bucket"] == bucket
+        return self._frame_to_records("AxiomKeywords", frame[mask])
+
+    def export_keywords_csv(self, csv_path: Union[str, Path]) -> Path:
+        return self._export_sheet_to_csv("AxiomKeywords", csv_path)
+
+    def import_keywords_csv(self, csv_path: Union[str, Path]) -> int:
+        return self._import_sheet_from_csv("AxiomKeywords", csv_path)
+
+
+class AxiomWorkqueueStore(_AxiomStoreBase):
+    """Optional scaffold for queue management."""
+
+    def enqueue_or_update(
+        self,
+        verse_key: str,
+        status: str,
+        translation_revision_seen: int,
+        *,
+        analysis_started_at: Optional[str] = None,
+        analysis_completed_at: Optional[str] = None,
+        reanalysis_started_at: Optional[str] = None,
+        reanalysis_completed_at: Optional[str] = None,
+    ) -> dict:
+        if not verse_key:
+            raise ValueError("verse_key is required")
+        if status not in self.WORKQUEUE_STATUSES:
+            raise ValueError(f"status must be one of {sorted(self.WORKQUEUE_STATUSES)}")
+        if translation_revision_seen is None or int(translation_revision_seen) < 0:
+            raise ValueError("translation_revision_seen must be >= 0")
+
+        sheets = self._read_all_sheets()
+        frame = sheets["AxiomWorkqueue"]
+        mask = frame["verse_key"] == verse_key
+        payload = {
+            "verse_key": verse_key,
+            "status": status,
+            "translation_revision_seen": int(translation_revision_seen),
+            "analysis_started_at": analysis_started_at,
+            "analysis_completed_at": analysis_completed_at,
+            "reanalysis_started_at": reanalysis_started_at,
+            "reanalysis_completed_at": reanalysis_completed_at,
+        }
+        if mask.any():
+            idx = frame.index[mask][0]
+            for key, value in payload.items():
+                frame.at[idx, key] = value
+            sheets["AxiomWorkqueue"] = frame
+            self._write_all_sheets(sheets)
+            return self._frame_to_records("AxiomWorkqueue", frame.loc[[idx]])[0]
+
+        sheets["AxiomWorkqueue"] = pd.concat([frame, pd.DataFrame([payload])], ignore_index=True)
+        self._write_all_sheets(sheets)
+        return payload
+
+    def list_queue(self, status: Optional[str] = None) -> List[dict]:
+        frame = self._read_all_sheets()["AxiomWorkqueue"]
+        if frame.empty:
+            return []
+        mask = pd.Series([True] * len(frame))
+        if status is not None:
+            mask &= frame["status"] == status
+        return self._frame_to_records("AxiomWorkqueue", frame[mask])
+
+    def export_queue_csv(self, csv_path: Union[str, Path]) -> Path:
+        return self._export_sheet_to_csv("AxiomWorkqueue", csv_path)
+
+    def import_queue_csv(self, csv_path: Union[str, Path]) -> int:
+        return self._import_sheet_from_csv("AxiomWorkqueue", csv_path)
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
