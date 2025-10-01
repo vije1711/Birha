@@ -3,97 +3,117 @@ Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only r
 You may only add new functions, dataclasses, constants, and unit tests.
 No renames, no signature changes, no in-place edits, no deleted lines in existing code.
 
+Full Prompt (Thorough) – Task 7
+
 Context
-Enhancing Birha v1.1.0, Task 4 requires a Pause/Resume Driver for Axioms, similar in spirit to ABW but isolated. Use AxiomWorkqueue schema from Task 2 for persistence. All changes must be additive.
+You are enhancing Birha v1.1.0 (Tkinter app). The source of truth is @Prompt_CODEX.txt and its reference @0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx. Implement Task 7 only: Prompt Generator for finalizing Axioms for a given verse. All changes must be additive.
 
 Non-negotiables
 
-Do not alter any existing functions in 1.1.0_birha.py.
+Do not alter any existing functions, constants, or strings in 1.1.0_birha.py. Treat current code as read-only reference.
 
 No renames, refactors, in-place edits, or deletions.
 
-All additions under new header:
-# === Axioms T4: Pause/Resume Driver (additive only) ===
+Add all new code only under this header:
+# === Axioms T7: Finalize Axiom Prompt Generator (additive only) ===
 
-Canonical constants/strings must remain untouched.
+Canonical headers and string constants must remain untouched.
 
 Deliverables
 
-Controller function
+New function
 
-def start_axiom_driver_for(selection: list[str], store_path: Optional[Union[str, Path]] = None) -> None:
-    """Iterate through given verse_keys with Next/Prev/Pause controls, persisting to AxiomWorkqueue."""
+def build_axiom_finalization_prompt(
+    verse_key: str,
+    store_path: Optional[Union[str, Path]] = None
+) -> str:
+    """
+    Build a structured prompt containing:
+      - Verse text (from assessment_data.xlsx)
+      - Current translation
+      - Grammar highlights (optional: may be stubbed now, to be extended later)
+      - Framework? and Explicit? flags, and derived Category (via T1)
+      - Existing linked Axioms from AxiomsStore
+      - Guidance text to either create new Axioms or link existing ones
+    Returns a markdown/plaintext string for downstream use.
+    """
 
 
-Driver window (Tk)
+Content rules
 
-Non-modal Toplevel with:
-• Current verse display
-• Buttons: Next, Prev, Pause/Resume, Close
+Prompt must include verse text and translation from assessment_data.xlsx (via helper).
 
-Updates AxiomWorkqueue on each state change (status = pending/in_progress/done).
+Include Framework? and Explicit? values with category computed using T1’s derive_axiom_category().
 
-On Pause: writes current index + status.
+Query AxiomsStore.find_axioms() for catalog excerpts (law text + IDs).
 
-On Resume: reloads from store, continues at last index.
+If contributions exist (via AxiomContribStore.list_contributions), include them.
 
-Persistence
+Output should be formatted in markdown with clear sections:
 
-Use AxiomWorkqueueStore from T2.
+Verse Context
 
-Fields updated: status, analysis_started_at, analysis_completed_at, reanalysis_started_at, reanalysis_completed_at.
+Flags & Category
 
-Restart check: if queue has entries with in_progress/paused, resume from that verse.
+Existing Axioms
 
-Keyboard shortcuts
+Actions → “Create new Axiom” / “Link existing Axiom(s)” / “Link multiple”.
 
-Arrow Right = Next, Arrow Left = Prev, Space = Pause/Resume.
+Optional helpers
 
-Must not break ABW or existing driver behavior.
+_format_axiom_catalog(records: list[dict]) -> str to keep output neat.
+
+_fetch_verse_context(verse_key: str) to isolate assessment lookups.
 
 Acceptance Criteria
 
-Start driver with a verse list → Workqueue populated with pending items.
+Calling build_axiom_finalization_prompt(verse_key) returns a markdown/plaintext string with:
 
-Clicking Next marks current as done, advances to next.
+The verse text and translation.
 
-Pause closes the driver and persists state; Resume reopens at the same verse.
+Flags (Framework, Explicit) + Category.
 
-Restarting app and calling driver resumes at last position.
+Current catalog of Axioms (if any).
 
-Headless test simulates queue persistence and resume without GUI crash.
+Contribution info if verse is already linked.
 
-No regressions to ABW.
+Clear next-step guidance (create/link/link multiple).
+
+Prompt is well-structured and readable (section headers, bullet lists where appropriate).
+
+Unit tests confirm all elements appear given mock data.
+
+No changes to existing code outside the additive header.
 
 Tests
-File: tests/axioms/test_task4_driver.py
+File: tests/axioms/test_task7_prompt.py
 
-test_queue_created_and_resumed_correctly() using TemporaryDirectory for store.
+test_prompt_includes_flags_and_category() → verify category text appears.
 
-test_pause_and_resume_updates_status() ensures statuses persist.
+test_prompt_includes_existing_axioms() → mock AxiomsStore and confirm output lists them.
 
-test_next_and_prev_navigation() simulates multiple verses.
+test_prompt_includes_contributions_if_present() → ensure contributions section shows up.
 
-test_resume_after_restart() loads persisted queue and resumes correctly.
+test_prompt_structure_sections_present() → assert sections (Verse Context, Flags & Category, Existing Axioms, Actions).
 
-Skip Tk tests if no DISPLAY available.
+Use a TemporaryDirectory and mock Excel/CSV stores for isolation.
 
-PR workflow
+PR Workflow
 
-Branch: feature/axioms-T4-pause-resume-driver
+Branch: feature/axioms-T7-finalize-prompt
 
-Commit: feat(axioms): T4 add pause/resume driver with workqueue persistence (additive only)
+Commit: feat(axioms): T7 add prompt generator for finalizing axioms (additive only)
 
-PR: Axioms T4 — Pause/Resume Driver (Workqueue, additive)
+PR Title: Axioms T7 — Finalize Axiom Prompt Generator
 
-Checklist:
+PR Body Checklist:
 
  Additive only, no edits to existing functions/constants
 
- Driver UI shell opens and controls Next/Prev/Pause
+ Prompt generator returns correct markdown/plaintext output
 
- Workqueue persistence verified
+ Existing axioms and contributions appear in prompt
 
- Resume works across app restarts
+ Sections present and clearly labeled
 
- Tests passing in both local and CI (headless skip included)
+ Unit tests green
