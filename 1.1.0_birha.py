@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import os
 import logging
 from tkinter import messagebox, scrolledtext, simpledialog
@@ -32,9 +32,9 @@ import shutil
 import zipfile
 
 
-# ────────────────────────────────────────────────────────────────
-# GLOBAL HELPER  –  build live noun-morphology lookup
-# ────────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------
+# GLOBAL HELPER  �  build live noun-morphology lookup
+# ----------------------------------------------------------------
 from functools import lru_cache
 
 # ---------------------------
@@ -492,9 +492,9 @@ def load_predefined_keyset(csv_path: str = "1.1.1_birha.csv") -> set[tuple[str, 
 
     eval_col   = col("Evaluation")
     # Prefer Punjabi headers; accept both with/without "options"; fall back to legacy names
-    num_col    = col(COL_NUMBER, f"{COL_NUMBER} options", "Number / ਵਚਨ options", "Number / ਵਚਨ", "Number")
-    gram_col   = col(COL_GRAMMAR, f"{COL_GRAMMAR} options", "Grammar Case / ਵਯਾਕਰਣ options", "Grammar Case / ਵਯਾਕਰਣ", "Grammar")
-    gen_col    = col(COL_GENDER, f"{COL_GENDER} options", "Gender / ਲਿੰਗ options", "Gender / ਲਿੰਗ", "Gender")
+    num_col    = col(COL_NUMBER, f"{COL_NUMBER} options", "Number / ??? options", "Number / ???", "Number")
+    gram_col   = col(COL_GRAMMAR, f"{COL_GRAMMAR} options", "Grammar Case / ?????? options", "Grammar Case / ??????", "Grammar")
+    gen_col    = col(COL_GENDER, f"{COL_GENDER} options", "Gender / ???? options", "Gender / ????", "Gender")
     root_col   = col("Word Root", "Root")
     type_col   = col("Type", "Word Type")
 
@@ -539,9 +539,9 @@ except Exception:
 BOTTOM_PAD = 46
 
 # Canonical column labels used across Verse and ABW flows
-COL_NUMBER  = "Number / ਵਚਨ"
-COL_GRAMMAR = "Grammar / ਵਯਾਕਰਣ"
-COL_GENDER  = "Gender / ਲਿੰਗ"
+COL_NUMBER  = "Number / ???"
+COL_GRAMMAR = "Grammar / ??????"
+COL_GENDER  = "Gender / ????"
 
 def _resolve_col(df: pd.DataFrame, *candidates: str) -> str | None:
     """Return the actual column name in df matching any of the candidate labels (case-insensitive)."""
@@ -824,7 +824,7 @@ def _format_tracker_selection_summary(records, snippet_limit=3):
             lines.append(f"\u2022 {snippet_text}")
 
     if len(records) > limit:
-        lines.append(f"\u2022 …and {len(records) - limit} more")
+        lines.append(f"\u2022 �and {len(records) - limit} more")
 
     return "\n".join(lines)
 
@@ -1483,7 +1483,7 @@ def _normalize_simple(text: str) -> str:
 def _normalize_verse_key(text: str) -> str:
     """Robust comparable key for verse text.
     - Unicode normalize, lowercase
-    - Remove danda marks (।, ॥) and digits (ASCII + Gurmukhi)
+    - Remove danda marks (?, ?) and digits (ASCII + Gurmukhi)
     - Collapse whitespace
     """
     try:
@@ -1495,7 +1495,7 @@ def _normalize_verse_key(text: str) -> str:
     except Exception:
         pass
     s = s.lower()
-    s = s.replace('॥', ' ').replace('।', ' ')
+    s = s.replace('?', ' ').replace('?', ' ')
     s = re.sub(r"[\u0A66-\u0A6F0-9]+", " ", s)
     s = " ".join(s.split())
     return s
@@ -1924,16 +1924,16 @@ def is_full_word(s: str) -> bool:
     # Words starting with a vowel matra are generally suffixes
     return len(s) > 1 and not ("\u0A3E" <= s[0] <= "\u0A4C")
 
-# ── Canonical ending-class labels for the dropdown ───────────────
+# -- Canonical ending-class labels for the dropdown ---------------
 CANONICAL_ENDINGS = [
     "NA",
-    "ਮੁਕਤਾ Ending",      # bare consonant
-    "ਕੰਨਾ Ending",       # –ਾ
-    "ਸਿਹਾਰੀ Ending",     # –ਿ
-    "ਬਿਹਾਰੀ Ending",     # –ੀ
-    "ਹੋਰਾ Ending",       # –ੋ / –ਓ poetic
-    "ਉ Ending",          # –ੁ
-    "ੂ Ending",          # –ੂ
+    "????? Ending",      # bare consonant
+    "???? Ending",       # �?
+    "?????? Ending",     # �?
+    "?????? Ending",     # �?
+    "???? Ending",       # �? / �? poetic
+    "? Ending",          # �?
+    "? Ending",          # �?
 ]
 
 # ------------------------------------------------------------------
@@ -1941,63 +1941,63 @@ CANONICAL_ENDINGS = [
 #  (trim / extend these lists whenever you like)
 # ------------------------------------------------------------------
 
-# ─── Canonical “keep” vowel for each ending-class ──────────────────────────
+# --- Canonical �keep� vowel for each ending-class --------------------------
 KEEP_CHAR = {
-    "ਮੁਕਤਾ Ending": "",
-    "ਕੰਨਾ Ending": ("ਾ", "ਆ", "ਿਆ"),
-    "ਸਿਹਾਰੀ Ending": "ਿ",
-    "ਬਿਹਾਰੀ Ending": "ੀ",
-    "ਹੋਰਾ Ending": "ੋ",
-    "ਉ Ending": "ੁ",
-    "ੂ Ending": "ੂ",
+    "????? Ending": "",
+    "???? Ending": ("?", "?", "??"),
+    "?????? Ending": "?",
+    "?????? Ending": "?",
+    "???? Ending": "?",
+    "? Ending": "?",
+    "? Ending": "?",
 }
 
 ENDING_EXAMPLES = {
-    "ਮੁਕਤਾ Ending": [
-        "ਉਦਿਆਨੈ","ਉਪਾਵੀ","ਓਅੰਕਾਰਿ","ਅਖੀ","ਅਖਰਾ","ਆਹਰ",
-        "ਅਮੁਲ","ਅਮੁਲੁ","ਅਵਿਗਤੋ","ਅੰਧੇ","ਅਹੰਕਾਰੀ","ਆਸ","ਆਸੈ",
-        "ਉਤਮ","ਉਪਾਇ","ਉਦਮ","ਕਦਰ","ਜਹਾਜ", "ਦਰਦ","ਅਨਾਥਹ",
-        "ਕਰਮ","ਕਉਤਕ","ਚਰਣ","ਚਿਤ","ਧਰਮ","ਨਦਰ","ਨਿਸ਼ਾਨ","ਪਦਮ"
+    "????? Ending": [
+        "??????","?????","???????","???","????","???",
+        "????","?????","??????","????","???????","??","???",
+        "???","????","???","???","????", "???","?????",
+        "???","????","???","???","???","???","??????","???"
     ],
 
-    "ਕੰਨਾ Ending": [
-        "ਆਗਿਆ","ਤ੍ਰਿਸਨਾ","ਦੁਬਿਧਾ","ਨਿੰਦਾ","ਰਸਨਾ","ਸਖੀਆ","ਸਿਰੀਆ","ਜਿਹਬਾ",
-        "ਜਿਹਵੇ","ਮਾਇਆ","ਭਾਈਆ","ਬਹੁਰੀਆ","ਮਨੂਆ","ਨਿਮਾਣਿਆ","ਨਿਗੁਰਿਆ",
-        "ਵਡਭਾਗੀਆ","ਵਡਿਆਈਆ","ਚੰਗਿਆਈਆ","ਗੋਪੀਆ","ਕਹਾਣੀਆ","ਕੜਛੀਆ","ਚਾਟੜਿਆ",
-        "ਖਟੀਆ","ਗੁਪਤਧਾ","ਦੁਹਾਈਆ","ਚੜ੍ਹਾਈਆ","ਘੜੀਆ","ਸਥਾਸੀਆ","ਕਹਾਣੀਆ"
+    "???? Ending": [
+        "????","???????","??????","?????","????","????","?????","?????",
+        "?????","????","????","??????","????","???????","???????",
+        "???????","??????","???????","?????","??????","?????","??????",
+        "????","??????","??????","???????","????","??????","??????"
     ],
 
-    "ਸਿਹਾਰੀ Ending": [
-        "ਕਿਰਤਿ","ਚਿਤਿ","ਭਗਤਿ","ਗ੍ਰਹਿ","ਪਰਮਾਤਮਿ","ਕਲਪਿ","ਰਿਦਿ",
-        "ਖਰਚਿ","ਨਰਸਿ","ਚਾਰਿਤ੍ਰਿ","ਅਚਰਜਿ","ਲਹਿਰਿ","ਦ੍ਰਿਸਟਿ","ਸੰਜੀਵਨਿ",
-        "ਨਵਜਾਤਿ","ਅਕਸ਼ਿ","ਅਰਸਿਅ","ਸਿਖਿ","ਸਿਖਿਆ","ਜਪਤਿ","ਸ੍ਰਿਸਟਿ","ਨਿਰਮਤਿ",
-        "ਦੇਵਤਿ","ਆਦਿਸਟਿ","ਆਸਕਤਿ","ਉਰਧਿਕਿ","ਕਲਮਿ","ਨਿਜਮਿ","ਸੰਗਤਿ"
+    "?????? Ending": [
+        "?????","????","????","?????","???????","????","????",
+        "????","????","????????","?????","?????","???????","???????",
+        "??????","?????","?????","????","?????","????","???????","??????",
+        "?????","??????","?????","??????","????","?????","?????"
     ],
 
-    "ਬਿਹਾਰੀ Ending": [
-        "ਨਿਰਗੁਣੀ","ਸੁਜਾਣੀ","ਭਗਤੀ","ਦਿਲਗੀ","ਬੀਬੀ","ਸਾਕੀ","ਕਹਾਣੀ",
-        "ਕਬੀਰੀ","ਸਦੀਕੀ","ਪ੍ਰੀਤੀ","ਮਹਿਲੀ","ਮਾਤੀ","ਬਲਵੀ","ਡੰਡੀ","ਮਿਲਨੀ",
-        "ਸਚਾਈ","ਰੁਸ਼ਤੀ","ਅਲਸੀ","ਦਿੰਦੀ","ਲਿਖਤੀਂ","ਧੀਰਜੀ","ਕ੍ਰਿਪਾਲੀ",
-        "ਕਿਰਪਾਈ","ਗ੍ਰਹਣੀ","ਨਿਮਾਣੀ"
+    "?????? Ending": [
+        "???????","??????","????","?????","????","????","?????",
+        "?????","?????","??????","?????","????","????","????","?????",
+        "????","??????","????","?????","??????","?????","????????",
+        "??????","??????","??????"
     ],
 
-    "ਹੋਰਾ Ending": [
-        "ਓਹੁ","ਓਹ","ਓਹੀ","ਓਹੋ","ਓਆ","ਓਆਹ","ਓਈਏ","ਓਇ","ਓਈ","ਓਏ"
+    "???? Ending": [
+        "???","??","???","???","??","???","???","??","??","??"
     ],
 
-    "ਉ Ending": [
-        "ਲਖੁ","ਲਛੁ","ਲਾਖੁ","ਅੰਸੁ","ਕਲਤੁ","ਖਾਕੁ","ਅਕਤੁ","ਅਮਤੁ","ਤਪੁ",
-        "ਰਕਤੁ","ਭਵਨੁ","ਕੰਤੁ","ਸਤੁ","ਸਤੁ","ਨਿਸੁ","ਕਉਨੁ","ਮਨੁ","ਸਨੁ",
-        "ਉਤਪਤੁ","ਆਦਤੁ","ਦਯੁ","ਦਨੁ","ਕਰਮੁ","ਕਰਤੁ","ਰਉ","ਗਉ","ਘਉ","ਚਹੁ"
+    "? Ending": [
+        "???","???","????","????","????","????","????","????","???",
+        "????","????","????","???","???","????","????","???","???",
+        "?????","????","???","???","????","????","??","??","??","???"
     ],
 
-    "ੂ Ending": [
-        "ਮੂਲੂ","ਸੂਲੂ","ਭੂਲੂ","ਸ਼ੂਲੂ","ਰੂਪੂ","ਹਿਰਦੂ","ਦਿਲੂ","ਮਿਤ੍ਰੂ","ਧਰਤੂ",
-        "ਸਵਾਰੂ"
+    "? Ending": [
+        "????","????","????","????","????","?????","????","??????","????",
+        "?????"
     ],
 }
 
-# ─── Function that turns ENDING_EXAMPLES into (Full, Base, Suffix) tuples ──
+# --- Function that turns ENDING_EXAMPLES into (Full, Base, Suffix) tuples --
 
 def build_example_bases(
     csv_path: str = "1.1.1_birha.csv",
@@ -2012,17 +2012,17 @@ def build_example_bases(
             .assign(**{
                 "Word Root": lambda d: (
                     d["Word Root"]
-                      .str.replace("ਕਨਾੱ Ending","ਕੰਨਾ Ending", regex=False)
-                      .str.replace("ਕਨਾ Ending","ਕੰਨਾ Ending", regex=False)
+                      .str.replace("???? Ending","???? Ending", regex=False)
+                      .str.replace("??? Ending","???? Ending", regex=False)
                 )
             }))
 
-    # map: same 5-feature key → list of 1-glyph endings
+    # map: same 5-feature key ? list of 1-glyph endings
     suffix_lookup = {}
     small = df[~df["\ufeffVowel Ending"].apply(is_full_word)]
     for _, r in small.iterrows():
-        k = (r["Word Root"], r["Type"], r["Grammar / ਵਯਾਕਰਣ"],
-             r["Gender / ਲਿੰਗ"], r["Number / ਵਚਨ"])
+        k = (r["Word Root"], r["Type"], r["Grammar / ??????"],
+             r["Gender / ????"], r["Number / ???"])
         suffix_lookup.setdefault(k, []).append(r["\ufeffVowel Ending"].strip())
 
     result = {}
@@ -2037,8 +2037,8 @@ def build_example_bases(
                 triples.append((full, full, ""))
                 continue
             r = row.iloc[0]
-            k = (r["Word Root"], r["Type"], r["Grammar / ਵਯਾਕਰਣ"],
-                 r["Gender / ਲਿੰਗ"], r["Number / ਵਚਨ"])
+            k = (r["Word Root"], r["Type"], r["Grammar / ??????"],
+                 r["Gender / ????"], r["Number / ???"])
             base, suf = full, ""
             for cand in suffix_lookup.get(k, []):
                 cand = cand.strip()
@@ -2049,9 +2049,9 @@ def build_example_bases(
                     suf = cand
                     break
                
-            if label == "ਮੁਕਤਾ Ending" and base == full and len(full) > 1:
+            if label == "????? Ending" and base == full and len(full) > 1:
                 last = full[-1]
-                # Unicode range for Gurmukhi matras (U+0A3E–U+0A4C)
+                # Unicode range for Gurmukhi matras (U+0A3E�U+0A4C)
                 if "\u0A3E" <= last <= "\u0A4C":
                     # strip that final matra as a true detachment
                     base, suf = full[:-1], last
@@ -2083,9 +2083,9 @@ def build_noun_map(csv_path="1.1.1_birha.csv"):
           .fillna("NA")
           .rename(columns={
               "Vowel Ending"        : "ending",
-              "Number / ਵਚਨ"         : "num",
-              "Grammar / ਵਯਾਕਰਣ"     : "case",
-              "Gender / ਲਿੰਗ"         : "gender",
+              "Number / ???"         : "num",
+              "Grammar / ??????"     : "case",
+              "Gender / ????"         : "gender",
               "Word Root"           : "root",
           })
     )
@@ -2099,7 +2099,7 @@ def build_noun_map(csv_path="1.1.1_birha.csv"):
         )
 
     # unify the Kanna spelling
-    df["root"] = df["root"].str.replace("ਕਨਾੱ Ending", "ਕੰਨਾ Ending")
+    df["root"] = df["root"].str.replace("???? Ending", "???? Ending")
 
     # --- build nested dictionary ------------------------------------
     by_end = {}
@@ -2137,7 +2137,7 @@ def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, p
         state_col = "Row State"
         df[state_col] = ""
 
-    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
+    ve_col = _resolve_col(df, "?Vowel Ending", "Vowel Ending")
     ref_col = _resolve_col(df, "Reference Verse", "Verse")
     idx_col = _resolve_col(df, "Word Index", "word_index")
 
@@ -2165,9 +2165,9 @@ def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, p
 
 
 CHIP_DISPLAY_ORDER = [
-    ("number", "Number / ਵਚਨ"),
-    ("grammar", "Grammar / ਵਯਾਕਰਣ"),
-    ("gender", "Gender / ਲਿੰਗ"),
+    ("number", "Number / ???"),
+    ("grammar", "Grammar / ??????"),
+    ("gender", "Gender / ????"),
     ("root", "Word Root"),
     ("type", "Type"),
 ]
@@ -2365,13 +2365,13 @@ class ProgressCardList:
             title_lbl = tk.Label(block, text=title, font=("Arial", 9, "bold"), bg="#FFFFFF", fg="#374151")
             title_lbl.pack(anchor="w")
             _register_bg(title_lbl, "#FFFFFF")
-            value_lbl = tk.Label(block, text=value or "—", font=("Arial", 10), bg="#FFFFFF", fg="#111827")
+            value_lbl = tk.Label(block, text=value or "�", font=("Arial", 10), bg="#FFFFFF", fg="#111827")
             value_lbl.pack(anchor="w")
             _register_bg(value_lbl, "#FFFFFF")
 
-        _meta_block(meta_row, "Page", str(record.get("page", "") or "—"))
-        _meta_block(meta_row, "Status", str(record.get("status_label") or record.get("status", "") or "—"))
-        _meta_block(meta_row, "Updated", str(record.get("last_updated", "") or "—"))
+        _meta_block(meta_row, "Page", str(record.get("page", "") or "�"))
+        _meta_block(meta_row, "Status", str(record.get("status_label") or record.get("status", "") or "�"))
+        _meta_block(meta_row, "Updated", str(record.get("last_updated", "") or "�"))
 
         chips_container = tk.Frame(card, bg="#FFFFFF")
         chips_container.pack(fill=tk.X, pady=(8, 4))
@@ -2548,14 +2548,14 @@ def _render_grammar_chips(
         visible = bool(detail_frame.winfo_ismapped())
         if visible:
             detail_frame.pack_forget()
-            toggle_btn.config(text="Show details ▾")
+            toggle_btn.config(text="Show details ?")
         else:
             detail_frame.pack(fill=tk.X, pady=(6, 0))
-            toggle_btn.config(text="Hide details ▴")
+            toggle_btn.config(text="Hide details ?")
 
     toggle_btn = tk.Button(
         control_area,
-        text="Show details ▾",
+        text="Show details ?",
         font=("Arial", 9, "bold"),
         relief="flat",
         bg="#1F2937",
@@ -2575,7 +2575,7 @@ def _render_grammar_chips(
         label.pack(side=tk.LEFT)
         value_lbl = tk.Label(
             row,
-            text=value if value else "—",
+            text=value if value else "�",
             font=("Arial", 10),
             bg="#F3F4F6",
             wraplength=760,
@@ -2591,7 +2591,7 @@ class GrammarApp:
         Initialize the application and display the dashboard as the main window.
         """
         # ------------------------------------------------------------------
-        # ─── 1.  BASIC ROOT‑WINDOW SETUP ───────────────────────────────────
+        # --- 1.  BASIC ROOT-WINDOW SETUP -----------------------------------
         # ------------------------------------------------------------------
         self.root = root
         self.root.title("Dashboard")
@@ -2602,7 +2602,7 @@ class GrammarApp:
             pass
       
         # ------------------------------------------------------------------
-        # ─── 2.  APP‑WIDE STATE VARIABLES ─────────────────────────────────
+        # --- 2.  APP-WIDE STATE VARIABLES ---------------------------------
         # ------------------------------------------------------------------
         self.number_var  = tk.StringVar(value="NA")
         self.gender_var  = tk.StringVar(value="NA")
@@ -2628,7 +2628,7 @@ class GrammarApp:
         self._derived_cache_mtime = None
         self._derived_highlight_callbacks = []
 
-        # word‑by‑word navigation
+        # word-by-word navigation
         self.current_word_index = 0
         self.pankti_words       = []
 
@@ -2644,12 +2644,12 @@ class GrammarApp:
         self._LITERAL_NOTE_TEXT = (
             "In literal analysis: This word appears multiple times in this verse. "
             "The highlighted grammar options reflect your past selections for this word "
-            "(or close matches) to encourage consistency. They’re suggestions, not mandates—"
+            "(or close matches) to encourage consistency. They�re suggestions, not mandates�"
             "adjust if the current context differs."
         )
 
         # ------------------------------------------------------------------
-        # ─── 3.  DATA LOAD ────────────────────────────────────────────────
+        # --- 3.  DATA LOAD ------------------------------------------------
         # ------------------------------------------------------------------
         self.grammar_data   = self.load_grammar_data("1.1.1_birha.csv")
         self.dictionary_data = pd.read_csv(
@@ -2658,7 +2658,7 @@ class GrammarApp:
         )
 
         # ------------------------------------------------------------------
-        # ─── 4.  LAUNCH DASHBOARD ─────────────────────────────────────────
+        # --- 4.  LAUNCH DASHBOARD -----------------------------------------
         # ------------------------------------------------------------------
         self.show_dashboard()
     def _norm_get(self, d, key):
@@ -2673,15 +2673,15 @@ class GrammarApp:
     def _norm_tok(self, t: str) -> str:
         """Normalize token via NFC; drop dandas, zero-width spaces, ZWJ/ZWNJ, trailing digits & punctuation."""
         t = unicodedata.normalize("NFC", t.strip())
-        t = re.sub(r"[।॥]", "", t)  # danda/double-danda
+        t = re.sub(r"[??]", "", t)  # danda/double-danda
         # remove ZERO WIDTH SPACE, ZWNJ, ZWJ
         t = t.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
-        t = re.sub(r"[\d\u0A66-\u0A6F.,;:!?\"'—–-]+$", "", t)  # trailing digits (Latin+Gurmukhi) & punct
+        t = re.sub(r"[\d\u0A66-\u0A6F.,;:!?\"'��-]+$", "", t)  # trailing digits (Latin+Gurmukhi) & punct
         return t
 
     def _verse_key(self, verse_text: str) -> str:
         """NFC + collapse spaces + remove danda variations; used for verse-scoped de-dupe keys."""
-        cleaned = re.sub(r"[।॥]", "", verse_text).strip()
+        cleaned = re.sub(r"[??]", "", verse_text).strip()
         cleaned = re.sub(r"\s+", " ", cleaned)
         return unicodedata.normalize("NFC", cleaned)
 
@@ -2693,8 +2693,8 @@ class GrammarApp:
     def get_derived_suggestions_by_vowel_ending(self, vowel_ending):
         """Return dominant derived suggestions for Number/Gender/Type based on recent CSV data."""
         suggestions = {
-            "Number / ਵਚਨ": None,
-            "Gender / ਲਿੰਗ": None,
+            "Number / ???": None,
+            "Gender / ????": None,
             "Type": None,
         }
         path = getattr(self, "_derived_cache_path", "1.1.1_birha.csv")
@@ -2722,14 +2722,14 @@ class GrammarApp:
                 self._derived_cache = None
                 self._derived_cache_mtime = None
                 return suggestions
-            df.columns = [str(c).lstrip("﻿") for c in df.columns]
+            df.columns = [str(c).lstrip("?") for c in df.columns]
             self._derived_cache = df
             self._derived_cache_mtime = mtime
         else:
             df = cache_df
         if df is None or getattr(df, "empty", True):
             return suggestions
-        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("﻿Vowel Ending" if "﻿Vowel Ending" in df.columns else None)
+        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("?Vowel Ending" if "?Vowel Ending" in df.columns else None)
         ecol = "Evaluation" if "Evaluation" in df.columns else None
         if not vcol or not ecol:
             return suggestions
@@ -2750,8 +2750,8 @@ class GrammarApp:
         if getattr(filtered, "empty", True):
             return suggestions
         column_aliases = {
-            "Number / ਵਚਨ": ("Number / ਵਚਨ",),
-            "Gender / ਲਿੰਗ": ("Gender / ਲਿੰਗ",),
+            "Number / ???": ("Number / ???",),
+            "Gender / ????": ("Gender / ????",),
             "Type": ("Type", "Word Type"),
         }
         for label, candidates in column_aliases.items():
@@ -3470,7 +3470,7 @@ class GrammarApp:
         self._driver_lbl.pack(anchor='w')
         btns = tk.Frame(frm, bg='light gray')
         btns.pack(fill=tk.X, pady=(8, 0))
-        self._driver_next_btn = tk.Button(btns, text="Next Verse ▶", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=self._word_driver_open_current_verse)
+        self._driver_next_btn = tk.Button(btns, text="Next Verse ?", bg='navy', fg='white', font=('Arial', 11, 'bold'), command=self._word_driver_open_current_verse)
         self._driver_next_btn.pack(side=tk.LEFT)
         self._driver_pause_btn = tk.Button(btns, text="Pause", bg='gray', fg='white', font=('Arial', 11), command=self._word_driver_toggle_pause)
         self._driver_pause_btn.pack(side=tk.LEFT, padx=(6, 0))
@@ -3891,7 +3891,7 @@ class GrammarApp:
         except Exception:
             grammar_df = pd.DataFrame()
 
-        ve_col = _resolve_col(grammar_df, "﻿Vowel Ending", "Vowel Ending") if not grammar_df.empty else None
+        ve_col = _resolve_col(grammar_df, "?Vowel Ending", "Vowel Ending") if not grammar_df.empty else None
         num_col = _resolve_col(grammar_df, COL_NUMBER, "Number") if not grammar_df.empty else None
         gram_col = _resolve_col(grammar_df, COL_GRAMMAR, "Grammar") if not grammar_df.empty else None
         gender_col = _resolve_col(grammar_df, COL_GENDER, "Gender") if not grammar_df.empty else None
@@ -4301,11 +4301,11 @@ class GrammarApp:
                 return s
 
             metrics = [
-                ("Number / ਵਚਨ", (COL_NUMBER, "Number", "Number / ਵਚਨ")),
-                ("Gender / ਲਿੰਗ", (COL_GENDER, "Gender", "Gender / ਲਿੰਗ")),
+                ("Number / ???", (COL_NUMBER, "Number", "Number / ???")),
+                ("Gender / ????", (COL_GENDER, "Gender", "Gender / ????")),
                 (
-                    "Grammar / ਵਯਾਕਰਣ",
-                    (COL_GRAMMAR, "Grammar Case / ਵਯਾਕਰਣ", "Grammar"),
+                    "Grammar / ??????",
+                    (COL_GRAMMAR, "Grammar Case / ??????", "Grammar"),
                 ),
                 ("Word Root", ("Word Root", "Root")),
                 ("Type", ("Type", "Word Type")),
@@ -4379,7 +4379,7 @@ class GrammarApp:
                 return
 
             panel = tk.Toplevel(win)
-            panel.title(f"{word} – Grammar Stats")
+            panel.title(f"{word} � Grammar Stats")
             panel.configure(bg='white')
 
             # Launch maximized with native controls and keep taskbar-safe bottom margin
@@ -4863,7 +4863,7 @@ class GrammarApp:
             pass
 
     def _banner_wraplength(self, win=None) -> int:
-        """Return a wraplength tuned to the window width (clamped 600–900)."""
+        """Return a wraplength tuned to the window width (clamped 600�900)."""
         try:
             target = win or (self.match_window if hasattr(self, "match_window") else None)
             if target and target.winfo_exists():
@@ -4875,7 +4875,7 @@ class GrammarApp:
         return 900
 
     def _modal_wraplength(self, win=None) -> int:
-        """Return a wraplength tuned for the small modal (clamped 360–520)."""
+        """Return a wraplength tuned for the small modal (clamped 360�520)."""
         try:
             target = win or (self.root if hasattr(self, "root") else getattr(self, "match_window", None))
             if target and target.winfo_exists():
@@ -4914,7 +4914,7 @@ class GrammarApp:
             )
             self.literal_note_title = tk.Label(
                 self.literal_note_frame,
-                text="Important Note — Literal Analysis",
+                text="Important Note � Literal Analysis",
                 bg="AntiqueWhite",
                 font=("Arial", 14, "bold"),
             )
@@ -5077,7 +5077,7 @@ class GrammarApp:
         )
         verse_analysis_btn.pack(pady=10)
 
-        # Button to open the Grammar‑DB Update window
+        # Button to open the Grammar-DB Update window
         grammar_update_btn = tk.Button(
             button_frame,
             text="Grammar DB Update",
@@ -5255,7 +5255,7 @@ class GrammarApp:
         # New Assessment menu housing the Word Search (Lexicon) launcher
         def open_new_word_assessment_menu():
             win = tk.Toplevel(self.root)
-            win.title("New Assessment – Assess by Word")
+            win.title("New Assessment � Assess by Word")
             win.configure(bg='light gray')
             try:
                 mgr = self._wm_for(win)
@@ -5277,7 +5277,7 @@ class GrammarApp:
             body_inner = tk.Frame(win, bg='light gray')
             body_inner.pack(expand=True, padx=24, pady=20)
 
-            # Launcher: Word Search (Lexicon) → opens existing modal
+            # Launcher: Word Search (Lexicon) ? opens existing modal
             tk.Button(
                 body_inner,
                 text="Word Search (Lexicon)",
@@ -5474,9 +5474,9 @@ class GrammarApp:
     def _do_prompt_whats_new(self, state: dict):
         try:
             if messagebox.askyesno(
-                "What’s New",
+                "What�s New",
                 (
-                    "We’ve improved verse selection cards: centered layout, equal column widths, "
+                    "We�ve improved verse selection cards: centered layout, equal column widths, "
                     "and radios no longer overlap text. View details now?"
                 ),
             ):
@@ -5507,7 +5507,7 @@ class GrammarApp:
             text=(
                 "Recent UI improvements: two-column card parity in matches view, "
                 "centered layout, equal column widths, radios never overlap text, and a centered final "
-                "card without stretching when there’s an odd number of results."
+                "card without stretching when there�s an odd number of results."
             ),
             font=('Arial', 12),
             bg='light gray',
@@ -5564,7 +5564,7 @@ class GrammarApp:
         if mgr:
             mgr.enable_safe_maximize(0)
 
-        # — Header Bar —
+        # � Header Bar �
         header = tk.Frame(win, bg='#2f4f4f', height=60)
         header.pack(fill=tk.X)
         tk.Label(
@@ -5575,11 +5575,11 @@ class GrammarApp:
             fg='white'
         ).place(relx=0.5, rely=0.5, anchor='center')
 
-        # — Separator —
+        # � Separator �
         sep = tk.Frame(win, bg='#cccccc', height=2)
         sep.pack(fill=tk.X)
 
-        # — Navigation Buttons —
+        # � Navigation Buttons �
         nav = tk.Frame(win, bg='#e0e0e0')
         nav.pack(pady=30)
         btn_kwargs = dict(
@@ -5603,10 +5603,10 @@ class GrammarApp:
         )
         btn_word.grid(row=0, column=1, padx=20)
 
-        # — Instruction / Description —
+        # � Instruction / Description �
         instr = (
-            "Choose “Assess by Verse” to look up verses and refine grammar entries.\n"
-            "The “Assess by Word” workflow is coming in the next release."
+            "Choose �Assess by Verse� to look up verses and refine grammar entries.\n"
+            "The �Assess by Word� workflow is coming in the next release."
         )
         tk.Label(
             win, text=instr,
@@ -5615,12 +5615,12 @@ class GrammarApp:
             justify='center', wraplength=800
         ).pack(pady=20)
 
-        # — Bottom Back Button —
+        # � Bottom Back Button �
         bottom = tk.Frame(win, bg='#e0e0e0')
         bottom.pack(side=tk.BOTTOM, pady=30)
         back_btn = tk.Button(
             bottom,
-            text="← Back to Dashboard",
+            text="? Back to Dashboard",
             font=('Arial', 14),
             bg='#2f4f4f', fg='white',
             activebackground='#3f6f6f',
@@ -5642,7 +5642,7 @@ class GrammarApp:
         if mgr:
             mgr.enable_safe_maximize(0)
     
-        # — Optional page‐wide heading —
+        # � Optional page-wide heading �
         tk.Label(
             win,
             text="Select a Verse to Refine Grammar Entries",
@@ -5661,7 +5661,7 @@ class GrammarApp:
         except Exception:
             pass
 
-        # — Top frame: entry + Search button —
+        # � Top frame: entry + Search button �
         top = tk.Frame(win, bg='light gray')
         top.pack(fill=tk.X, padx=20, pady=15)
         tk.Label(top, text="Enter Verse:", font=("Arial", 16), bg='light gray').pack(side=tk.LEFT)
@@ -5674,7 +5674,7 @@ class GrammarApp:
             command=self._populate_cards
         ).pack(side=tk.LEFT)
 
-        # — Middle frame: scrollable canvas + 2‑column grid of “cards” —
+        # � Middle frame: scrollable canvas + 2-column grid of �cards� �
         middle = tk.Frame(win, bg='light gray')
         middle.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
@@ -5690,7 +5690,7 @@ class GrammarApp:
         # create_window with anchor="n" so its x coordinate is the top-center of cards_frame
         cards_window = canvas.create_window((0, 0), window=self._cards_frame, anchor="n")
 
-        # configure two equal‑weight columns for 2‑column layout
+        # configure two equal-weight columns for 2-column layout
         self._cards_frame.grid_columnconfigure(0, weight=1, minsize=450)
         self._cards_frame.grid_columnconfigure(1, weight=1, minsize=450)
 
@@ -5704,11 +5704,11 @@ class GrammarApp:
             canvas.coords(cards_window, event.width // 2, 0)
         canvas.bind("<Configure>", _on_canvas_resize)
 
-        # — Bottom frame: navigation buttons —
+        # � Bottom frame: navigation buttons �
         bottom = tk.Frame(win, bg='light gray')
         bottom.pack(fill=tk.X, padx=20, pady=15)
         tk.Button(
-            bottom, text="‹ Back", font=("Arial", 14),
+            bottom, text="� Back", font=("Arial", 14),
             bg='gray', fg='white', command=win.destroy
         ).pack(side=tk.LEFT)
         tk.Button(
@@ -5716,7 +5716,7 @@ class GrammarApp:
             bg='gray', fg='white', command=lambda: self._go_back_to_dashboard(win)
         ).pack(side=tk.LEFT, padx=5)
         tk.Button(
-            bottom, text="Next →", font=("Arial", 14, "bold"),
+            bottom, text="Next ?", font=("Arial", 14, "bold"),
             bg='dark cyan', fg='white',
             command=lambda: self.proceed_to_word_assessment(self._selected_verse_idx.get())
         ).pack(side=tk.RIGHT)
@@ -5768,7 +5768,7 @@ class GrammarApp:
         query = self._verse_var.get().strip()
         headers, all_matches = self.match_sggs_verse(query)
         filtered = [m for m in all_matches if m.get("Score",0) >= 25.0][:10]
-        # remember these for the “Next →” step
+        # remember these for the �Next ?� step
         self._last_filtered = filtered
 
         # reset selection
@@ -6220,7 +6220,7 @@ class GrammarApp:
 
         # (Removed one-off height cap; scrollable text keeps buttons visible)
 
-        # — Word‐selection area —
+        # � Word-selection area �
         wf = tk.LabelFrame(
             content,
             text="Select Words to Assess Grammar",
@@ -6263,9 +6263,9 @@ class GrammarApp:
         self._word_selection_vars = []
 
         # 1) grab the verse text, remove any trailing danda symbols:
-        verse_text = self.selected_verse_text.split('॥', 1)[0].strip()
+        verse_text = self.selected_verse_text.split('?', 1)[0].strip()
 
-        # 2) split into words (now “॥” won’t appear as its own token)
+        # 2) split into words (now �?� won�t appear as its own token)
         words = verse_text.split()
 
         # 3) build your checkboxes off `words` instead of the raw text:
@@ -6291,7 +6291,7 @@ class GrammarApp:
 
         tk.Button(
             btn_frame,
-            text="← Back to Verse Search",
+            text="? Back to Verse Search",
             font=("Arial", 12),
             bg="gray",
             fg="white",
@@ -6301,7 +6301,7 @@ class GrammarApp:
 
         tk.Button(
             btn_frame,
-            text="Submit Translation →",
+            text="Submit Translation ?",
             font=("Arial", 12, "bold"),
             bg="dark cyan",
             fg="white",
@@ -6430,9 +6430,9 @@ class GrammarApp:
                 self._word_driver_toggle_pause()
             except Exception:
                 pass
-        self._abw_driver_prev_btn = tk.Button(ctrls, text="◀ Prev", bg='gray', fg='white', command=_prev)
+        self._abw_driver_prev_btn = tk.Button(ctrls, text="? Prev", bg='gray', fg='white', command=_prev)
         self._abw_driver_prev_btn.pack(side=tk.LEFT, padx=(0,6))
-        self._abw_driver_next_btn = tk.Button(ctrls, text="Next ▶", bg='navy', fg='white', command=_next)
+        self._abw_driver_next_btn = tk.Button(ctrls, text="Next ?", bg='navy', fg='white', command=_next)
         self._abw_driver_next_btn.pack(side=tk.LEFT, padx=(0,6))
         self._abw_driver_pause_btn = tk.Button(ctrls, text="Pause", bg='#444', fg='white', command=_pause_toggle)
         self._abw_driver_pause_btn.pack(side=tk.LEFT, padx=(0,6))
@@ -6566,7 +6566,7 @@ class GrammarApp:
         # Visual bottom gap equals BOTTOM_PAD
         btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
         tk.Button(btn_frame, text="Close", font=('Arial', 12), bg='gray', fg='white', command=win.destroy, padx=15, pady=8).pack(side=tk.LEFT)
-        tk.Button(btn_frame, text="Submit Translation →", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
+        tk.Button(btn_frame, text="Submit Translation ?", font=('Arial', 12, 'bold'), bg='dark cyan', fg='white',
                   command=lambda: self._abw_on_translation_submitted(win), padx=15, pady=8).pack(side=tk.RIGHT)
 
         # Prefill translation if possible
@@ -6682,7 +6682,7 @@ class GrammarApp:
         # 3) tear down and hand off to your queue initializer
         win.destroy()
         self.initialize_grammar_queue()
-        # ← NO MORE direct call to process_next_word_assessment() here,
+        # ? NO MORE direct call to process_next_word_assessment() here,
         #     initialize_grammar_queue() will immediately invoke it.
 
     def initialize_grammar_queue(self):
@@ -6692,7 +6692,7 @@ class GrammarApp:
         for grammar assessment. Then immediately start the first word.
         """
         # Use the same trimmed verse text that powered the selection UI so indices line up
-        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        verse_text = (self.selected_verse_text or '').split('?', 1)[0].strip()
         words = verse_text.split()
 
         # collect exactly those indices the user checked in show_translation_input()
@@ -6705,12 +6705,12 @@ class GrammarApp:
         self.grammar_queue = [
             (i, words[i]) for i in selected_indices if 0 <= i < len(words)
         ]
-        self.grammar_meanings = []        # ← NEW: clear out any old entries
+        self.grammar_meanings = []        # ? NEW: clear out any old entries
         self.current_queue_pos = 0
 
         if not self.grammar_queue:
             messagebox.showinfo("Nothing Selected",
-                "You didn’t select any words for grammar assessment.")
+                "You didn�t select any words for grammar assessment.")
             return
 
         # **IMMEDIATELY** start your per-word flow
@@ -6719,7 +6719,7 @@ class GrammarApp:
     # ABW-only: queue initializer and driver
     def abw_initialize_grammar_queue(self):
         """ABW: Build grammar queue from selected word indices and start first word (ABW UI only)."""
-        verse_text = (self.selected_verse_text or '').split('॥', 1)[0].strip()
+        verse_text = (self.selected_verse_text or '').split('?', 1)[0].strip()
         words = verse_text.split()
         selected_indices = getattr(self, '_selected_word_indices', [])
         self.detailed_grammar_entries_saved = 0
@@ -6739,7 +6739,7 @@ class GrammarApp:
         self.user_input_grammar_for_word(word, self.current_translation, idx)
 
     def _toggle_all_word_selection(self):
-        """Called by the top ‘Select/Deselect All Words’ checkbox."""
+        """Called by the top �Select/Deselect All Words� checkbox."""
         val = self._select_all_words_var.get()
         locked = set(getattr(self, '_word_selection_locked_vars', []))
         for var, _ in getattr(self, '_word_selection_vars', []):
@@ -6907,21 +6907,21 @@ class GrammarApp:
             grp_row.grid_columnconfigure(c, weight=(2 if c == 2 else 1))
 
         radio_groups = {
-            "Number / ਵਚਨ": {},
-            "Gender / ਲਿੰਗ": {},
+            "Number / ???": {},
+            "Gender / ????": {},
             "Type": {},
         }
         radio_base_bg = {}
         highlight_base_color = "light gray"
 
-        # Number (2×2 grid)
+        # Number (2�2 grid)
         num_frame = tk.LabelFrame(grp_row, text="Number",
                                   font=("Arial", 14, "bold"),
                                   bg=highlight_base_color, padx=8, pady=8)
         num_frame.grid(row=0, column=0, sticky="nsew", padx=5)
         nums = [
-            ("Singular", "Singular / ਇਕ"),
-            ("Plural",   "Plural / ਬਹੁ"),
+            ("Singular", "Singular / ??"),
+            ("Plural",   "Plural / ???"),
             ("Unknown",  "NA"),
         ]
         for i, (txt, val) in enumerate(nums):
@@ -6939,7 +6939,7 @@ class GrammarApp:
                 justify="left"
             )
             rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-            radio_groups["Number / ਵਚਨ"][val] = rb
+            radio_groups["Number / ???"][val] = rb
             radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
         num_frame.grid_columnconfigure(0, weight=1)
         num_frame.grid_columnconfigure(1, weight=1)
@@ -6950,9 +6950,9 @@ class GrammarApp:
                                    bg=highlight_base_color, padx=8, pady=8)
         gend_frame.grid(row=0, column=1, sticky="nsew", padx=5)
         gends = [
-            ("Masculine", "Masculine / ਪੁਲਿੰਗ"),
-            ("Feminine",  "Feminine / ਇਸਤਰੀ"),
-            ("Neuter",    "Trans / ਨਪੁਂਸਕ"),
+            ("Masculine", "Masculine / ??????"),
+            ("Feminine",  "Feminine / ?????"),
+            ("Neuter",    "Trans / ??????"),
             ("Unknown",   "NA"),
         ]
         half = (len(gends) + 1) // 2
@@ -6971,7 +6971,7 @@ class GrammarApp:
                 justify="left"
             )
             rb.grid(row=r, column=c, sticky='w', padx=2, pady=2)
-            radio_groups["Gender / ਲਿੰਗ"][val] = rb
+            radio_groups["Gender / ????"][val] = rb
             radio_base_bg[rb] = rb.cget("bg") or highlight_base_color
         for c in range(2):
             gend_frame.grid_columnconfigure(c, weight=1)
@@ -6982,14 +6982,14 @@ class GrammarApp:
                                   bg=highlight_base_color, padx=8, pady=8)
         pos_frame.grid(row=0, column=2, sticky="nsew", padx=5)
         pos_choices = [
-            ("Noun", "Noun / ਨਾਂਵ"),
-            ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
-            ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"),
-            ("Verb", "Verb / ਕਿਰਿਆ"),
-            ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"),
-            ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
-            ("Conjunction", "Conjunction / ਯੋਜਕ"),
-            ("Interjection", "Interjection / ਵਿਸਮਿਕ"),
+            ("Noun", "Noun / ????"),
+            ("Adjective", "Adjectives / ??????"),
+            ("Adverb", "Adverb / ????? ??????"),
+            ("Verb", "Verb / ?????"),
+            ("Pronoun", "Pronoun / ??????"),
+            ("Postposition", "Postposition / ??????"),
+            ("Conjunction", "Conjunction / ????"),
+            ("Interjection", "Interjection / ??????"),
             ("Unknown", "NA"),
         ]
         pos_rows = 2
@@ -7017,8 +7017,8 @@ class GrammarApp:
         highlight_bg = "#fff8c6"
         suggestions = self.get_derived_suggestions_by_vowel_ending(word)
         derived_fields = [
-            ("Number / ਵਚਨ", self.number_var),
-            ("Gender / ਲਿੰਗ", self.gender_var),
+            ("Number / ???", self.number_var),
+            ("Gender / ????", self.gender_var),
             ("Type", self.pos_var),
         ]
         for column, var in derived_fields:
@@ -7170,7 +7170,7 @@ class GrammarApp:
         back_btn.pack(side=tk.LEFT)
         skip_btn = tk.Button(btns, text="Skip Word", font=('Arial',12), bg='orange', fg='white', padx=20, pady=8, command=lambda: self.skip_word_grammar(win))
         skip_btn.pack(side=tk.LEFT, padx=10)
-        prompt_btn = tk.Button(btns, text="📋 Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
+        prompt_btn = tk.Button(btns, text="?? Build Expert Prompt", font=("Arial",14,'italic'), bg='white', fg='dark cyan', padx=6, pady=4, command=ask_suggestion)
         prompt_btn.pack(side=tk.LEFT, padx=10)
         # Route submit to the appropriate handler per mode to avoid Verse dependencies in ABW
         submit_handler = (lambda: self.submit_input_grammar(word, index)) if mode == "verse" else (lambda: self.submit_input_grammar_for_word(word, index))
@@ -7209,7 +7209,7 @@ class GrammarApp:
         - Self-contained; does not call Verse UI handlers
         """
         win = tk.Toplevel(self.root)
-        win.title(f"Assess by Word – Grammar: {word}")
+        win.title(f"Assess by Word � Grammar: {word}")
         mgr = self._wm_apply(win, margin_px=0, defer=True)
         if mgr:
             mgr.enable_safe_maximize(0)
@@ -7266,7 +7266,7 @@ class GrammarApp:
 
     def lookup_grammar_meanings_thread(self, word):
         """
-        Look up dictionary meanings for ‘word’ on a background thread,
+        Look up dictionary meanings for �word� on a background thread,
         then schedule update into the grammar UI.
         """
         meanings = self.lookup_word_in_dictionary(word)
@@ -7300,7 +7300,7 @@ class GrammarApp:
             row = idx % per_col
             tk.Label(
                 self.meanings_inner_frame,
-                text=f"• {m}",
+                text=f"� {m}",
                 bg='light gray',
                 font=('Arial', 12),
                 wraplength=max(140, col_w - 20),
@@ -7333,7 +7333,7 @@ class GrammarApp:
         raw_translation         = self.current_translation
         translation_condensed   = extract_darpan_translation(raw_translation)
 
-        # 3) Pull the previously looked‐up meanings out of self.grammar_meanings:
+        # 3) Pull the previously looked-up meanings out of self.grammar_meanings:
         meanings = next(
             (e["meanings"] for e in self.grammar_meanings if e["word"] == word),
             []
@@ -7342,9 +7342,9 @@ class GrammarApp:
         # 4) Build the initial "detailed" entry dict:
         entry = {
             "Vowel Ending":       word,
-            "Number / ਵਚਨ":       number,
-            "Grammar / ਵਯਾਕਰਣ":    "",   # to be filled in dropdown step
-            "Gender / ਲਿੰਗ":       gender,
+            "Number / ???":       number,
+            "Grammar / ??????":    "",   # to be filled in dropdown step
+            "Gender / ????":       gender,
             "Word Root":           "",   # to be filled next
             "Type":                pos,
             "Evaluation":          "Derived",
@@ -7390,9 +7390,9 @@ class GrammarApp:
         self.current_detailed_entry = entry
         self.open_final_grammar_dropdown_for_word(word, entry["Type"], index)
 
-    # ────────────────────────────────────────────────────────────────
-    # MAIN METHOD  –  drop-in replacement
-    # ────────────────────────────────────────────────────────────────
+    # ----------------------------------------------------------------
+    # MAIN METHOD  �  drop-in replacement
+    # ----------------------------------------------------------------
     def _open_final_grammar_dropdown_common(self, word, pos, index, mode: str = "verse"):
         """
         After the user has chosen a Part-of-Speech, pop up a Toplevel
@@ -7411,9 +7411,9 @@ class GrammarApp:
 
         # option lists
         # option lists (resolve actual headers robustly)
-        _num_col  = _resolve_col(df, COL_NUMBER, 'Number / ਵਚਨ', 'Number')
-        _gram_col = _resolve_col(df, COL_GRAMMAR, 'Grammar / ਵਯਾਕਰਣ', 'Grammar Case / ਵਯਾਕਰਣ', 'Grammar')
-        _gen_col  = _resolve_col(df, COL_GENDER, 'Gender / ਲਿੰਗ', 'Gender')
+        _num_col  = _resolve_col(df, COL_NUMBER, 'Number / ???', 'Number')
+        _gram_col = _resolve_col(df, COL_GRAMMAR, 'Grammar / ??????', 'Grammar Case / ??????', 'Grammar')
+        _gen_col  = _resolve_col(df, COL_GENDER, 'Gender / ????', 'Gender')
         num_opts  = sorted(df[_num_col].dropna().unique().tolist()) if _num_col else []
         gram_opts = sorted(df[_gram_col].dropna().unique().tolist()) if _gram_col else []
         gen_opts  = sorted(df[_gen_col].dropna().unique().tolist()) if _gen_col else []
@@ -7421,7 +7421,7 @@ class GrammarApp:
         pos_type = str((entry.get("Type") if isinstance(entry, dict) else None) or pos or "")
 
         # Choose how to build root_opts based on whether it's a Noun
-        if pos_type == "Noun / ਨਾਂਵ":
+        if pos_type == "Noun / ????":
             # Option-1: For Nouns, use hard-wired canonical endings
             root_opts = CANONICAL_ENDINGS.copy()
             for lst in (num_opts, gram_opts, gen_opts):
@@ -7495,9 +7495,9 @@ class GrammarApp:
         if inline_allowed and is_special_hit:
             self._repeat_note_shown.add(key)
             special_text = (
-                f"In literal analysis: The word “{display_word}” appears multiple times in this verse. "
+                f"In literal analysis: The word �{display_word}� appears multiple times in this verse. "
                 "The highlighted grammar options reflect your past selections for this word (or close matches) "
-                "to encourage consistency. They’re suggestions, not mandates—adjust if the current context differs."
+                "to encourage consistency. They�re suggestions, not mandates�adjust if the current context differs."
             )
             self._ensure_literal_banner(special_text)
         elif inline_allowed and has_repeat and not suppress_first_occurrence_of_first_token:
@@ -7516,7 +7516,7 @@ class GrammarApp:
 
         # 2) --------------  Build the window  -----------------------
         win = tk.Toplevel(self.root)
-        win.title(f"Detail Grammar for ‘{word}’")
+        win.title(f"Detail Grammar for �{word}�")
         win.configure(bg="light gray")
         # Exact per-monitor work-area maximize, deferred to avoid 1x1 restores
         try:
@@ -7553,9 +7553,9 @@ class GrammarApp:
         self.detailed_root_var    = tk.StringVar(value=entry["Word Root"])
 
         _add_dropdown(0, "Word Under Analysis:", self.detailed_ve_var, [word], colspan=2)
-        _add_dropdown(1, "Number / ਵਚਨ:",        self.detailed_number_var,  num_opts)
-        _add_dropdown(2, "Grammar Case / ਵਯਾਕਰਣ:", self.detailed_grammar_var, gram_opts)
-        _add_dropdown(3, "Gender / ਲਿੰਗ:",        self.detailed_gender_var,   gen_opts)
+        _add_dropdown(1, "Number / ???:",        self.detailed_number_var,  num_opts)
+        _add_dropdown(2, "Grammar Case / ??????:", self.detailed_grammar_var, gram_opts)
+        _add_dropdown(3, "Gender / ????:",        self.detailed_gender_var,   gen_opts)
         _add_dropdown(4, "Word Root:",            self.detailed_root_var,     root_opts)
 
         # 4) --------------  Commentary box  -------------------------
@@ -7589,31 +7589,31 @@ class GrammarApp:
                 if not triples:
                     continue
 
-                # Build “ਉਦਿਆਨੈ → ਉਦਿਆਨ + ੈ” style strings
+                # Build �?????? ? ????? + ?� style strings
                 rendered = [
-                    f"{full} → {base}{' + ' + suf if suf else ''}"
+                    f"{full} ? {base}{' + ' + suf if suf else ''}"
                     for full, base, suf in triples
                 ]
-                lines.append(f"- **{label}** → " + ", ".join(rendered))
+                lines.append(f"- **{label}** ? " + ", ".join(rendered))
 
             return "\n".join(lines)
 
-        # helper – build cheat-sheet table from noun_map
+        # helper � build cheat-sheet table from noun_map
         def make_cheat_sheet(word: str, gender: str, number: str) -> str:
             """
             Progressive right-edge matcher, now bounded by len(word):
-            • For L = 1 … len(word):
+            � For L = 1 � len(word):
                     slice_w = word[-L:]
                     for every ending key E in noun_map:
-                        if E[-L:] == slice_w  → collect E
-            • Merge all collected endings’ case tables (deduped), build Markdown.
+                        if E[-L:] == slice_w  ? collect E
+            � Merge all collected endings� case tables (deduped), build Markdown.
             """
 
             word_len = len(word)                              # new upper bound
             matched: list[str] = []
 
             # 1) -------- gather every ending with the same right-edge ------------
-            for L in range(1, word_len + 1):                  # 1 … len(word)
+            for L in range(1, word_len + 1):                  # 1 � len(word)
                 slice_w = word[-L:]
                 for ending in self.noun_map:
                     if ending[-L:] == slice_w and ending not in matched:
@@ -7622,7 +7622,7 @@ class GrammarApp:
             if not matched:
                 return ""                                     # nothing found
 
-            # 2) -------- merge case → suffix lists for gender & number ----------
+            # 2) -------- merge case ? suffix lists for gender & number ----------
             merged: dict[str, list[str]] = {}
             for end in matched:
                 cases = (
@@ -7648,10 +7648,10 @@ class GrammarApp:
             ]
             ending_list = ", ".join(matched)
 
-            # build the core table but DON’T return yet
+            # build the core table but DON�T return yet
             table_rows = "\n".join(rows)
             table_markdown = textwrap.dedent(f"""
-                **Morphology map – endings matched: {ending_list}
+                **Morphology map � endings matched: {ending_list}
                 ({gender.split()[0]}/{number.split()[0]})**
                 | Case         | Attested suffix(es) |
                 |--------------|----------------------|
@@ -7682,7 +7682,7 @@ class GrammarApp:
             def make_block(title, items):
                 lines = [f"- **{title}**"]
                 for it in items:
-                    lines.append(f"  – {it}")
+                    lines.append(f"  � {it}")
                 return "\n".join(lines)
 
             # ------------------------------------------------------------------
@@ -7716,7 +7716,7 @@ class GrammarApp:
                     highlight = parts[0] == parts[1] and is_full_word(parts[0])
                     if highlight:
                         parts = [f"**{p}**" for p in parts]
-                        parts[0] = "✅ " + parts[0]
+                        parts[0] = "? " + parts[0]
 
                     rows.append("| " + " | ".join(
                         parts + [str(_count), f"{_perc:.1f}%"]
@@ -7728,9 +7728,9 @@ class GrammarApp:
                     headers = [
                         "Word under Analysis",
                         "Vowel Ending / Word Matches",
-                        "Number / ਵਚਨ",
-                        "Grammar / ਵਯਾਕਰਣ",
-                        "Gender / ਲਿੰਗ",
+                        "Number / ???",
+                        "Grammar / ??????",
+                        "Gender / ????",
                         "Word Root",
                         "Type",
                         "Match Count",
@@ -7751,9 +7751,9 @@ class GrammarApp:
 
             opts_block = "\n\n".join([
                 make_block("Word Under Analysis", [ve]),
-                make_block("Number / ਵਚਨ options",   num_opts),
-                make_block("Grammar Case / ਵਯਾਕਰਣ options", gram_opts),
-                make_block("Gender / ਲਿੰਗ options",  gen_opts),
+                make_block("Number / ??? options",   num_opts),
+                make_block("Grammar Case / ?????? options", gram_opts),
+                make_block("Gender / ???? options",  gen_opts),
                 make_block("Word-Root options",      root_opts),
             ])
 
@@ -7762,74 +7762,74 @@ class GrammarApp:
             implicit_note      = ""
             common_sense_note  = ""
 
-            if entry["Type"] == "Noun / ਨਾਂਵ":
+            if entry["Type"] == "Noun / ????":
                 ending_cheat_sheet = make_cheat_sheet(ve, gen, num)
 
                 implicit_note = textwrap.dedent("""\
                     **IMPLICIT POST-POSITIONS & CASE DECLENSIONS**  
-                    In Gurbāṇī, relationships such as *to, from, with, of, in* are conveyed
-                    by **inflected endings** rather than modern post-positions (`ਨੂੰ`, `ਨਾਲ`
-                    …). A noun may appear unmarked while the Darpan gloss supplies a helper.
+                    In Gurba?i, relationships such as *to, from, with, of, in* are conveyed
+                    by **inflected endings** rather than modern post-positions (`???`, `???`
+                    �). A noun may appear unmarked while the Darpan gloss supplies a helper.
 
                     **How to read the gloss**  
-                    • If the gloss inserts **to / for / of / by / with / from / in / on / at / O / Hey**
+                    � If the gloss inserts **to / for / of / by / with / from / in / on / at / O / Hey**
                     that is absent in the verse, treat it as an **implicit post-position**
                     and pick the matching **case**.  
-                    • If the gloss repeats the word without a helper, default to
+                    � If the gloss repeats the word without a helper, default to
                     **Nominative / Accusative** and let context refine the choice.
 
                     | Helper | Punjabi marker | Case |
                     |--------|----------------|------|
-                    | to / for   | `ਨੂੰ`, `ਲਈ`     | **Dative** |
-                    | of         | `ਦਾ/ਦੇ/ਦੀ`      | **Genitive** |
-                    | by / with  | `ਨਾਲ`, `ਨਾਲੋਂ`  | **Instrumental** |
-                    | from / out of | `ਤੋਂ`, `ਉਤੋਂ` | **Ablative** |
-                    | in / on / at | `ਵਿੱਚ`, `ਉੱਤੇ`, `ਤੇ` | **Locative** |
+                    | to / for   | `???`, `??`     | **Dative** |
+                    | of         | `??/??/??`      | **Genitive** |
+                    | by / with  | `???`, `?????`  | **Instrumental** |
+                    | from / out of | `???`, `????` | **Ablative** |
+                    | in / on / at | `????`, `????`, `??` | **Locative** |
                     | O / Hey    | *(address)*     | **Vocative** |
 
-                    _Endings overlap: Nom≈Acc, Gen≈Dat, Inst≈Loc – use semantics to decide._
+                    _Endings overlap: Nom�Acc, Gen�Dat, Inst�Loc � use semantics to decide._
                 """).strip() + "\n\n"
 
                 common_sense_note = textwrap.dedent("""\
-                    **SEMANTIC SANITY CHECK – DOES THE LABEL REALLY FIT?**  
+                    **SEMANTIC SANITY CHECK � DOES THE LABEL REALLY FIT?**  
                     Match the case to the *role* the noun plays.
 
                     **Quick Meanings**  Nom=subject | Acc=object | Inst=by/with | Dat=to/for |
                     Gen=of | Abl=from | Loc=in/on | Voc=address
 
-                    • Instrumental – means, agency, tool  
-                    • Locative     – spatial/temporal setting  
-                    • Dative       – recipient, purpose  
-                    • Genitive     – ownership, relation  
-                    • Ablative     – source, cause  
-                    • Nom / Acc    – subject vs. direct object (no helper)  
-                    • Vocative     – direct address
+                    � Instrumental � means, agency, tool  
+                    � Locative     � spatial/temporal setting  
+                    � Dative       � recipient, purpose  
+                    � Genitive     � ownership, relation  
+                    � Ablative     � source, cause  
+                    � Nom / Acc    � subject vs. direct object (no helper)  
+                    � Vocative     � direct address
 
-                    **Ambiguity reminder** – If **one suffix stands for two cases**
-                    (e.g., –ਈ = Nom *and* Acc), *explain your semantic reason* for choosing.
+                    **Ambiguity reminder** � If **one suffix stands for two cases**
+                    (e.g., �? = Nom *and* Acc), *explain your semantic reason* for choosing.
 
-                    **Oblique + Post-position lines** – Gurbāṇī occasionally stacks a
+                    **Oblique + Post-position lines** � Gurba?i occasionally stacks a
                     post-position **after** an oblique form **and** after a direct form
-                    (see examples with *ਨਇਆਂ*, *ਸਬਦੈ*).  Either is valid—choose the case
+                    (see examples with *????*, *????*).  Either is valid�choose the case
                     that best reflects the combined meaning.
                 """).strip() + "\n\n"
             
-            elif entry["Type"] == "Pronoun / ਪੜਨਾਂਵ":
-                # ─── Pronoun block with enriched cross-category logic ─────────────────────────────
+            elif entry["Type"] == "Pronoun / ??????":
+                # --- Pronoun block with enriched cross-category logic -----------------------------
                 implicit_note = textwrap.dedent("""\
-                    **PRONOUNS – INFLECTIONS, IDENTITY & IMPLIED MEANINGS**  
-                    In Gurbāṇī, pronouns diverge from noun patterns and inflect by **person, number, and gender**.  
-                    Their meaning is sometimes explicit (like ਮੈਂ = I), but often **derived from Darpan's gloss**.
+                    **PRONOUNS � INFLECTIONS, IDENTITY & IMPLIED MEANINGS**  
+                    In Gurba?i, pronouns diverge from noun patterns and inflect by **person, number, and gender**.  
+                    Their meaning is sometimes explicit (like ??? = I), but often **derived from Darpan's gloss**.
 
                     **Core Steps to Identify the Case**  
                     1. **Read the gloss literally.**  
                     If it adds a helper like *to, from, with, in*, this signals an **implicit post-position**.  
                     Match it with:  
-                    • `ਨੂੰ`, `ਲਈ` → Dative  
-                    • `ਦਾ/ਦੀ/ਦੇ`, `ਕਾ/ਕੀ/ਕੇ` → Genitive  
-                    • `ਤੋਂ`, `ਉਤੋਂ`, `ਸੇ`, `ਅਤੇ` → Ablative  
-                    • `ਨਾਲ`, `ਵਿੱਚ`, `ਉੱਤੇ`, `ਕੋਲ`, `ਅੰਦਰ`, etc. → Instrumental / Locative  
-                    • `O`, `Hey` → Vocative
+                    � `???`, `??` ? Dative  
+                    � `??/??/??`, `??/??/??` ? Genitive  
+                    � `???`, `????`, `??`, `???` ? Ablative  
+                    � `???`, `????`, `????`, `???`, `????`, etc. ? Instrumental / Locative  
+                    � `O`, `Hey` ? Vocative
 
                     2. **Check form compatibility.**  
                     Every person/gender/number has a finite set of endings (see below).  
@@ -7837,212 +7837,212 @@ class GrammarApp:
 
                     3. **For Relative / Interrogative / Reflexive / Indefinite types**,  
                     blend case logic with **semantic roles**: e.g.,  
-                    • ਕਿਸ ਨੂੰ → “to whom” → Dative  
-                    • ਜਿਸ ਤੇ → “on whom” → Locative  
-                    • ਆਪਣੇ ਹੀ ਆਪ → Reflexive emphatic  
-                    • ਜਿਸ ਦੀ, ਜਿਸ ਦਾ → Genitive relative
+                    � ??? ??? ? �to whom� ? Dative  
+                    � ??? ?? ? �on whom� ? Locative  
+                    � ???? ?? ?? ? Reflexive emphatic  
+                    � ??? ??, ??? ?? ? Genitive relative
 
-                    _Postpositions are often absent but implied—your judgment is key._  
-                    Also note: **Gurbāṇī often uses plural pronouns to show respect.**
+                    _Postpositions are often absent but implied�your judgment is key._  
+                    Also note: **Gurba?i often uses plural pronouns to show respect.**
                 """).strip() + "\n\n"
 
                 common_sense_note = textwrap.dedent("""\
-                    **PRONOUN SEMANTIC CHECK – ROLE IN MEANINGFUL CONTEXT**  
-                    Pronouns are **not just replacements for nouns**—they carry personhood, humility, or divinity.
+                    **PRONOUN SEMANTIC CHECK � ROLE IN MEANINGFUL CONTEXT**  
+                    Pronouns are **not just replacements for nouns**�they carry personhood, humility, or divinity.
 
-                    ✅ Use this test logic:  
-                    - **Is the pronoun the subject?** → Nom  
-                    - **Receiving the action?** → Acc  
-                    - **Belonging to someone?** → Gen  
-                    - **Given to someone?** → Dat  
-                    - **Means or tool or “with” sense?** → Inst  
-                    - **Place or inner state?** → Loc  
-                    - **Directly addressed?** → Voc  
+                    ? Use this test logic:  
+                    - **Is the pronoun the subject?** ? Nom  
+                    - **Receiving the action?** ? Acc  
+                    - **Belonging to someone?** ? Gen  
+                    - **Given to someone?** ? Dat  
+                    - **Means or tool or �with� sense?** ? Inst  
+                    - **Place or inner state?** ? Loc  
+                    - **Directly addressed?** ? Voc  
 
-                    ⚠️ For overlapping forms:  
+                    ?? For overlapping forms:  
                     - Use the Darpan helper (e.g., "to me", "from them", "by whom")  
                     - Ask what semantic role the pronoun plays **in that line**  
-                    - e.g., “ਮੈ” may be Nom or Acc depending on meaning
+                    - e.g., �??� may be Nom or Acc depending on meaning
 
                     **Special Guidance per Category**  
-                    - **Reflexive** (ਆਪ, ਆਪਣੇ): Self-reference or emphasis  
-                    - **Relative/Correlative** (ਜੋ...ਸੋ): Link two ideas (doer/result, condition/result)  
-                    - **Interrogative** (ਕੌਣ, ਕਿਸ): Structure question  
-                    - **Indefinite** (ਕੋਈ, ਸਭ): Ambiguous subject  
-                    - **Honorific 2nd Person** (ਤੁਸੀਂ, ਤੁਮ): May appear plural but refer to one Divine
+                    - **Reflexive** (??, ????): Self-reference or emphasis  
+                    - **Relative/Correlative** (??...??): Link two ideas (doer/result, condition/result)  
+                    - **Interrogative** (???, ???): Structure question  
+                    - **Indefinite** (???, ??): Ambiguous subject  
+                    - **Honorific 2nd Person** (?????, ???): May appear plural but refer to one Divine
 
                     **Final Tip**: Plural/oblique/abstract usage may reflect poetic or spiritual nuance more than grammar. Follow meaning.
                 """).strip() + "\n\n"
 
                 ending_cheat_sheet = textwrap.dedent("""\
-                    **PRONOUN CASE ENDINGS – EXAMPLES ACROSS CATEGORIES**
+                    **PRONOUN CASE ENDINGS � EXAMPLES ACROSS CATEGORIES**
 
-                    🔹 **Valid Number / Gender Combinations per Category**  
+                    ?? **Valid Number / Gender Combinations per Category**  
                     *(Use this to cross-check if your feature choices are logically possible)*
 
-                    - **1st Person / ਉੱਤਮ ਪੁਰਖ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Trans / ਨਪੁਂਸਕ
+                    - **1st Person / ???? ????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Trans / ??????
 
-                    - **2nd Person / ਮਧਮ ਪੁਰਖ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Trans / ਨਪੁਂਸਕ
+                    - **2nd Person / ??? ????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Trans / ??????
 
-                    - **3rd Person / ਅਨਯ ਪੁਰਖ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+                    - **3rd Person / ??? ????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Masculine / ??????, Feminine / ?????, Trans / ??????
 
-                    - **CoRelative / ਅਨੁਸੰਬੰਧ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+                    - **CoRelative / ????????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Masculine / ??????, Feminine / ?????, Trans / ??????
 
-                    - **Relative / ਸੰਬੰਧ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+                    - **Relative / ?????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Masculine / ??????, Feminine / ?????, Trans / ??????
 
-                    - **Interrogative / ਪ੍ਰਸ਼ਨ ਵਾਚਕ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+                    - **Interrogative / ????? ????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Masculine / ??????, Feminine / ?????, Trans / ??????
 
-                    - **Reflexive / ਨਿਜ ਵਾਚਕ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+                    - **Reflexive / ??? ????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Masculine / ??????, Feminine / ?????, Trans / ??????
 
-                    - **Indefinite / ਅਨਿਸਚੇ ਵਾਚਕ**  
-                    – Number: Singular / ਇਕ, Plural / ਬਹੁ  
-                    – Gender: Masculine / ਪੁਲਿੰਗ, Feminine / ਇਸਤਰੀ, Trans / ਨਪੁਂਸਕ
+                    - **Indefinite / ?????? ????**  
+                    � Number: Singular / ??, Plural / ???  
+                    � Gender: Masculine / ??????, Feminine / ?????, Trans / ??????
 
-                    _✳ Note: “Trans” (ਨਪੁਂਸਕ) appears for most categories due to universal/neutral references or poetic plurality._
+                    _? Note: �Trans� (??????) appears for most categories due to universal/neutral references or poetic plurality._
 
-                    **1st Person / ਉੱਤਮ ਪੁਰਖ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਮੈ / ਮੰਝਹੁ / ਹਮ ਤੇ
-                    - Accusative ਕਰਮ: ਮੈ / ਮੈਨੋ / ਮੋ ਕਉ / ਮੋਕਉ / ਮੋਹਿ / ਮੰਞੁ / ਹਮ / ਹਮਹਿ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਮਾਝੈ / ਮੁਝਹਿ / ਮੁਝੈ / ਮੁਹਿ / ਮੂ / ਮੈ / ਮੈਨੋ / ਮੋ ਕਉ / ਮੋਹਿ / ਹਮ (ਕਉ) / ਹਮਹੁ / ਹਮਾਰੈ
-                    - Genitive ਸੰਬੰਧ: ਅਸਾ / ਅਸਾਡੜਾ / ਅਸਾਹ / ਅਸਾੜਾ / ਮਹਿੰਜਾ / ਮਹਿੰਡਾ / ਮਾ / ਮੂ / ਮੇਰਉ / ਮੇਰਾ / ਮੇਰੀ / ਮੈ / ਮੈਡਾ / ਮੋਰ / ਮੋਰਲਾ / ਮੋਰਲੋ / ਮੋਰਾ / ਮੋਰੀ / ਮੋਰੇ / ਮੋਹਿ / ਮੰਞੁ / ਹਮਰਾ / ਹਮਰੈ / ਹਮਰੋ / ਹਮਾਰਾ
-                    - Locative ਅਧਿਕਰਣ: ਮੁਝ ਮਹਿ / ਮੁਝਹਿ ਪਹਿ / ਮੁਝੁ / ਮੁਝੈ / ਮੇਰੈ / ਮੈ ਅੰਤਰਿ / ਮੈ ਵਿਚਿ / ਮੋ ਮਹਿ / ਮੰਝੁ / ਹਮ / ਹਮਰੈ / ਹਮਾਰੈ
-                    - Nominative ਕਰਤਾ: ਅਸਾ / ਅਸੀ / ਮੂ / ਮੂਂ / ਮੈ / ਮੋਹਿ / ਹਉ / ਹਮ / ਹਮਹੁ
+                    **1st Person / ???? ???? Pronouns � Case Examples**
+                    - Ablative ??????: ?? / ????? / ?? ??
+                    - Accusative ???: ?? / ???? / ?? ?? / ???? / ???? / ???? / ?? / ????
+                    - Dative ???????: ???? / ????? / ???? / ???? / ?? / ?? / ???? / ?? ?? / ???? / ?? (??) / ???? / ?????
+                    - Genitive ?????: ??? / ?????? / ???? / ????? / ?????? / ?????? / ?? / ?? / ???? / ???? / ???? / ?? / ???? / ??? / ????? / ????? / ???? / ???? / ???? / ???? / ???? / ???? / ???? / ???? / ?????
+                    - Locative ??????: ??? ??? / ????? ??? / ???? / ???? / ???? / ?? ????? / ?? ???? / ?? ??? / ???? / ?? / ???? / ?????
+                    - Nominative ????: ??? / ??? / ?? / ??? / ?? / ???? / ?? / ?? / ????
 
-                    **2nd Person / ਮਧਮ ਪੁਰਖ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਤੁਝ ਤੇ / ਤੁਝੈ / ਤੁਝੈ ਤੇ / ਤੁਝੈ ਪਹਿ / ਤੁਧਹੁ / ਤੁਧੈ ਤੇ / ਤੁਮ ਤੇ
-                    - Accusative ਕਰਮ: ਤਉ / ਤੁਝ / ਤੁਝਹਿ / ਤੁਝੁ / ਤੁਝੈ / ਤੁਧ / ਤੁਧ ਨੋ / ਤੁਧੁ / ਤੁਧੁਨੋ / ਤੁਧੈ / ਤੁਮ / ਤੁਮਹਿ / ਤੁਹਨੋ / ਤੁਹਿ / ਤੂ / ਤੂੰ / ਤੋਹਿ / ਤੋਹੀ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਤਉ / ਤੁਝਹਿ / ਤੁਝੁ / ਤੁਝੈ / ਤੁਧ / ਤੁਧੁ / ਤੁਮ / ਤੁਮ ਕਉ / ਤੁਸਾ / ਤੁਹਿ / ਤੈ / ਤੈ ਕੂੰ / ਤੋਹਿ / ਥੇ / ਥੈਂ
-                    - Genitive ਸੰਬੰਧ: ਤਉ / ਤਵ / ਤਹਿੰਜੀ / ਤਿਹਾਰੈ / ਤੁ / ਤੁਅ / ਤੁਝਹਿ / ਤੁਮਰਾ / ਤੁਮਰੀ / ਤੁਮਰੇ / ਤੁਮਾਰੀ / ਤੁਹਾਰੇ / ਤੂ / ਤੇਰਉ / ਤੇਰਾ / ਤੇਰਿਆ / ਤੇਰੀ / ਤੇਰੇ / ਤੇਰੋ / ਤੈਡਾ / ਤੋਰ / ਤੋਹਿ / ਥਾਰੀ / ਥਾਰੇ
-                    - Locative ਅਧਿਕਰਣ: ਤੁਝ / ਤੁਝ ਹੀ / ਤੁਝਹਿ / ਤੁਝੈ / ਤੁਝੈ ਸਾਝਰਿ / ਤੁਧੁ / ਤੁਧੈ / ਤੁਮ / ਤੁਮਹਿ / ਤੋਹਿ
-                    - Nominative ਕਰਤਾ: ਤਉ / ਤੁ ਹੀ / ਤੁਝ / ਤੁਝਹਿ / ਤੁਝੈ / ਤੁਧੁ / ਤੁਧੈ / ਤੁਮ / ਤੁਮ ਹੀ / ਤੁਮਹਿ / ਤੁਮੈ / ਤੁਸੀ / ਤੁਹੀ / ਤੂ / ਤੂ ਹੈ / ਤੂਂ / ਤੂਹੈ / ਤੈ / ਤੈਂ / ਤੋਹਿ
+                    **2nd Person / ??? ???? Pronouns � Case Examples**
+                    - Ablative ??????: ??? ?? / ???? / ???? ?? / ???? ??? / ????? / ???? ?? / ??? ??
+                    - Accusative ???: ?? / ??? / ????? / ???? / ???? / ??? / ??? ?? / ???? / ?????? / ???? / ??? / ????? / ????? / ???? / ?? / ??? / ???? / ????
+                    - Dative ???????: ?? / ????? / ???? / ???? / ??? / ???? / ??? / ??? ?? / ???? / ???? / ?? / ?? ??? / ???? / ?? / ???
+                    - Genitive ?????: ?? / ?? / ?????? / ?????? / ?? / ??? / ????? / ????? / ????? / ????? / ?????? / ?????? / ?? / ???? / ???? / ????? / ???? / ???? / ???? / ???? / ??? / ???? / ???? / ????
+                    - Locative ??????: ??? / ??? ?? / ????? / ???? / ???? ????? / ???? / ???? / ??? / ????? / ????
+                    - Nominative ????: ?? / ?? ?? / ??? / ????? / ???? / ???? / ???? / ??? / ??? ?? / ????? / ???? / ???? / ???? / ?? / ?? ?? / ??? / ???? / ?? / ??? / ????
 
-                    **3rd Person / ਅਨਯ ਪੁਰਖ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਇਨ / ਇਸ (ਤੇ) / ਉਆ / ਉਨ (ਤੇ) / ਉਨਾ / ਉਸ / ਓਨਾ੍
-                    - Accusative ਕਰਮ: ਇਸਹਿ / ਇਸੁ / ਇਹ / ਇਹੁ / ਉਆਹਿ / ਉਇ / ਉਨ / ਉਸ / ਉਸੁ / ਉਹ / ਏਸ / ਏਹਾ / ਏਹਿ / ਓਇ / ਓਈ / ਓਨਾ / ਓਸ / ਓਸੁ / ਓਹੁ / ਤਿਨ / ਤੇ / ਵਾ / ਵਾਹੀ / ਸੇ / ਸੋਊ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਇਸ / ਇਸੁ / ਉਆ / ਉਨ (ਕ‌ਉ) / ਉਨਾ / ਉਸ / ਉਸੁ / ਏਸ / ਓਨਾ੍ / ਓਸ / ਓਸੁ
-                    - Genitive ਸੰਬੰਧ: ਅਸਗਾ / ਇਨ / ਇਸ / ਉਆ / ਉਆ (ਕਾ) / ਉਨ (ਕੀ) / ਉਨਾ / ਉਸ (ਕਾ) / ਉਸਗਾ / ਉਸੁ / ਓਨਾ / ਓਸੁ / ਤਿਨ / ਤਿਨਾ / ਤਿਸੁ / ਵਾ (ਕਾ) (ਕੈ) (ਕੇ)
-                    - Instrumental ਕਰਣ: ਇਤੁ (ਕਰਿ)
-                    - Locative ਅਧਿਕਰਣ: ਇਸ / ਇਸੁ (ਆਗੈ) / ਉਸੁ / ਓਨਾ (ਪਿਛੈ) / ਓਸੁ / ਵਾਹੂ
-                    - Nominative ਕਰਤਾ: ਇਨ / ਇਨਿ / ਇਹ / ਇਹੁ / ਉਨ / ਉਨਿ / ਉਹ / ਉਹੁ / ਏਹ / ਏਹਿ / ਏਹੁ / ਓਇ / ਓਨਿ / ਓਨੀ / ਓਹ / ਓਹਾ / ਓਹਿ / ਓਹੀ / ਓਹੁ / ਤਿਨ / ਤਿਨਹਿ / ਤੇ / ਤੇਊ / ਸਾ / ਸੇ / ਸੋ / ਸੋਇ / ਸੋਈ
+                    **3rd Person / ??? ???? Pronouns � Case Examples**
+                    - Ablative ??????: ?? / ?? (??) / ?? / ?? (??) / ??? / ?? / ????
+                    - Accusative ???: ???? / ??? / ?? / ??? / ???? / ?? / ?? / ?? / ??? / ?? / ?? / ??? / ??? / ?? / ?? / ??? / ?? / ??? / ??? / ??? / ?? / ?? / ???? / ?? / ???
+                    - Dative ???????: ?? / ??? / ?? / ?? (???) / ??? / ?? / ??? / ?? / ???? / ?? / ???
+                    - Genitive ?????: ???? / ?? / ?? / ?? / ?? (??) / ?? (??) / ??? / ?? (??) / ???? / ??? / ??? / ??? / ??? / ???? / ???? / ?? (??) (??) (??)
+                    - Instrumental ???: ??? (???)
+                    - Locative ??????: ?? / ??? (???) / ??? / ??? (????) / ??? / ????
+                    - Nominative ????: ?? / ??? / ?? / ??? / ?? / ??? / ?? / ??? / ?? / ??? / ??? / ?? / ??? / ??? / ?? / ??? / ??? / ??? / ??? / ??? / ????? / ?? / ??? / ?? / ?? / ?? / ??? / ???
 
-                    **CoRelative / ਅਨੁਸੰਬੰਧ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਤਿਸ (ਤੇ)
-                    - Accusative ਕਰਮ: ਤਾਸੁ / ਤਾਸੁ (ਕਉ) / ਤਾਹਿ / ਤਿਨ / ਤਿਨ੍ / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤੇ / ਤੈ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਤਾਸੁ / ਤਿਨ / ਤਿਨ (ਕਉ) / ਤਿਨਹੁ / ਤਿਨਹੂ (ਕਉ) / ਤਿਨਾ / ਤਿਨਾ੍ / ਤਿਸ (ਕਉ) / ਤਿਸ (ਨੋ) / ਤਿਸ ਹੀ / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤਿੰਨਾ / ਤੈ
-                    - Genitive ਸੰਬੰਧ: ਤਾ / ਤਾਸੁ / ਤਾਹੂ (ਕੋ) / ਤਿਨ / ਤਿਨ (ਕੀ) / ਤਿਨਾ / ਤਿਨਾ੍ / ਤਿਨਾੜਾ / ਤਿਨ੍ / ਤਿਸ (ਕਾ) / ਤਿਸ (ਕੀ) / ਤਿਸ (ਕੇ) / ਤਿਸ (ਹਿ) / ਤਿਸ (ਹੀ) / ਤਿਸਹਿ / ਤਿਸੁ / ਤਿਸੈ / ਤਿਹ / ਤੰਨਿ (ਖੇ)
-                    - Instrumental ਕਰਣ: ਤਿਤੁ
-                    - Locative ਅਧਿਕਰਣ: ਤਾਸ / ਤਾਸੁ / ਤਾਹਿ (ਮੈ) / ਤਿਤ (ਹੀ) / ਤਿਤੁ / ਤਿਨਿ / ਤਿਸੁ (ਮਾਹਿ) / ਤਿਹਿ
-                    - Nominative ਕਰਤਾ: ਓਇ / ਤਿਨ / ਤਿਨ ਹੀ / ਤਿਨਹਿ / ਤਿਨਹੀ / ਤਿਨਹੂ / ਤਿਨਿ / ਤਿਨੀ / ਤਿਨ੍ / ਤਿਹ / ਤੇ / ਸਾ / ਸਾਈ / ਸਿ / ਸੁ / ਸੇ / ਸੇਇ / ਸੇਈ / ਸੋ / ਸੋਈ / ਸੋਊ
+                    **CoRelative / ???????? Pronouns � Case Examples**
+                    - Ablative ??????: ??? (??)
+                    - Accusative ???: ???? / ???? (??) / ???? / ??? / ???? / ????? / ???? / ???? / ??? / ?? / ??
+                    - Dative ???????: ???? / ??? / ??? (??) / ????? / ????? (??) / ???? / ????? / ??? (??) / ??? (??) / ??? ?? / ????? / ???? / ???? / ??? / ????? / ??
+                    - Genitive ?????: ?? / ???? / ???? (??) / ??? / ??? (??) / ???? / ????? / ?????? / ???? / ??? (??) / ??? (??) / ??? (??) / ??? (??) / ??? (??) / ????? / ???? / ???? / ??? / ???? (??)
+                    - Instrumental ???: ????
+                    - Locative ??????: ??? / ???? / ???? (??) / ??? (??) / ???? / ???? / ???? (????) / ????
+                    - Nominative ????: ?? / ??? / ??? ?? / ????? / ????? / ????? / ???? / ???? / ???? / ??? / ?? / ?? / ??? / ?? / ?? / ?? / ??? / ??? / ?? / ??? / ???
 
-                    **Indefinite / ਅਨਿਸਚੇ ਵਾਚਕ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਸਭ (ਦੂ) / ਹਭਾਹੂੰ / ਹੋਰਨਿ / ਹੋਰਿਂਓ
-                    - Accusative ਕਰਮ: ਅਉਰਨ / ਅਗਲਾ / ਅਵਰ / ਅਵਰਹਿ / ਅਵਰਾ / ਅਵਰੀ (ਨੋ) / ਅਵਰੁ / ਇਕਨਾ / ਇਕਨਾ੍ / ਇਕਿ / ਇਕੁ / ਇਤਨਾ (ਕੁ) / ਇਤਨੀ / ਏਕਸੈ / ਏਕੀ / ਏਤਾ / ਏਤੇ / ਕਛੁਆ / ਕਹਾ / ਕਿ / ਕਿਆ (ਕਿਛੁ) / ਕਿਛੁ / ਕਿਝੁ / ਕਿਤੀ / ਕਿਸ (ਨੋ) / ਕਿਸਹਿ / ਕਿਸੁ / ਕਿਸੈ / ਕਿਹੁ / ਕੋਈ / ਘਣੇਰੀ / ਜੇਤਾ / ਜੇਤੀਆ / ਤੇਤਾ / ਥੋੜਾ / ਥੋੜੀ / ਬਹੁਤਾ / ਬਹੁਤੁ / ਬਹੁਤੋ / ਬਾਹਰਾ / ਸਗਲ / ਸਭ / ਸਭਨਾ / ਸਭਸੁ / ਸਭਸੈ (ਨੋ) / ਸਭਿ / ਸਭੁ (ਕਿਛੁ) / ਸਭੁ (ਕਿਹੁ) / ਸਭੈ / ਹਭ / ਹਭ (ਕਿਛੁ) / ਹਿਕੁ / ਹਿਕੋ / ਹੋਰਨਾ (ਨੋ) / ਹੋਰਸੁ / ਹੋਰੁ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਇਕਨਾ / ਕਹੀ / ਕਾਹੂ / ਕਿਨੈ / ਕਿਸ (ਹੀ) / ਕਿਸੈ / ਸਭਸੁ / ਸਭਸੈ
-                    - Genitive ਸੰਬੰਧ: ਅਵਰ / ਇਕਨਾ / ਇਕਨਾ੍ / ਕਾਹੂ / ਕਿਸੈ / ਕੈਹੀ / ਸਭਨਾ / ਸਭਸੈ
-                    - Instrumental ਕਰਣ: ਕਾਹੂ / ਕਿਨੈ / ਹੋਰਤੁ
-                    - Locative ਅਧਿਕਰਣ: ਇਕਨੀ / ਕਿਸੁ (ਨਾਲਿ)
-                    - Nominative ਕਰਤਾ: (ਹੋਰ) ਕੇਤੀ / ਅਉਰ / ਅਉਰੁ (ਕੋ) / ਅਨੇਕ / ਅਵਰਿ (ਸਭਿ) / ਅਵਰੁ (ਕਛੁ) / ਅਵਰੇ / ਇਕਨਾ / ਇਕਨੀ / ਇਕਨੈ / ਇਕਿ / ਇਕੁ / ਏਕ / ਏਕਹਿ / ਏਕੁ / ਏਕੈ / ਕਉਣੁ / ਕਉਨੁ / ਕਛੁ / ਕਹ / ਕਹਾ / ਕਾ / ਕਾਈ / ਕਾਹੂ / ਕਿਆ / ਕਿਛੁ / ਕਿਤੀ / ਕਿਨ (ਹੀ) / ਕਿਨਹਿ / ਕਿਨਹੀ / ਕਿਨਹੂ / ਕਿਨਿ / ਕਿਨੈ / ਕਿਸ ਹੀ / ਕਿਹੁ / ਕੇ / ਕੇਇ / ਕੇਈ / ਕੇਤਕ / ਕੇਤਾ / ਕੇਤੇ / ਕੋ / ਕੋਇ / ਕੋਈ / ਕੋਊ / ਘਣੀ / ਘਣੇ / ਜੇਤੀ / ਤੇਤੀ / ਬਹੁ / ਬਹੁਤਾ / ਬਹੁਤੇਰੀ / ਵਿਰਲੇ / ਸਗਲ / ਸਗਲੀ / ਸਗਲੀਆ / ਸਗਲੇ ਕੇ / ਸਭ / ਸਭਨਾ / ਸਭਨੀ / ਸਭਹਿ / ਸਭਾ / ਸਭਿ / ਸਭੁ (ਕਿਛੁ) / ਸਭੁ (ਕੋ) / ਸਭੁ (ਕੋਇ) / ਸਭੁ (ਕੋਈ) / ਸਭੇ / ਸਾਰੀ / ਹਭਿ / ਹਭੇ / ਹਿਕਨੀ / ਹਿਕਿ / ਹਿਕੁ / ਹੋਰਿ / ਹੋਰੁ
+                    **Indefinite / ?????? ???? Pronouns � Case Examples**
+                    - Ablative ??????: ?? (??) / ?????? / ????? / ??????
+                    - Accusative ???: ???? / ???? / ??? / ????? / ???? / ???? (??) / ???? / ???? / ????? / ??? / ??? / ???? (??) / ???? / ???? / ??? / ??? / ??? / ???? / ??? / ?? / ??? (????) / ???? / ???? / ???? / ??? (??) / ????? / ???? / ???? / ???? / ??? / ????? / ???? / ????? / ???? / ???? / ???? / ????? / ????? / ????? / ????? / ??? / ?? / ???? / ???? / ???? (??) / ??? / ??? (????) / ??? (????) / ??? / ?? / ?? (????) / ???? / ???? / ????? (??) / ????? / ????
+                    - Dative ???????: ???? / ??? / ???? / ???? / ??? (??) / ???? / ???? / ????
+                    - Genitive ?????: ??? / ???? / ????? / ???? / ???? / ???? / ???? / ????
+                    - Instrumental ???: ???? / ???? / ?????
+                    - Locative ??????: ???? / ???? (????)
+                    - Nominative ????: (???) ???? / ??? / ???? (??) / ???? / ???? (???) / ???? (???) / ???? / ???? / ???? / ???? / ??? / ??? / ?? / ???? / ??? / ??? / ???? / ???? / ??? / ?? / ??? / ?? / ??? / ???? / ??? / ???? / ???? / ??? (??) / ????? / ????? / ????? / ???? / ???? / ??? ?? / ???? / ?? / ??? / ??? / ???? / ???? / ???? / ?? / ??? / ??? / ??? / ??? / ??? / ???? / ???? / ??? / ????? / ??????? / ????? / ??? / ???? / ????? / ???? ?? / ?? / ???? / ???? / ???? / ??? / ??? / ??? (????) / ??? (??) / ??? (???) / ??? (???) / ??? / ???? / ??? / ??? / ????? / ???? / ???? / ???? / ????
 
-                    **Interrogative / ਪ੍ਰਸ਼ਨ ਵਾਚਕ Pronouns – Case Examples**
-                    - Accusative ਕਰਮ: ਕਹਾ / ਕਾਹਿ / ਕਿਆ / ਕਿਸੁ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਕਾ (ਕਉ) / ਕਿਨਾਹ / ਕਿਸ (ਕਉ) / ਕਿਸੁ / ਕੈ
-                    - Genitive ਸੰਬੰਧ: ਕਿਸੁ
-                    - Locative ਅਧਿਕਰਣ: ਕਾ (ਪਹਿ) / ਕਾ (ਸਿਉ) / ਕਿਸੁ (ਪਹਿ) / ਕੈ (ਪਹਿ)
-                    - Nominative ਕਰਤਾ: ਕਉਣੁ / ਕਉਨ / ਕਵਣ / ਕਵਨ / ਕਵਨੁ / ਕਵਨੈ / ਕਿਨਿ / ਕੁਨੁ / ਕੋ
+                    **Interrogative / ????? ???? Pronouns � Case Examples**
+                    - Accusative ???: ??? / ???? / ??? / ????
+                    - Dative ???????: ?? (??) / ????? / ??? (??) / ???? / ??
+                    - Genitive ?????: ????
+                    - Locative ??????: ?? (???) / ?? (???) / ???? (???) / ?? (???)
+                    - Nominative ????: ???? / ??? / ??? / ??? / ???? / ???? / ???? / ???? / ??
 
-                    **Reflexive / ਨਿਜ ਵਾਚਕ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਆਪਸ (ਤੇ) / ਆਪਹੁ / ਆਪੌ
-                    - Accusative ਕਰਮ: ਅਪਤੁ / ਆਪਤੁ / ਆਪਾ / ਆਪੁ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਆਪਸ (ਕਉ) / ਆਪੈ (ਨੋ)
-                    - Genitive ਸੰਬੰਧ: ਅਪ / ਅਪਣਾ / ਅਪਨਾ / ਅਪਨੀ / ਅਪਨੈ / ਅਪੁਨਾ / ਅਪੁਨੀ / ਆਪ / ਆਪਣ / ਆਪਣਾ / ਆਪਣੈ / ਆਪਨ / ਆਪਨਾ / ਆਪਾ
-                    - Instrumental ਕਰਣ: ਆਪੈ (ਨਾਲਿ)
-                    - Locative ਅਧਿਕਰਣ: ਆਪਹਿ / ਆਪਿ / ਆਪੈ
-                    - Nominative ਕਰਤਾ: ਆਪ (ਹੀ) / ਆਪਹਿ / ਆਪਿ / ਆਪੀਨੈ੍ / ਆਪੇ (ਹੀ) / ਆਪੈ
+                    **Reflexive / ??? ???? Pronouns � Case Examples**
+                    - Ablative ??????: ??? (??) / ???? / ???
+                    - Accusative ???: ???? / ???? / ??? / ???
+                    - Dative ???????: ??? (??) / ??? (??)
+                    - Genitive ?????: ?? / ???? / ???? / ???? / ???? / ????? / ????? / ?? / ??? / ???? / ???? / ??? / ???? / ???
+                    - Instrumental ???: ??? (????)
+                    - Locative ??????: ???? / ??? / ???
+                    - Nominative ????: ?? (??) / ???? / ??? / ?????? / ??? (??) / ???
 
-                    **Relative / ਸੰਬੰਧ Pronouns – Case Examples**
-                    - Ablative ਅਪਾਦਾਨ: ਜਿਦੂ / ਜਿਸ (ਤੇ) / ਜਿਹ (ਤੇ)
-                    - Accusative ਕਰਮ: ਜਾ (ਕਉ) / ਜਾਸੁ / ਜਾਹਿ / ਜਿ / ਜਿਨ / ਜਿਨ (ਕਉ) / ਜਿਨਾ / ਜਿਨ੍ / ਜਿਸਹਿ / ਜਿਸੁ / ਜਿਹ / ਜੇਹੜਾ / ਜੋ / ਜੋਈ ਜੋਈ / ਯਾਸੁ
-                    - Dative ਸੰਪ੍ਦਾਨ: ਜਿਨ / ਜਿਨਾ / ਜਿਸਹਿ / ਜਿਸੁ / ਜਿਹ / ਜੈ
-                    - Genitive ਸੰਬੰਧ: ਜਾ / ਜਾ (ਕੈ) / ਜਾ (ਮਹਿ) / ਜਾਸੁ / ਜਿਨ / ਜਿਨ (ਕੇ) / ਜਿਨਾ / ਜਿਨਾ (ਕੀ) / ਜਿਨ੍ / ਜਿਸ (ਕਾ) / ਜਿਸ (ਕੀ) / ਜਿਸ (ਕੇ) / ਜਿਸੁ / ਜਿਹ
-                    - Instrumental ਕਰਣ: ਜਿਤੁ / ਜਿਹ
-                    - Locative ਅਧਿਕਰਣ: ਜਿਤੁ / ਜਿਹ
-                    - Nominative ਕਰਤਾ: ਜਿ / ਜਿਨ / ਜਿਨਹਿ / ਜਿਨਹੁ / ਜਿਨਾ / ਜਿਨਾ੍ / ਜਿਨਿ / ਜਿਨੀ / ਜਿਨੀ੍ / ਜਿਨ੍ / ਜਿਹ / ਜੁ / ਜੋ / ਜੋਈ
+                    **Relative / ????? Pronouns � Case Examples**
+                    - Ablative ??????: ???? / ??? (??) / ??? (??)
+                    - Accusative ???: ?? (??) / ???? / ???? / ?? / ??? / ??? (??) / ???? / ???? / ????? / ???? / ??? / ????? / ?? / ??? ??? / ????
+                    - Dative ???????: ??? / ???? / ????? / ???? / ??? / ??
+                    - Genitive ?????: ?? / ?? (??) / ?? (???) / ???? / ??? / ??? (??) / ???? / ???? (??) / ???? / ??? (??) / ??? (??) / ??? (??) / ???? / ???
+                    - Instrumental ???: ???? / ???
+                    - Locative ??????: ???? / ???
+                    - Nominative ????: ?? / ??? / ????? / ????? / ???? / ????? / ???? / ???? / ????? / ???? / ??? / ?? / ?? / ???
 
-                    _Ending note: **–ਉ** is often **omitted** before postpositions like ਤੋਂ, ਨੂੰ, ਵਿਚ, ਤੇ.  
-                    e.g., **ਤਿਸ ਹਥਿ** instead of **ਤਿਸੁ ਹਥਿ**_
+                    _Ending note: **�?** is often **omitted** before postpositions like ???, ???, ???, ??.  
+                    e.g., **??? ???** instead of **???? ???**_
                 """).strip() + "\n\n"
 
-            elif entry["Type"] == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ":
-                # ────────────────────────────────────────────────
-                # 3-B  IMPLICIT-NOTE  – how to “read” the gloss
-                # ────────────────────────────────────────────────
+            elif entry["Type"] == "Adjectives / ??????":
+                # ------------------------------------------------
+                # 3-B  IMPLICIT-NOTE  � how to �read� the gloss
+                # ------------------------------------------------
                 implicit_note = textwrap.dedent("""
-                    **ADJECTIVES IN GURBĀṆĪ – AGREEMENT & HINTS FROM THE DARPAN GLOSS**
+                    **ADJECTIVES IN GURBA?I � AGREEMENT & HINTS FROM THE DARPAN GLOSS**
 
-                    • An adjective always **agrees in gender & number** with the noun /
+                    � An adjective always **agrees in gender & number** with the noun /
                     pronoun it qualifies.  Case is *not* tagged independently for adjectives;
                     if a noun shifts to an oblique form (due to post-positions like
-                    `ਨੂੰ, ਤੇ, ਤੋਂ…`) the adjective may simply copy that *ending*.
+                    `???, ??, ???�`) the adjective may simply copy that *ending*.
 
-                    • **Look at the helper words the Darpan adds**:
+                    � **Look at the helper words the Darpan adds**:
                     - If the gloss inserts a post-position after the noun
-                        (*e.g.* “to the **good** one”, “in the **other** realm”), the adjective
-                        will mirror whatever oblique ending the noun shows – **but you still
+                        (*e.g.* �to the **good** one�, �in the **other** realm�), the adjective
+                        will mirror whatever oblique ending the noun shows � **but you still
                         classify the adjective only by Gender / Number / Class**.
                     - If the gloss repeats the adjective without a helper,
                         treat the form you see in the verse as the **direct** (base) form.
 
-                    _Quick reminder – common agreement endings_  
+                    _Quick reminder � common agreement endings_  
                     | Ending-class | Masc.Sg | Fem.Sg | Plural | Notes |
                     |--------------|---------|--------|--------|-------|
-                    | **Mukta**    | –ਅ      | –ਮੁਕਤਾ׀ **ਅ** dropped for fem./pl. |
-                    | **Kannā**    | –ਆ      | –ਈ     | –ਏ     | |
-                    | **Sihārī**   | –ਿ      | –ਿ      | –ੇ      | |
-                    | **Bihārī**   | –ੀ      | –ਈ     | –ਏ/–ਈਆਂ| |
+                    | **Mukta**    | �?      | �?????? **?** dropped for fem./pl. |
+                    | **Kanna**    | �?      | �?     | �?     | |
+                    | **Sihari**   | �?      | �?      | �?      | |
+                    | **Bihari**   | �?      | �?     | �?/�???| |
 
                     _When in doubt: match what the noun is doing rather than forcing
                     a new inflection on the adjective._
                 """).strip() + "\n\n"
 
-                # ────────────────────────────────────────────────
-                # 3-C  COMMON-SENSE-NOTE  – semantic & class sanity
-                # ────────────────────────────────────────────────
+                # ------------------------------------------------
+                # 3-C  COMMON-SENSE-NOTE  � semantic & class sanity
+                # ------------------------------------------------
                 common_sense_note = textwrap.dedent("""
-                    **SEMANTIC CHECK – DOES THE LABEL FIT THIS ADJECTIVE?**
+                    **SEMANTIC CHECK � DOES THE LABEL FIT THIS ADJECTIVE?**
 
-                    ① **Identify the class** (use the column “Adjective Class / ਵਿਸ਼ੇਸ਼ਣ ਕਿਸਮ”):  
-                    • **Qualitative / Descriptive (ਗੁਣ ਵਾਚਕ)** – *ਚੰਗਾ, ਸੋਹਣਾ, ਕਾਲਾ*  
-                    • **Demonstrative (ਨਿਸ਼ਚੇ ਵਾਚਕ)** – *ਇਹ, ਉਹ, ਉਹੀ, ਦੇਉ, ਦਿਨੁ*  
-                    • **Indefinite (ਅਨిశਚੇ ਵਾਚਕ)** – *ਕੋਈ, ਕੈ, ਕਉਨ, ਸਭ*  
-                    • **Pronominal**  
-                        – *ਮੇਰਾ, ਤੇਰਾ (possessive) / ਜੈ, ਜਿਉ (relative)*  
-                    • **Interrogative (ਪ੍ਰਸ਼ਨ ਵਾਚਕ)** – *ਕਉਣ, ਕਿਹ, ਕਿਉੳ, ਕਿਵੇਂ*  
-                    • **Numeral (ਸੰਖਿਆ ਵਾਚਕ)**  
-                        – **Cardinal** *ਇਕ, ਦੋ, ਬੀਹ* | **Ordinal** *ਪਹਿਲਾ, ਦੂਜਾ, ਤੀਜਾ…*
+                    ? **Identify the class** (use the column �Adjective Class / ?????? ????�):  
+                    � **Qualitative / Descriptive (??? ????)** � *????, ?????, ????*  
+                    � **Demonstrative (?????? ????)** � *??, ??, ???, ???, ????*  
+                    � **Indefinite (?????? ????)** � *???, ??, ???, ??*  
+                    � **Pronominal**  
+                        � *????, ???? (possessive) / ??, ??? (relative)*  
+                    � **Interrogative (?????? ????)** � *???, ???, ????, ?????*  
+                    � **Numeral (????? ????)**  
+                        � **Cardinal** *??, ??, ???* | **Ordinal** *?????, ????, ????�*
 
-                    ② **Verify agreement** – does the ending you see match the gender &
+                    ? **Verify agreement** � does the ending you see match the gender &
                     number of the noun in the gloss?  Typical pitfalls:  
-                    • plural nouns paired with singular adjective forms,  
-                    • masculine endings left on a feminine noun after emendation.
+                    � plural nouns paired with singular adjective forms,  
+                    � masculine endings left on a feminine noun after emendation.
 
-                    ③ **Ambiguity guardrails**  
-                    • Many demonstratives (*ਇਹ, ਉਹ, ਸੋ…*) double as pronouns – keep them
+                    ? **Ambiguity guardrails**  
+                    � Many demonstratives (*??, ??, ??�*) double as pronouns � keep them
                         in **Adjective** only when they *modify* a following noun.  
-                    • Some numerals can work adverbially (*ਬਹੁਤ ਭਜੇ*, “ran a lot”) – do not
+                    � Some numerals can work adverbially (*???? ???*, �ran a lot�) � do not
                         tag those as adjectives.
 
                     _If two classes seem possible, pick the one that best serves the
@@ -8050,690 +8050,690 @@ class GrammarApp:
                 """).strip() + "\n\n"
 
                 ending_cheat_sheet = textwrap.dedent("""\
-                **ADJECTIVE ENDINGS – QUICK REFERENCE (Gurbāṇī corpus)**
+                **ADJECTIVE ENDINGS � QUICK REFERENCE (Gurba?i corpus)**
 
-                🔹 **Agreement grid (what can legally combine)**  
-                • **Number / ਵਚਨ** → Singular / ਇਕ, Plural / ਬਹੁ, NA  
-                • **Gender / ਲਿੰਗ** → Masc / ਪੁਲਿੰਗ, Fem / ਇਸਤਰੀ, Neut / ਨਪੁਂਸਕ, NA  
-                • **Surface ending-classes** → ਮੁਕਤਾ, ਕੰਨਾ, ਸਿਹਾਰੀ, ਬਿਹਾਰੀ, ਹੋਰਾ, ੁ, ੋ, ੌ, NA  
-                • **Sub-classes** → Qualitative, Demonstrative, Indefinite, Possessive-pronom., Pronominal, Interrogative, Numeral (Card & Ord), Diminutive, Negation, Tat-sam, Compound, NA  
+                ?? **Agreement grid (what can legally combine)**  
+                � **Number / ???** ? Singular / ??, Plural / ???, NA  
+                � **Gender / ????** ? Masc / ??????, Fem / ?????, Neut / ??????, NA  
+                � **Surface ending-classes** ? ?????, ????, ??????, ??????, ????, ?, ?, ?, NA  
+                � **Sub-classes** ? Qualitative, Demonstrative, Indefinite, Possessive-pronom., Pronominal, Interrogative, Numeral (Card & Ord), Diminutive, Negation, Tat-sam, Compound, NA  
 
-                <sub>Adjectives never carry an independent “case”; if the noun is oblique, the adjective just copies that ending.</sub>
+                <sub>Adjectives never carry an independent �case�; if the noun is oblique, the adjective just copies that ending.</sub>
 
                 ---
 
-                ### A · Canonical ending patterns  
+                ### A � Canonical ending patterns  
 
                 | Ending-class | Masc Sg | Fem Sg | Plural | Tiny sample from text |
                 |--------------|---------|--------|--------|-----------------------|
-                | **ਮੁਕਤਾ**    | ਸਾਚ**ਾ** | — | ਸਾਚ**ੇ** | **ਥਿਰੁ**, ਪਵਿਤੁ, ਬੇਅੰਤ |
-                | **ਕੰਨਾ**     | ਚੰਗ**ਾ** | ਚੰਗ**ੀ** | ਚੰਗ**ੇ** | ਕਾਲਾ, ਨਾਮਾ, ਸਾਚਾ |
-                | **ਸਿਹਾਰੀ**   | — | — | ਨਿਰਮਲ**ੇ** | ਨਿਸ਼ਚਿ, ਅਸਲਿ |
-                | **ਬਿਹਾਰੀ**   | ਬਾਵਰ**ੀ** | ਬਾਵਰ**ੀ** | ਬਾਵਰ**ੀਆਂ** | ਲੋਭੀ, ਨਿਗੁਣੀ |
-                | **ਹੋਰਾ**     | ਸੁਭ**ਉ** | — | — | ਉਤੁ (rare) |
-                | **ੁ / ੋ / ੌ** | ਅਮੁਲ**ੁ** | — | — | ਕਾਲੋ, ਮਿੱਠੌ |
+                | **?????**    | ???**?** | � | ???**?** | **????**, ?????, ????? |
+                | **????**     | ???**?** | ???**?** | ???**?** | ????, ????, ???? |
+                | **??????**   | � | � | ?????**?** | ??????, ???? |
+                | **??????**   | ????**?** | ????**?** | ????**???** | ????, ?????? |
+                | **????**     | ???**?** | � | � | ??? (rare) |
+                | **? / ? / ?** | ????**?** | � | � | ????, ????? |
 
                 ---
 
-                ### B · Sub-class snapshots  
+                ### B � Sub-class snapshots  
 
-                | Class / ਕਿਸਮ | 2-4 high-frequency examples (agreement marked) |
+                | Class / ???? | 2-4 high-frequency examples (agreement marked) |
                 |--------------|-----------------------------------------------|
-                | **Qualitative (ਗੁਣ)** | ਚੰਗਾ (M), ਚੰਗੀ (F), ਚੰਗੇ (Pl) • ਥਿਰੁ (M) • ਅਮੁਲੁ (M) |
-                | **Demonstrative (ਨਿਸ਼ਚੇ)** | ਇਹੁ (M Sg), ਇਹ (F Sg), ਉਹ, ਏਹ, ਓਹੁ |
-                | **Indefinite (ਅਨਿਸ਼ਚੇ)** | ਕੋਈ, ਕਈ, ਸਭ, ਹੋਰ, ਘਣੀ |
-                | **Possessive-pronominal** | ਮੇਰਾ (M), ਮੇਰੀ (F), ਮੇਰੇ (Pl) • ਅਪਣਾ |
-                | **Pronominal (relative etc.)** | ਜੋ (F/M), ਜਿਸੁ, ਜਿਨ, ਤਿਸੁ |
-                | **Interrogative (ਪ੍ਰਸ਼ਨ)** | ਕਉਣੁ (M Sg), ਕਵਣ, ਕਿਆ, ਕਿਤੁ |
-                | **Numeral – Cardinal** | ਇਕ, ਦੁਇ, ਪੰਜ, ਦਸ, ਸਉ |
-                | **Numeral – Ordinal** | ਪਹਿਲਾ, ਦੂਜਾ, ਤੀਜੀ, ਚਉਥੈ |
-                | **Negation** | ਨ, ਨਾਹੀ |
-                | **Tat-sam (ਸੰਸਕ੍ਰਿਤ loan)** | ਅਸਲਿ, ਬਰਾਬਰਿ, ਸਤਰਿ |
-                | **Diminutive** | ਬੰਕੁੜਾ, ਮੋਹਿਅੜੀ, ਨਵੇਲੜੀਏ |
-                | **Compound** | ਅਨਹਦ ਧੁਨਿ, ਜੀਵਨ ਮੁਕਤਿ, ਬਹੁ ਗੁਣਿ |
+                | **Qualitative (???)** | ???? (M), ???? (F), ???? (Pl) � ???? (M) � ????? (M) |
+                | **Demonstrative (??????)** | ??? (M Sg), ?? (F Sg), ??, ??, ??? |
+                | **Indefinite (???????)** | ???, ??, ??, ???, ??? |
+                | **Possessive-pronominal** | ???? (M), ???? (F), ???? (Pl) � ???? |
+                | **Pronominal (relative etc.)** | ?? (F/M), ????, ???, ???? |
+                | **Interrogative (?????)** | ???? (M Sg), ???, ???, ???? |
+                | **Numeral � Cardinal** | ??, ???, ???, ??, ?? |
+                | **Numeral � Ordinal** | ?????, ????, ????, ???? |
+                | **Negation** | ?, ???? |
+                | **Tat-sam (???????? loan)** | ????, ??????, ???? |
+                | **Diminutive** | ??????, ???????, ??????? |
+                | **Compound** | ???? ????, ???? ?????, ??? ???? |
 
                 """).strip() + "\n\n"
 
-            elif entry["Type"] == "Verb / ਕਿਰਿਆ":
-                # ────────────────────────────────────────────────
-                # 4-B  IMPLICIT-NOTE  – how to “read” the gloss
-                # ────────────────────────────────────────────────
+            elif entry["Type"] == "Verb / ?????":
+                # ------------------------------------------------
+                # 4-B  IMPLICIT-NOTE  � how to �read� the gloss
+                # ------------------------------------------------
                 implicit_note = textwrap.dedent("""\
-                **VERBS IN GURBĀṆĪ – IMPLIED CLUES FROM THE GLOSS**
+                **VERBS IN GURBA?I � IMPLIED CLUES FROM THE GLOSS**
 
-                Verbs in Gurbāṇī span a wide linguistic spectrum—Lahindī, Braj, Hindustānī, and archaic Panjābī. The verse alone often omits explicit markers for **tense, voice, mood, or even subject**. Prof. Sāhib Siṅgh’s **Darpan gloss** therefore becomes our decoder ring: it regularly inserts the **hidden agent, auxiliary, or intent** that lets us recover the full verbal meaning.
+                Verbs in Gurba?i span a wide linguistic spectrum�Lahindi, Braj, Hindustani, and archaic Panjabi. The verse alone often omits explicit markers for **tense, voice, mood, or even subject**. Prof. Sahib Si?gh�s **Darpan gloss** therefore becomes our decoder ring: it regularly inserts the **hidden agent, auxiliary, or intent** that lets us recover the full verbal meaning.
 
                 ---
 
-                ### ✔ Step 1 · Read the gloss literally
+                ### ? Step 1 � Read the gloss literally
                 Ask yourself:
                 * Is the action **ongoing**, **completed**, or **yet to come**?
                 * Is the subject **doing** the action or **receiving** it?
                 * Is the clause a **command**, a **wish**, or a **hypothetical**?
-                * Do helper words appear—*has, was, should, may, being, let*—that hint at aspect or mood?
+                * Do helper words appear�*has, was, should, may, being, let*�that hint at aspect or mood?
 
                 ---
 
-                ### ✔ Step 2 · Map the gloss cue to a grammatical category
+                ### ? Step 2 � Map the gloss cue to a grammatical category
 
                 | Category            | Common cues in the gloss (Eng. gloss)            |
                 |---------------------|--------------------------------------------------|
                 | **Present**         | do, does, is, are, becomes, gives                |
                 | **Past**            | did, was, were, had, gave, came                  |
                 | **Future**          | will, shall, would                               |
-                | **Imperative**      | (you) give, fall, listen — direct command forms  |
-                | **Subjunctive**     | if … may / might / should / let us               |
-                | **Passive**         | is called, was given — object promoted to subject |
+                | **Imperative**      | (you) give, fall, listen � direct command forms  |
+                | **Subjunctive**     | if � may / might / should / let us               |
+                | **Passive**         | is called, was given � object promoted to subject |
                 | **Participles**     | having done, while doing, upon going, imbued     |
-                | **Compound/Aux**    | do come, has gone, may go — multi-verb chains    |
+                | **Compound/Aux**    | do come, has gone, may go � multi-verb chains    |
 
                 ---
 
-                ### 🧠 Key heuristics from the Darpan gloss
-                * **“was made / is given”** → strong passive signal.  
-                * **“has shown / had come”** → perfect aspect; expect past-participle + auxiliary.  
-                * If the gloss shows the subject **causing** another to act (*was made to go*) → tag the verb **causative**.
+                ### ?? Key heuristics from the Darpan gloss
+                * **�was made / is given�** ? strong passive signal.  
+                * **�has shown / had come�** ? perfect aspect; expect past-participle + auxiliary.  
+                * If the gloss shows the subject **causing** another to act (*was made to go*) ? tag the verb **causative**.
 
                 ---
 
-                ### 📌 Postposition surrogates
+                ### ?? Postposition surrogates
                 Gloss words like *to, by, with, for, from* often reveal an implied **shift in voice** or a **participial/causative chain** hidden in the surface form.
 
                 ---
 
-                ### 🔄 When in doubt
-                * Subject absent, object prominent → suspect **passive**.  
-                * Two verbs side-by-side (*will come go*, *has been given*) → parse for **compound** or **auxiliary** roles.  
-                * Conditional tone (*if … may …*, *let it be …*) → test for **subjunctive**.
+                ### ?? When in doubt
+                * Subject absent, object prominent ? suspect **passive**.  
+                * Two verbs side-by-side (*will come go*, *has been given*) ? parse for **compound** or **auxiliary** roles.  
+                * Conditional tone (*if � may �*, *let it be �*) ? test for **subjunctive**.
 
                 ---
 
-                ### 🧩 Suffix hints  
-                Endings like **–ਹਉ, –ਹੀ, –ਮ, –ਸੀਅ** (and Lahindī –ਉ, –ਹੁ) can encode person or emphasis. Cross-check with the gloss’s subject reference.
+                ### ?? Suffix hints  
+                Endings like **�??, �??, �?, �???** (and Lahindi �?, �??) can encode person or emphasis. Cross-check with the gloss�s subject reference.
 
                 ---
 
                 > **Rule of thumb**  
-                > *If the gloss shows something **happening to** someone and the agent is missing → think passive.*  
+                > *If the gloss shows something **happening to** someone and the agent is missing ? think passive.*  
                 > *If multiple verbs are chained, the **right-most** verb usually carries tense/voice; earlier ones express the semantic action.*
 
-                _Use the gloss—its hidden auxiliaries, agents, and helpers—to uncover the verb’s true grammatical load._\
+                _Use the gloss�its hidden auxiliaries, agents, and helpers�to uncover the verb�s true grammatical load._\
                 """).strip() + "\n\n"
 
 
                 common_sense_note = textwrap.dedent("""\
-                ### 🔹 `common_sense_note` – VERBS / ਕਿਰਿਆ (semantic sanity layer)
+                ### ?? `common_sense_note` � VERBS / ????? (semantic sanity layer)
 
-                **Essence** A sieve that questions every verb label: *Does this person × number × tense truly fit what the verb is doing in the paṅktī?*
+                **Essence** A sieve that questions every verb label: *Does this person � number � tense truly fit what the verb is doing in the pa?kti?*
 
-                **Vision** Fuse surface-form clues with syntactic/semantic roles so edge-cases (poetic plurals, ergative flips, auxiliary drop, Lahindī quirks) are flagged, not rubber-stamped.
+                **Vision** Fuse surface-form clues with syntactic/semantic roles so edge-cases (poetic plurals, ergative flips, auxiliary drop, Lahindi quirks) are flagged, not rubber-stamped.
 
                 ---
 
-                ## 1 · Finite vs Non-finite: cheat grid  
+                ## 1 � Finite vs Non-finite: cheat grid  
 
                 | Tag you plan | Sanity checks (abort / relabel if violated) |
                 |--------------|---------------------------------------------|
-                | **Present / Future** | Ending shows **person+number; no gender**. If ending = –ਦਾ/ਦੀ/ਦੇ **without** auxiliary **ਹੈ/ਹਨ**, treat as participle (habitual/progressive) not finite. |
-                | **Imperative** | Only 2nd-person. Command/request mood. If clause is conditional (*ਜੇ ਸੁਣਹੁ…*) → **Subjunctive** not Imperative. |
-                | **Subjunctive** | Expresses wish/suggestion; often with *ਜੇ, ਜੇਕਰ, ਤਾਂ*. Never shows gender agreement. |
-                | **Past / Perfective** | Built on past-participle endings **–ਆ / –ਈ / –ਏ**. Transitive verbs agree with **object** (ergative); intransitives with **subject**. |
-                | **Passive finite** | Look for **ਕਰੀਐ, ਕੀਆ ਜਾਏ, ਕਹੀਏ** etc. Object promoted to subject; auxiliary **ਕਰੀਨਿ, ਕਰੀਐ** etc. present/past table (§ passive pages). |
-                | **Causative** | Endings –ਆਵਾ, –ਨਾੳ, –ਵਉ, –ਏਇ, –ਵਹਿ…; semantics must show *caused* action. |
-                | **Auxiliary-only token** | If root **ਹੋ** form (ਹਾ, ਹੈ, ਹਾਂ, ਹੁੰ, ਸੀ, ਸੇ, ਸੀਐ, ਸਾ…) appears **alone**, tag = **Auxiliary Verb** not main finite. |
-                *If the Canonical row label is “Pronominal Suffixes …” you **must tag Grammar Case = “Pronominal Suffixes …”**, not plain Past/Present.*
-                *For finite verbs, **Word-Root must record the person (1st / 2nd / 3rd)**; tense or aspect belongs in “Grammar Case / ਵਯਾਕਰਣ,” not in Word-Root.*
+                | **Present / Future** | Ending shows **person+number; no gender**. If ending = �??/??/?? **without** auxiliary **??/??**, treat as participle (habitual/progressive) not finite. |
+                | **Imperative** | Only 2nd-person. Command/request mood. If clause is conditional (*?? ?????�*) ? **Subjunctive** not Imperative. |
+                | **Subjunctive** | Expresses wish/suggestion; often with *??, ????, ???*. Never shows gender agreement. |
+                | **Past / Perfective** | Built on past-participle endings **�? / �? / �?**. Transitive verbs agree with **object** (ergative); intransitives with **subject**. |
+                | **Passive finite** | Look for **????, ??? ???, ????** etc. Object promoted to subject; auxiliary **?????, ????** etc. present/past table (� passive pages). |
+                | **Causative** | Endings �???, �???, �??, �??, �???�; semantics must show *caused* action. |
+                | **Auxiliary-only token** | If root **??** form (??, ??, ???, ???, ??, ??, ???, ??�) appears **alone**, tag = **Auxiliary Verb** not main finite. |
+                *If the Canonical row label is �Pronominal Suffixes �� you **must tag Grammar Case = �Pronominal Suffixes ��**, not plain Past/Present.*
+                *For finite verbs, **Word-Root must record the person (1st / 2nd / 3rd)**; tense or aspect belongs in �Grammar Case / ??????,� not in Word-Root.*
 
                 ---
 
-                ## 2 · Past-participle agreement sanity  
+                ## 2 � Past-participle agreement sanity  
 
-                1. **Intransitive:** participle ↔ subject.  
-                2. **Transitive (ergative):** participle ↔ object; subject in instrumental/obl.  
-                3. **Pron.-suffix –ਉ/-ਹੁ:** when object = **ਤੈ/ਤੂੰ**, endings like **ਕੀਉ, ਕਿਉਹੁ** act as clitics → tag “Pronominal-suffix” sub-type.  
-                4. Gender/number mismatch with controller → flag for review.
+                1. **Intransitive:** participle ? subject.  
+                2. **Transitive (ergative):** participle ? object; subject in instrumental/obl.  
+                3. **Pron.-suffix �?/-??:** when object = **??/???**, endings like **???, ?????** act as clitics ? tag �Pronominal-suffix� sub-type.  
+                4. Gender/number mismatch with controller ? flag for review.
 
                 ---
 
-                ## 2A · When gender actually matters  
+                ## 2A � When gender actually matters  
 
                 * **Finite verbs** (Present, Future, Imperative, Subjunctive, Causative, Auxiliary)  
-                  → **never carry masc/fem marks** in SGGS.  *Finite verbs must therefore be tagged **Gender = Trans / ਨਪੁਂਸਕ** (not NA).*
+                  ? **never carry masc/fem marks** in SGGS.  *Finite verbs must therefore be tagged **Gender = Trans / ??????** (not NA).*
 
-                * **Participles** – the only verb forms that **do** mark gender:  
-                  • Perfect / perfective: **Masc SG -ਆ / Fem SG -ਈ / Masc PL -ਏ / Fem PL -ਈਆਂ**  
-                  • Habitual / imperfective: **Masc SG -ਦਾ / Fem SG -ਦੀ / Masc PL -ਦੇ / Fem PL -ਦੀਆਂ**  
-                  • Dialectal allomorphs (ਲਹਿੰਦੀ **-ਇਓ**, ਬ੍ਰਜ **-ਯੋ**, etc.) are **still Masc SG**.
+                * **Participles** � the only verb forms that **do** mark gender:  
+                  � Perfect / perfective: **Masc SG -? / Fem SG -? / Masc PL -? / Fem PL -???**  
+                  � Habitual / imperfective: **Masc SG -?? / Fem SG -?? / Masc PL -?? / Fem PL -????**  
+                  � Dialectal allomorphs (?????? **-??**, ???? **-??**, etc.) are **still Masc SG**.
 
                 * **Controller rule**  
-                  – **Intransitive** → participle agrees with **subject**.  
-                  – **Transitive perfective** (ergative) → participle agrees with **object**.
+                  � **Intransitive** ? participle agrees with **subject**.  
+                  � **Transitive perfective** (ergative) ? participle agrees with **object**.
 
-                * **Auxiliaries stay neuter.**  `ਹੈ/ਹਨ/ਸੀ…` never add gender; only the participle does.
-
-                ---
-
-                ## 3 · Auxiliary verbs & silent dropping  
-
-                * Present auxiliaries: **ਹਾ (1 sg), ਹੈ (2 sg), ਹੈ (3 sg), ਹਾਂ (1 pl), ਹਉ/ਹੁ (2 pl respect), ਹਨ/hin (3 pl)**.  
-                * Past auxiliaries (rare): **ਸਾ/ਸੇ/ਸੀ/ਸਿਤ, ਸਿਆ, ਸਾ; 3 pl = ਸੇ, ਸੈਨ, ਸੀਮਾ**.  
-                * In Gurbāṇī the auxiliary is **often absorbed** into a longer verb with pronominal suffix: *ਚਲਦਿਵੈ, ਭਰਵਾਈਐ*. If you can’t locate a free auxiliary, confirm tense via surface ending first.
+                * **Auxiliaries stay neuter.**  `??/??/??�` never add gender; only the participle does.
 
                 ---
 
-                ## 4 · Imperative & Subjunctive overlap  
+                ## 3 � Auxiliary verbs & silent dropping  
 
-                | Ending cluster | True Imperative if… | Else → likely Subjunctive |
+                * Present auxiliaries: **?? (1 sg), ?? (2 sg), ?? (3 sg), ??? (1 pl), ??/?? (2 pl respect), ??/hin (3 pl)**.  
+                * Past auxiliaries (rare): **??/??/??/???, ???, ??; 3 pl = ??, ???, ????**.  
+                * In Gurba?i the auxiliary is **often absorbed** into a longer verb with pronominal suffix: *??????, ??????*. If you can�t locate a free auxiliary, confirm tense via surface ending first.
+
+                ---
+
+                ## 4 � Imperative & Subjunctive overlap  
+
+                | Ending cluster | True Imperative if� | Else ? likely Subjunctive |
                 |----------------|---------------------|---------------------------|
-                | **–ਹੁ / –ਹੁਗੇ / –ਹੋ** | Stand-alone command/request | Used inside conditional/wish |
-                | **–ਹੇ / –ਹੀ / –ਹੇਇ** | Vocative context | Hypothetical clause |
+                | **�?? / �???? / �??** | Stand-alone command/request | Used inside conditional/wish |
+                | **�?? / �?? / �???** | Vocative context | Hypothetical clause |
 
                 ---
 
-                ## 5 · Passive voice heuristics  
+                ## 5 � Passive voice heuristics  
 
-                * **Surface template:** participle (ਘਲਿਆ) + auxiliary **ਕਰੀਐ / ਕਹੀਐ / ਕਵਾਇਓ** etc.  
-                * Only 3rd-person shows full paradigm in tables; 1st/2nd are scarce → flag if you tag 1st-person finite passive without strong textual evidence.  
+                * **Surface template:** participle (????) + auxiliary **???? / ???? / ?????** etc.  
+                * Only 3rd-person shows full paradigm in tables; 1st/2nd are scarce ? flag if you tag 1st-person finite passive without strong textual evidence.  
                 * Present passive often masquerades as adjective; ensure a *patient-as-subject* reading is plausible.
 
                 ---
 
-                ## 6 · Causative sanity  
+                ## 6 � Causative sanity  
 
-                * First-person causatives: **–ਆਵਾ / –ਆਵਾ, –ਕਰਾਵਾ**. No object → verb likely **inchoative**, not causative.  
-                * 3rd-person causatives: **–ਵਾਇਆ, –ਵਧਾਇਆ, –ਤਿਵਾਇਆ, –ਈਯੈ**: must show agent-causes-other scenario.  
-                * If semantic agent = performer, drop “causative” tag.
+                * First-person causatives: **�??? / �???, �?????**. No object ? verb likely **inchoative**, not causative.  
+                * 3rd-person causatives: **�????, �?????, �??????, �???**: must show agent-causes-other scenario.  
+                * If semantic agent = performer, drop �causative� tag.
 
                 ---
 
-                ## 7 · Compound verbs  
+                ## 7 � Compound verbs  
 
-                * Earlier element -> conjunct ending **-ਕੇ / -ਇ / -ਆ / -ਕੇਂ**.  
+                * Earlier element -> conjunct ending **-?? / -? / -? / -???**.  
                 * Last element holds tense/person.  
-                * Tag first as “Conjunct Verb / Gerund”, second as finite.
+                * Tag first as �Conjunct Verb / Gerund�, second as finite.
 
                 ---
 
-                ## 8 · Auto-highlight (red flags)  
+                ## 8 � Auto-highlight (red flags)  
 
                 | Pattern | Likely mis-label |
                 |---------|------------------|
-                | Ending **-ਗਾ/ਗੀ/ਗੇ** but tag ≠ Future | Wrong tense |
-                | Ending **-ਹੁ/-ਹੁਗੇ** tagged 1st/3rd person | Imperative bleed |
-                | Ending **-ਦਾ/ਦੀ/ਦੇ** with no **ਹੈ/ਹਨ** & tag = Present/Future | Participle, not finite |
-                | Two consecutive finite-verb tags inside one clause | Probably compound verb – split roles |
-                | Passive participle **ਕਰੀਐ/ਕਰਾਤੁ** but subject‐agent reading given | Reverse voice |
-                | Finite verb tagged Masc/Fem | Finite forms should be Trans – likely mis-tag |
-                | Participial ending gender ≠ controller noun/pronoun | Agreement error (ergative or intransitive mix-up) |
-                | Ending-tense combo not found in Canonical table | Illegal combination – override gloss |
-                | Finite verb with Gender = NA | Should be Trans – fix label |
+                | Ending **-??/??/??** but tag ? Future | Wrong tense |
+                | Ending **-??/-????** tagged 1st/3rd person | Imperative bleed |
+                | Ending **-??/??/??** with no **??/??** & tag = Present/Future | Participle, not finite |
+                | Two consecutive finite-verb tags inside one clause | Probably compound verb � split roles |
+                | Passive participle **????/?????** but subject-agent reading given | Reverse voice |
+                | Finite verb tagged Masc/Fem | Finite forms should be Trans � likely mis-tag |
+                | Participial ending gender ? controller noun/pronoun | Agreement error (ergative or intransitive mix-up) |
+                | Ending-tense combo not found in Canonical table | Illegal combination � override gloss |
+                | Finite verb with Gender = NA | Should be Trans � fix label |
 
                 ---
 
-                <sub>Heuristics sourced from pages 5.1 – 5.12: Present, Past, Future, Imperative, Subjunctive, Participles, Compound, Passive, Causative, Auxiliary, Pron-suffix sections.</sub>\
+                <sub>Heuristics sourced from pages 5.1 � 5.12: Present, Past, Future, Imperative, Subjunctive, Participles, Compound, Passive, Causative, Auxiliary, Pron-suffix sections.</sub>\
                 """).strip() + "\n\n"
 
                 ending_cheat_sheet = textwrap.dedent("""\
-                🔔 **Authoritative workflow**
+                ?? **Authoritative workflow**
 
-                1️⃣ **Check legality** – If a surface ending × person/number × tense combo is **absent** from the
+                1?? **Check legality** � If a surface ending � person/number � tense combo is **absent** from the
                 Canonical table below, reject or relabel.
 
-                2️⃣ **Decide meaning** – Among the *legal* options, pick the tag that is **best supported by
-                the Darpan Translation and Darpan Meanings** (Prof. Sāhib Siṅgh).  
+                2?? **Decide meaning** � Among the *legal* options, pick the tag that is **best supported by
+                the Darpan Translation and Darpan Meanings** (Prof. Sahib Si?gh).  
                 *Those glosses remain the primary key to tense, mood, voice, and agent/object choice.*
 
-                3️⃣ Apply common-sense sanity rules (§ 1–8) for edge-case flags.
+                3?? Apply common-sense sanity rules (� 1�8) for edge-case flags.
 
                 ---
 
-                **VERB / ਕਿਰਿਆ ENDINGS – QUICK REFERENCE (Gurbāṇī corpus, Sheet 1)**  
+                **VERB / ????? ENDINGS � QUICK REFERENCE (Gurba?i corpus, Sheet 1)**  
 
-                🔹 **Agreement grid (what can legally combine)**  
-                • **Person / ਪੁਰਖ** → 1st (ਉੱਤਮ) | 2nd (ਮਧਮ) | 3rd (ਅਨਯ)  
-                • **Number / ਵਚਨ** → Singular / ਇਕ | Plural / ਬਹੁ  
-                • **Tense / Mood** → Present / ਵਰਤਮਾਨ | Past / ਭੁਤ | Future / ਭਵਿੱਖਤ | Causative / ਪੇ੍ਰਣਾਰਥਕ | Pronominal suffix  
-                <sub>*Finite verbs ignore noun-gender; –ਦਾ/–ਦੀ/–ਦੇ are participial*</sub>
-
-                ---
-
-                ### A · Canonical ending patterns (+ three toy forms on **ਗਾਵ-**)
-
-                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
-                |-----------------|--------------|-----------------|---------------|
-                | **1st Sg** | Present | ਈ/ਉ/ਊ/ਾ/ੀ/ਤ/ਣਾ/ਤਾ/ਦਾ/ਨਾ/ੇਉ/ੰਦਾ/ੇਂਦੀ | ਗਾਵਈ, ਗਾਵਉ, ਗਾਵੇਉ |
-                |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
-                |  | Future | ਉ/ਊ/ਾ/ਸਾ/ਉਗਾ/ਉਗੀ/ਉਗੋ/ੈ ਹਉ | ਗਾਵਉ, ਗਾਵਊ, ਗਾਵਉਗਾ |
-                |  | Causative | ਵਉ/ਾਈ/ਾਵਾ/ਾਹਾ | ਗਾਵਵਉ, ਗਾਵਾਈ, ਗਾਵਾਵਾ |
-                |  | Pronominal | ਮ/ਮੁ | ਗਾਵਮ, ਗਾਵਮੁ |
-                | **1st Pl** | Present | ਹ/ਹਾ/ਤ/ਤੇ/ਦੇ | ਗਾਵਹ, ਗਾਵਤ, ਗਾਵਤੇ |
-                |  | Past | ੇ | ਗਾਵੇ |
-                |  | Future | ਸਹ/ਹਗੇ/ਹਿਗੇ | ਗਾਵਸਹ, ਗਾਵਹਗੇ |
-
-                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
-                |-----------------|--------------|-----------------|---------------|
-                | **2nd Sg** | Present | ਤ/ੈ/ਸਿ/ਹਿ/ਹੀ/ਹੇ/ੇਹੀ/ਦਾ | ਗਾਵਤ, ਗਾਵੈ, ਗਾਵਹਿ |
-                |  | Past | ਾ/ੀ/ਹੁ | ਗਾਵਾ, ਗਾਵੀ, ਗਾਵਹੁ |
-                |  | Future | ਸਿ/ਸੀ/ਹਿ/ਹੀ/ਹੋ/ਸਹਿ/ਹਿਗਾ | ਗਾਵਸਿ, ਗਾਵਸੀ |
-                |  | Causative | ਹਿ/ਇਦਾ/ਇਹਿ | ਗਾਵਹਿ, ਗਾਵਇਦਾ |
-                |  | Pronominal | ਇ/ਈ/ਹਿ/ਹੁ | ਗਾਵਇ, ਗਾਵਈ |
-                | **2nd Pl** | Present | ਹੁ/ਤ ਹਉ/ਤ ਹੌ/ਤ ਹਹੁ/ਈਅਤ ਹੌ | ਗਾਵਹੁ, ਗਾਵਤ ਹਉ |
-                |  | Past | ੇ/ਹੋ | ਗਾਵੇ, ਗਾਵਹੋ |
-                |  | Future | ਹੁ/ੇਹੁ/ਹੁਗੇ | ਗਾਵਹੁ, ਗਾਵੇਹੁ |
-
-                | Person · Number | Tense / Mood | Surface endings | Micro-examples |
-                |-----------------|--------------|-----------------|---------------|
-                | **3rd Sg** | Present | ਇ/ਈ/ਏ/ੈ/ਤ/ਤਾ/ਤੀ/ਤਿ/ੇ/ਂਤ/ਦਾ/ਦੀ/ੰਤਾ/ਸਿ/ਹੈ | ਗਾਵਇ, ਗਾਵਈ, ਗਾਵਤੀ |
-                |  | Past | ਾ/ੀ | ਗਾਵਾ, ਗਾਵੀ |
-                |  | Future | ਈ/ੈ/ਗਾ/ਗੀ/ਗੋ/ਸਿ/ਸੀ | ਗਾਵਗਾ, ਗਾਵਗੀ |
-                |  | Causative | ਏ/ਈਐ/ਿਵੈ/ਿਦਾ/ਾਵੈ | ਗਾਵਏ, ਗਾਵਇਦਾ |
-                |  | Pronominal | ਨੁ/ਸੁ | ਗਾਵਨੁ, ਗਾਵਸੁ |
-                | **3rd Pl** | Present | ਤ/ਤੇ/ੰਤੇ/ਦੇ/ੰਦੇ/ਨਿ/ਨੀ/ਸਿ/ਹਿ/ਹੀ/ਇਨਿ/ਇੰਨਿ/ਦੀਆ/ਦੀਆਂ | ਗਾਵਤੇ, ਗਾਵਦੇ |
-                |  | Past | ੇ | ਗਾਵੇ |
-                |  | Future | ਹਿ/ਹੀ/ਸਨਿ/ਹਿਗੇ | ਗਾਵਹਿ, ਗਾਵਹਿਗੇ |
-                |  | Causative | ਇਦੇ/ਇਨਿ/ਵਹਿ | ਗਾਵਇਦੇ, ਗਾਵਵਹਿ |
+                ?? **Agreement grid (what can legally combine)**  
+                � **Person / ????** ? 1st (????) | 2nd (???) | 3rd (???)  
+                � **Number / ???** ? Singular / ?? | Plural / ???  
+                � **Tense / Mood** ? Present / ?????? | Past / ??? | Future / ?????? | Causative / ????????? | Pronominal suffix  
+                <sub>*Finite verbs ignore noun-gender; �??/�??/�?? are participial*</sub>
 
                 ---
 
-                ### B · How to use the dashboard  
+                ### A � Canonical ending patterns (+ three toy forms on **???-**)
 
-                1. **Validate annotations** – If you tag a form “2nd Pl Future” but it ends in **–ਦਾ**, the table shows that combo never occurs → revisit the tag.  
-                2. **Debug machine predictions** – Surface ending not found under predicted role → flag for review.  
-                3. **Handle sandhi** – Remember silent –ਉ can drop before postpositions (e.g. **ਤੋਂ, ਨੂੰ**).  
+                | Person � Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **1st Sg** | Present | ?/?/?/?/?/?/??/??/??/??/??/???/???? | ????, ????, ????? |
+                |  | Past | ?/? | ????, ???? |
+                |  | Future | ?/?/?/??/???/???/???/? ?? | ????, ????, ?????? |
+                |  | Causative | ??/??/???/??? | ?????, ?????, ?????? |
+                |  | Pronominal | ?/?? | ????, ????? |
+                | **1st Pl** | Present | ?/??/?/??/?? | ????, ????, ????? |
+                |  | Past | ? | ???? |
+                |  | Future | ??/???/???? | ?????, ?????? |
+
+                | Person � Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **2nd Sg** | Present | ?/?/??/??/??/??/???/?? | ????, ????, ????? |
+                |  | Past | ?/?/?? | ????, ????, ????? |
+                |  | Future | ??/??/??/??/??/???/???? | ?????, ????? |
+                |  | Causative | ??/???/??? | ?????, ?????? |
+                |  | Pronominal | ?/?/??/?? | ????, ???? |
+                | **2nd Pl** | Present | ??/? ??/? ??/? ???/??? ?? | ?????, ???? ?? |
+                |  | Past | ?/?? | ????, ????? |
+                |  | Future | ??/???/???? | ?????, ?????? |
+
+                | Person � Number | Tense / Mood | Surface endings | Micro-examples |
+                |-----------------|--------------|-----------------|---------------|
+                | **3rd Sg** | Present | ?/?/?/?/?/??/??/??/?/??/??/??/???/??/?? | ????, ????, ????? |
+                |  | Past | ?/? | ????, ???? |
+                |  | Future | ?/?/??/??/??/??/?? | ?????, ????? |
+                |  | Causative | ?/??/???/???/??? | ????, ?????? |
+                |  | Pronominal | ??/?? | ?????, ????? |
+                | **3rd Pl** | Present | ?/??/???/??/???/??/??/??/??/??/???/????/???/???? | ?????, ????? |
+                |  | Past | ? | ???? |
+                |  | Future | ??/??/???/???? | ?????, ??????? |
+                |  | Causative | ???/???/??? | ??????, ?????? |
+
+                ---
+
+                ### B � How to use the dashboard  
+
+                1. **Validate annotations** � If you tag a form �2nd Pl Future� but it ends in **�??**, the table shows that combo never occurs ? revisit the tag.  
+                2. **Debug machine predictions** � Surface ending not found under predicted role ? flag for review.  
+                3. **Handle sandhi** � Remember silent �? can drop before postpositions (e.g. **???, ???**).  
 
                 _Export or further slicing on request._\
                 """).strip() + "\n\n"
 
-            elif entry["Type"] == "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ":
+            elif entry["Type"] == "Adverb / ????? ??????":
                 implicit_note = textwrap.dedent("""\
-                ### 🔹 `implicit_note` – ADVERB / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ  
+                ### ?? `implicit_note` � ADVERB / ????? ????????  
                 *(SGGS-centric discovery guide)*  
 
-                **Essence** Teach the evaluator to recognise words that **modify the *action itself***—never the doer (noun) nor the quality‐word (adjective).  
+                **Essence** Teach the evaluator to recognise words that **modify the *action itself***�never the doer (noun) nor the quality-word (adjective).  
 
-                **Vision** Lean on *Prof. Sāhib Siṅgh’s* Darpan gloss to infer *how, when, where* the verb happens—even when SGGS omits explicit post-positions or auxiliaries.  
+                **Vision** Lean on *Prof. Sahib Si?gh�s* Darpan gloss to infer *how, when, where* the verb happens�even when SGGS omits explicit post-positions or auxiliaries.  
 
                 ---
 
-                ## 1 · Adverb ≠ Adjective ≠ Noun — the litmus test 🩺  
+                ## 1 � Adverb ? Adjective ? Noun � the litmus test ??  
 
-                | Ask this first | Pass ✔️ → Adverb | Fail ✖️ → something else |
+                | Ask this first | Pass ?? ? Adverb | Fail ?? ? something else |
                 |----------------|------------------|--------------------------|
-                | **Does the word alter the meaning of the verb?** <br>(time, place, manner, measure…) | ✔️ modifies *action* → keep testing | ✖️ modifies noun → likely *Adjective* or *Noun* |
-                | **Will the clause stay grammatical if the word is removed?** | ✔️ sentence remains; nuance lost | ✖️ structure breaks → maybe pronoun/helper |
-                | **Can the word move freely in the clause?** | ✔️ adverbs float (ੴ ਦਇਆਲੁ **ਹੁਣਿ** ਮਿਲਿਆ) | ✖️ fixed next to noun → adjective/compound |
-                | **Any number/gender inflection visible?** | ✔️ none (adverbs are **indeclinable**) | ✖️ – ਆ/–ਈ/–ਏ etc. → participle/adjective |
-                | **Darpan gloss clue** says: “now, then, quickly, here, twice…” | ✔️ adopt adverb label | ✖️ gloss uses “of, to, with” → case marker |
+                | **Does the word alter the meaning of the verb?** <br>(time, place, manner, measure�) | ?? modifies *action* ? keep testing | ?? modifies noun ? likely *Adjective* or *Noun* |
+                | **Will the clause stay grammatical if the word is removed?** | ?? sentence remains; nuance lost | ?? structure breaks ? maybe pronoun/helper |
+                | **Can the word move freely in the clause?** | ?? adverbs float (? ????? **????** ?????) | ?? fixed next to noun ? adjective/compound |
+                | **Any number/gender inflection visible?** | ?? none (adverbs are **indeclinable**) | ?? � ?/�?/�? etc. ? participle/adjective |
+                | **Darpan gloss clue** says: �now, then, quickly, here, twice�� | ?? adopt adverb label | ?? gloss uses �of, to, with� ? case marker |
 
-                > **Rule:** In this framework an adverb may *expand* a phrase (ਜਗਿ **ਸਭਤੈ**), but it still targets the action, **not** the noun.  
+                > **Rule:** In this framework an adverb may *expand* a phrase (??? **????**), but it still targets the action, **not** the noun.  
 
                 ---
 
-                ## 2 · Functional buckets 🗂️  
+                ## 2 � Functional buckets ???  
 
                 | Category (Punjabi) | Core semantic cue | Minimal examples* |
                 |--------------------|-------------------|-------------------|
-                | **ਸਮਾ / Time**        | ‘ਕਦੋਂ? ਕਿੰਨਾ ਸਮਾਂ?’ | ਹੁਣਿ, ਕਦੇ, ਅਜੁ, ਨਿਤ, ਅਹਿਨਿਸਿ |
-                | **ਥਾਂ / Place**       | ‘ਕਿੱਥੇ?’            | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
-                | **ਵਿਧੀ / Manner**     | ‘ਕਿਵੇਂ? ਕਿਸ ਢੰਗ ਨਾਲ?’ | ਜਿਉ, ਇਉ, ਨਿਸੰਗੁ, ਰਸਕਿ ਰਸਕਿ |
-                | **ਪਰਮਾਣ / Measure**   | ‘ਕਿੰਨਾ?’            | ਅਤਿ, ਬਹੁਤੁ, ਘਣਾ, ਭਰਪੂਰਿ |
-                | **ਸੰਖਿਆ / Number**    | ‘ਕਿੰਨੀ ਵਾਰ?’        | ਬਾਰੰ ਬਾਰ, ਫਿਰਿ ਫਿਰਿ |
-                | **ਨਿਨੈ / Decision**   | certainty / denial  | ਨਾਹਿ, ਨਿਹਚਉ |
-                | **ਕਾਰਣ / Reason**     | causation           | ਯਾਤੇ, ਕਿਤੁ ਅਰਥਿ |
-                | **ਤਾਕੀਦ / Stress**    | emphasis            | ਹੀ, ਭੀ, ਮੂਲੇ |
+                | **??? / Time**        | �????? ????? ?????� | ????, ???, ???, ???, ??????? |
+                | **??? / Place**       | �??????�            | ???, ?????, ????, ????, ???? |
+                | **???? / Manner**     | �?????? ??? ??? ????� | ???, ??, ??????, ???? ???? |
+                | **????? / Measure**   | �??????�            | ???, ?????, ???, ?????? |
+                | **????? / Number**    | �????? ????�        | ???? ???, ???? ???? |
+                | **???? / Decision**   | certainty / denial  | ????, ????? |
+                | **???? / Reason**     | causation           | ????, ???? ???? |
+                | **????? / Stress**    | emphasis            | ??, ??, ???? |
 
-                * A full “high-freq” table—including **phrase, compound & iterative** idioms—follows in *common_sense_note*.
-
-                ---
-
-                ## 3 · Zero-inflection principle 🚫🧬  
-
-                * Adverbs **never** show number (-ਏ/-ਉ), gender, person or case.  
-                * If a token **does** decline, re-classify: participial verb (*-ਦਾ/-ਦੀ/-ਦੇ*), adjective, or oblique noun.  
+                * A full �high-freq� table�including **phrase, compound & iterative** idioms�follows in *common_sense_note*.
 
                 ---
 
-                ## 4 · Typical gloss helpers 🔍  
+                ## 3 � Zero-inflection principle ????  
+
+                * Adverbs **never** show number (-?/-?), gender, person or case.  
+                * If a token **does** decline, re-classify: participial verb (*-??/-??/-??*), adjective, or oblique noun.  
+
+                ---
+
+                ## 4 � Typical gloss helpers ??  
 
                 | Gloss clue | Likely adverb class | Illustration |
                 |------------|--------------------|--------------|
-                | “**now / today / always**” | Time | “ਹੁਣਿ ਮਿਲਿਆ” |
-                | “**here / everywhere / within**” | Place | “ਅੰਦਰਿ ਰਹੈ” |
-                | “**thus / quickly / secretly**” | Manner | “ਜਿਉ ਕਰੇ” |
-                | “**fully / a little**” | Measure | “ਭਰਪੂਰਿ ਰੰਗਿ ਰਤਾ” |
-                | “**again / twice**” | Number | “ਫਿਰਿ ਫਿਰਿ ਆਇਆ” |
+                | �**now / today / always**� | Time | �???? ?????� |
+                | �**here / everywhere / within**� | Place | �????? ???� |
+                | �**thus / quickly / secretly**� | Manner | �??? ???� |
+                | �**fully / a little**� | Measure | �?????? ???? ???� |
+                | �**again / twice**� | Number | �???? ???? ???� |
 
                 ---
 
-                ## 5 · Quick detection workflow ⚡  
+                ## 5 � Quick detection workflow ?  
 
-                1. **Mark all gloss adverbials** – scan Darpan for English adverbs.  
-                2. **Map to Punjabi surface form** – locate the SGGS token(s) that carry that nuance.  
-                3. **Apply indeclinability test** – no visible suffix change? keep as adverb.  
-                4. **Check floating mobility** – move token; if syntax survives, adverb confirmed.  
-                5. **Edge alert** – if token sits after a post-position (ਦੇ, ਨਾਲ…), probably **oblique noun** not adverb.
-
-                ---
-
-                ## 6 · Red-flag heuristics 🚩  
-
-                * Word tagged *Adverb* but ends in **-ਦਾ/-ਦੀ/-ਦੇ** → likely participial.  
-                * Tagged *Adverb* but gloss shows possession (*of*) → test for Genitive noun.  
-                * Compound form **ਸਾਸਿ ਗਿਰਾਸਿ** mis-tagged as Time/Manner interchangeably → ensure Darpan intent.  
-                * Form appears **twice with different endings** in same ṭuk → must be *declinable* → not adverb.  
+                1. **Mark all gloss adverbials** � scan Darpan for English adverbs.  
+                2. **Map to Punjabi surface form** � locate the SGGS token(s) that carry that nuance.  
+                3. **Apply indeclinability test** � no visible suffix change? keep as adverb.  
+                4. **Check floating mobility** � move token; if syntax survives, adverb confirmed.  
+                5. **Edge alert** � if token sits after a post-position (??, ???�), probably **oblique noun** not adverb.
 
                 ---
 
-                ### 📝 Footnote on spreadsheet codes  
-                The Excel “Adverbs” sheet groups every token into **eight functional sets** above, plus **Compound / Phrase** and **Iterative** markers. These codes are referenced only for *high-freq tables* and require **no inflection logic**.
+                ## 6 � Red-flag heuristics ??  
+
+                * Word tagged *Adverb* but ends in **-??/-??/-??** ? likely participial.  
+                * Tagged *Adverb* but gloss shows possession (*of*) ? test for Genitive noun.  
+                * Compound form **???? ??????** mis-tagged as Time/Manner interchangeably ? ensure Darpan intent.  
+                * Form appears **twice with different endings** in same ?uk ? must be *declinable* ? not adverb.  
+
+                ---
+
+                ### ?? Footnote on spreadsheet codes  
+                The Excel �Adverbs� sheet groups every token into **eight functional sets** above, plus **Compound / Phrase** and **Iterative** markers. These codes are referenced only for *high-freq tables* and require **no inflection logic**.
 
                 _Use this guide, then apply the sanity layer in `common_sense_note` for mis-tag traps._
                 """).strip() + "\n\n"
         
                 common_sense_note = textwrap.dedent("""\
-                ### 🔹 `common_sense_note` – ADVERBS / ਕਿਰਿਆ ਵਿਸ਼ੇਸ਼ਣ (semantic sanity layer)
+                ### ?? `common_sense_note` � ADVERBS / ????? ???????? (semantic sanity layer)
 
-                **Essence** A quick triage: *Does this token truly act as an **adverb**—i.e., modifies a verb (or a whole clause) and NEVER a noun/pronoun?*
+                **Essence** A quick triage: *Does this token truly act as an **adverb**�i.e., modifies a verb (or a whole clause) and NEVER a noun/pronoun?*
 
-                **Vision** Prevent false-positives caused by:
+                **Vision** Prevent false-positives caused by:
                 * Post-positions or emphatic particles masquerading as adverbs  
-                * Adjectival or nominal words that look “adverb-ish” but show agreement or case
+                * Adjectival or nominal words that look �adverb-ish� but show agreement or case
 
                 ---
 
-                ## 1 · Three-step sanity check 🧪  
+                ## 1 � Three-step sanity check ??  
 
-                | Step | Ask yourself | Abort / Relabel if… |
+                | Step | Ask yourself | Abort / Relabel if� |
                 |------|--------------|--------------------|
-                | ① | **Function** – Does the word modify a **verb or clause** (manner, time, place, degree)? | It directly qualifies a noun/pronoun → likely Adjective or Noun |
-                | ② | **Morphology** – No number / gender / person agreement & no case endings | You see –ਏ/–ਉ etc. agreeing with noun → it’s NOT an adverb |
-                | ③ | **Position / Helpers** – Is it followed by a postposition (*ਦੇ, ਨੂੰ, ਨਾਲ*)? | Token + post-position ⇒ treat token as **Noun in oblique**, PP = post-position |
+                | ? | **Function** � Does the word modify a **verb or clause** (manner, time, place, degree)? | It directly qualifies a noun/pronoun ? likely Adjective or Noun |
+                | ? | **Morphology** � No number / gender / person agreement & no case endings | You see �?/�? etc. agreeing with noun ? it�s NOT an adverb |
+                | ? | **Position / Helpers** � Is it followed by a postposition (*??, ???, ???*)? | Token + post-position ? treat token as **Noun in oblique**, PP = post-position |
 
                 ---
 
-                ## 2 · Category reference with high-frequency SGGS tokens 🔍  
+                ## 2 � Category reference with high-frequency SGGS tokens ??  
 
                 | Category | Typical surface cues | SGGS high-freq examples |
                 |----------|----------------------|-------------------------|
-                | **Time / ਸਮਾਂ** | “when?”, duration, sequence | ਹੁਣਿ, ਸਦਾ, ਕਦੇ, ਤਦਿ, ਸਵੇਰੈ |
-                | **Place / ਥਾਂ** | “where?”, location, direction | ਅਗੈ, ਅੰਦਰਿ, ਦੂਰਿ, ਨੇਰੈ, ਊਪਰਿ |
-                | **Manner / ਵਿਧੀ** | “how?”, style, attitude | ਜਿਉ, ਸਹਜਿ, ਇਉ, ਕਿਵ, ਨਿਸੰਗੁ |
-                | **Measurement / ਪਰਮਾਣ** | quantity / degree | ਅਤਿ, ਬਹੁਤਾ, ਘਣਾ, ਭਰਪੂਰਿ, ਤਿਲੁ |
-                | **Number / ਸੰਖਿਆ** | frequency / repetition | ਫਿਰਿ ਫਿਰਿ, ਬਾਰੰ ਬਾਰ, ਵਤਿ, ਲਖ ਲਖ, ਅਨਿਕ ਬਾਰ |
-                | **Decision / ਨਿਨੈ** | negation / affirmation | ਨਾ, ਨਹ, ਨਾਹੀ, ਨਿਹਚਉ, ਮਤ |
-                | **Reason / ਕਾਰਣ** | cause / purpose | ਯਾਤੇ |
-                | **Stress / ਤਾਕੀਦ** | emphasis / focus | ਹੀ, ਭੀ, ਹੈ, ਸਰਪਰ, ਮੂਲੇ |
+                | **Time / ????** | �when?�, duration, sequence | ????, ???, ???, ???, ????? |
+                | **Place / ???** | �where?�, location, direction | ???, ?????, ????, ????, ???? |
+                | **Manner / ????** | �how?�, style, attitude | ???, ????, ??, ???, ?????? |
+                | **Measurement / ?????** | quantity / degree | ???, ?????, ???, ??????, ???? |
+                | **Number / ?????** | frequency / repetition | ???? ????, ???? ???, ???, ?? ??, ???? ??? |
+                | **Decision / ????** | negation / affirmation | ??, ??, ????, ?????, ?? |
+                | **Reason / ????** | cause / purpose | ???? |
+                | **Stress / ?????** | emphasis / focus | ??, ??, ??, ????, ???? |
             
                 ---
 
-                ### ▸ Phrase / Compound & Iterative idioms (extended reference)
+                ### ? Phrase / Compound & Iterative idioms (extended reference)
 
-                | Sub-group | Token set → **all indeclinable adverbs** | Main category |
+                | Sub-group | Token set ? **all indeclinable adverbs** | Main category |
                 |-----------|------------------------------------------|---------------|
-                | **Time — Phrase** | ਅਹਿਨਿਸਿ, ਨਿਸਿ ਬਾਸੁਰ, ਪਹਿਲੋ ਦੇ, ਪਿਛੋ ਦੇ, ਰਾਤਿ ਦਿਨੰਤਿ, ਅੰਤ ਕੀ ਬੇਲਾ, ਅਬ ਕੈ ਕਹਿਐ, ਆਠ ਪਹਰ, ਆਦਿ ਜੁਗਾਦਿ, ਇਬ ਕੇ ਰਾਹੇ, ਨਿਤ ਪ੍ਰਤਿ | Time / ਸਮਾ |
-                | **Place — Phrase** | ਅੰਤਰਿ ਬਾਹਰਿ, ਪਾਸਿ ਦੁਆਸਿ, ਵਿਚੁਦੇ, ਆਸ ਪਾਸ, ਊਪਰਿ ਭੁਜਾ ਕਰਿ, ਅਗਹੁ ਪਿਛਹੁ, ਈਹਾ ਊਹਾ, ਕਿਤੁ ਠਾਇ, ਤਿਹਾ ਧਿਰਿ, ਤਿੰਹੁ ਲੋਇ, ਦੇਸ ਦਿਸੰਤਰ | Place / ਥਾਂ |
-                | **Manner — Phrase** | ਤਾ ਭੀ, ਤਿਲੁ ਸਾਰ, ਇਕ ਮਨਿ, ਏਵੈ, ਸਹਜ ਭਾਇ, ਕਵਨ ਮੁਖਿ, ਕਾਹੇ ਕਉ, ਕਿਉ ਨ, ਕਿਤੁ ਅਰਥਿ, ਨਾਨਾ ਬਿਧਿ, ਕਿਵੈ ਨ, ਰਸਕਿ ਰਸਕਿ | Manner / ਵਿਧੀ |
-                | **Iterative (Time)** | ਫਿਰਿ ਫਿਰਿ, ਦਿਨੁ ਦਿਨੁ, ਸਦਾ ਸਦਾ, ਸਾਸਿ ਸਾਸਿ, ਨਿਤ ਨਿਤ, ਨਿਮਖ ਨਿਮਖ, ਪਲੁ ਪਲੁ, ਬਾਰੰ ਬਾਰ, ਪੁਨਹ ਪੁਨਹ | Time / ਸਮਾ |
-                | **Iterative (Place)** | ਜਤ ਕਤ, ਘਰਿ ਘਰਿ, ਜਹ ਜਹ, ਜਿਤੁ ਜਿਤੁ, ਦੇਸ ਦਿਸੰਤਰਿ | Place / ਥਾਂ |
-                | **Iterative (Manner)** | ਝਿਮਿ ਝਿਮਿ, ਤਿਲ ਤਿਲ, ਖਿਰ ਖਿਰ, ਰਸਿਕ ਰਸਿਕ, ਲੁਡਿ ਲੁਡਿ | Manner / ਵਿਧੀ |
+                | **Time � Phrase** | ???????, ???? ?????, ????? ??, ???? ??, ???? ??????, ??? ?? ????, ?? ?? ????, ?? ???, ??? ??????, ?? ?? ????, ??? ????? | Time / ??? |
+                | **Place � Phrase** | ????? ?????, ???? ?????, ??????, ?? ???, ???? ???? ???, ???? ?????, ??? ???, ???? ???, ???? ????, ????? ???, ??? ?????? | Place / ??? |
+                | **Manner � Phrase** | ?? ??, ???? ???, ?? ???, ???, ??? ???, ??? ????, ???? ??, ??? ?, ???? ????, ???? ????, ???? ?, ???? ???? | Manner / ???? |
+                | **Iterative (Time)** | ???? ????, ???? ????, ??? ???, ???? ????, ??? ???, ???? ????, ??? ???, ???? ???, ???? ???? | Time / ??? |
+                | **Iterative (Place)** | ?? ??, ??? ???, ?? ??, ???? ????, ??? ??????? | Place / ??? |
+                | **Iterative (Manner)** | ???? ????, ??? ???, ??? ???, ???? ????, ???? ???? | Manner / ???? |
 
                 *(Duplicates collapsed; diacritics kept as in SGGS.)*
 
                 ---
 
-                ## 3 · Red-flag heuristics 🚨  
+                ## 3 � Red-flag heuristics ??  
 
                 | Pattern | Likely mis-tag |
                 |---------|---------------|
-                | Token shows **plural/oblique –ਆਂ / –ਏ / –ਉ** agreement | Probably a noun or adjective |
-                | Token immediately followed by post-position (**ਨਾਲ, ਤੇ, ਵਿਚ**) | Treat as noun + PP |
-                | Token doubles as **auxiliary verb** (*ਹੀ, ਹੈ*) in context | Re-evaluate as Stress adverb OR auxiliary |
+                | Token shows **plural/oblique �?? / �? / �?** agreement | Probably a noun or adjective |
+                | Token immediately followed by post-position (**???, ??, ???**) | Treat as noun + PP |
+                | Token doubles as **auxiliary verb** (*??, ??*) in context | Re-evaluate as Stress adverb OR auxiliary |
                 | Same stem appears with changing endings inside verse | Likely **declinable adjective**, not adverb |
                 | Gloss marks token as **object / subject** | Not an adverb |
 
                 ---
 
-                ## 4 · Usage tips 💡  
+                ## 4 � Usage tips ??  
 
-                1. **No gender/number tags** – Always set **Gender = NA** & **Number = NA** for adverbs.  
-                2. **POS override wins** – If sanity check fails, switch POS before finishing the task.  
+                1. **No gender/number tags** � Always set **Gender = NA** & **Number = NA** for adverbs.  
+                2. **POS override wins** � If sanity check fails, switch POS before finishing the task.  
                 3. Quote at least one verb the adverb is modifying when you justify your choice.
 
                 ---
 
-                <sub>Source pages: Grammar book ch. 6 (pp. 6.1–6.2.6) & “Adverbs” sheet from 0.2 For Data to GPT.xlsx.</sub>\
+                <sub>Source pages: Grammar book ch. 6 (pp. 6.1�6.2.6) & �Adverbs� sheet from 0.2 For Data to GPT.xlsx.</sub>\
                 """).strip() + "\n\n"
 
                 ending_cheat_sheet = (
-                    "**ADVERBS:** Indeclinable in SGGS → no ending table required."
+                    "**ADVERBS:** Indeclinable in SGGS ? no ending table required."
                 )
 
-            elif entry["Type"] == "Postposition / ਸੰਬੰਧਕ":
+            elif entry["Type"] == "Postposition / ??????":
                 implicit_note = textwrap.dedent("""\
-                    **POSTPOSITIONS IN GURBĀṆĪ – SEEING THE HIDDEN LINKS**  
+                    **POSTPOSITIONS IN GURBA?I � SEEING THE HIDDEN LINKS**  
 
-                    A postposition (_ਸੰਬੰਧਕ_) expresses the *relationship* of a noun or pronoun to the
+                    A postposition (_??????_) expresses the *relationship* of a noun or pronoun to the
                     rest of the clause.  Think of it as a Punjabi sibling of the English preposition,
                     except it normally **follows** the word it governs.
 
-                    ### 1 · Why they matter in annotation  
-                    • **Old case-endings → new helpers** – Classical Punjabi often fused case endings
-                    straight onto the noun (e.g. ਕੈ, ਕਉ).  Over centuries these endings began to act
-                    like separate postpositions—and Gurbāṇī preserves *both* layers.  
-                    • **One helper ≠ one case** – Don’t map “each postposition to one case” by reflex.
-                    Many helpers (esp. ‘of’, ‘from’, ‘with’) sit across **multiple traditional cases**.  
-                    • **Pre-noun surprise** – Forms such as **ਕੈ** can surface *before* the noun when
+                    ### 1 � Why they matter in annotation  
+                    � **Old case-endings ? new helpers** � Classical Punjabi often fused case endings
+                    straight onto the noun (e.g. ??, ??).  Over centuries these endings began to act
+                    like separate postpositions�and Gurba?i preserves *both* layers.  
+                    � **One helper ? one case** � Don�t map �each postposition to one case� by reflex.
+                    Many helpers (esp. �of�, �from�, �with�) sit across **multiple traditional cases**.  
+                    � **Pre-noun surprise** � Forms such as **??** can surface *before* the noun when
                     they co-occur with another postposition; still tag them as postpositions.
 
-                    ### 2 · How to read the Darpan gloss  
-                    1. **Scan the English helper** inserted by Prof. Sāhib Siṅgh – _to, of, from,
-                    with, without, in, on, before, after, near, far…_  
-                    2. **Locate the Punjabi token(s)** that deliver that meaning in the pāṅktī.
+                    ### 2 � How to read the Darpan gloss  
+                    1. **Scan the English helper** inserted by Prof. Sahib Si?gh � _to, of, from,
+                    with, without, in, on, before, after, near, far�_  
+                    2. **Locate the Punjabi token(s)** that deliver that meaning in the pa?kti.
                     They may be:  
-                    • an **attached ending** (*…ਕੈ ਸੰਤ*),  
-                    • a **stand-alone word** (*ਨਾਲ, ਵਿਚ, ਉਪਰਿ*), or  
-                    • an **archaic variant** (e.g. _ਕਹ, ਵਸੇ, ਬਾਸੇ_).  
-                    3. **Check the noun form** – the governed noun should be in the **oblique** (ਸੰਬੰਧਕ)
+                    � an **attached ending** (*�?? ???*),  
+                    � a **stand-alone word** (*???, ???, ????*), or  
+                    � an **archaic variant** (e.g. _??, ???, ????_).  
+                    3. **Check the noun form** � the governed noun should be in the **oblique** (??????)
                     if the language still marks one; otherwise, rely on meaning.
 
-                    > **Rule of thumb** – If the gloss supplies a relational word the verse omits,
-                    > treat that English word as a flag that “a postposition is hiding here.”\
+                    > **Rule of thumb** � If the gloss supplies a relational word the verse omits,
+                    > treat that English word as a flag that �a postposition is hiding here.�\
                     """).strip() + "\\n\\n"
 
                 common_sense_note = textwrap.dedent("""\
-                    **SEMANTIC SANITY CHECK – IS THIS *REALLY* A POSTPOSITION?**  
+                    **SEMANTIC SANITY CHECK � IS THIS *REALLY* A POSTPOSITION?**  
 
-                    ### ①  Function test  
-                    • Does the candidate **link** its noun/pronoun to the verb or another noun?  
-                    _Yes_ → proceed.  _No_ → it may be an **adverb**, **case-suffix**, or even
+                    ### ?  Function test  
+                    � Does the candidate **link** its noun/pronoun to the verb or another noun?  
+                    _Yes_ ? proceed.  _No_ ? it may be an **adverb**, **case-suffix**, or even
                     part of a **compound noun**.
 
-                    ### ②  Morphology test  
-                    • Postpositions are **indeclinable** – no gender/number/person endings of their
-                    own.  If the token shows –ਆ/ਈ/ਏ etc., suspect an *oblique noun* instead.  
-                    • Possessive markers **ਦਾ, ਦੇ, ਦੀ** *look* like adjectives but behave as
+                    ### ?  Morphology test  
+                    � Postpositions are **indeclinable** � no gender/number/person endings of their
+                    own.  If the token shows �?/?/? etc., suspect an *oblique noun* instead.  
+                    � Possessive markers **??, ??, ??** *look* like adjectives but behave as
                     postpositions.  Tag them here only when they attach to another noun
-                    (“ਰਾਮ **ਦਾ** ਦਾਸ”).  
+                    (�??? **??** ???�).  
 
-                    ### ③  Dependency test  
-                    • A true postposition normally keeps a **dependent noun** close by.  If none
-                    appears, ask whether the word is actually an **adverbial particle** (“ਤਦਿ,
-                    ਅਗੈ”) or part of a **verb phrase**.
+                    ### ?  Dependency test  
+                    � A true postposition normally keeps a **dependent noun** close by.  If none
+                    appears, ask whether the word is actually an **adverbial particle** (�???,
+                    ???�) or part of a **verb phrase**.
 
-                    ### ④  Red-flag heuristics 🚩  
+                    ### ?  Red-flag heuristics ??  
                     | Pattern | Likely mis-tag | Example cue |
                     |---------|---------------|-------------|
-                    | Token plus **another postposition** with no noun in between | Missing oblique noun | “ਕੈ **ਨਾਲ**” |
-                    | Token followed by *ਹੈ/ਹਨ* | Probably predicate adjective | “ਨਾਨਕੁ ਦੋਖੀ **ਨਾਹਿ**” |
-                    | Token appears twice with changing endings | Declining noun, not postposition | “ਘਰਿ ਘਰਿ” |
+                    | Token plus **another postposition** with no noun in between | Missing oblique noun | �?? **???**� |
+                    | Token followed by *??/??* | Probably predicate adjective | �????? ???? **????**� |
+                    | Token appears twice with changing endings | Declining noun, not postposition | �??? ???� |
 
-                    ### ⑤  Quick role alignment  
+                    ### ?  Quick role alignment  
                     | Semantic role | Common helpers (non-exhaustive) |
                     |---------------|----------------------------------|
-                    | **Genitive / OF** | ਕਾ, ਕੇ, ਕੀ, ਦਾ, ਦੇ, ਦੀ, ਕੋਰਾ |
-                    | **Dative / TO, FOR** | ਕਉ, ਕੋ, ਕੈ, ਨੂ, ਲਈ |
-                    | **Ablative / FROM** | ਤੋਂ, ਤੇ, ਵੈਹੁ, ਬਿਨ, ਬਾਹਰ |
-                    | **Instrumental / WITH** | ਨਾਲ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ |
-                    | **Locative / IN, ON, AT** | ਵਿਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਉਪਰਿ, ਊਤੇ |
-                    | **Orientational / BEFORE, AFTER, NEAR, FAR** | ਅਗੈ, ਪਿਛੈ, ਕੋਲ, ਨਿਕਟ, ਦੂਰਿ |
+                    | **Genitive / OF** | ??, ??, ??, ??, ??, ??, ???? |
+                    | **Dative / TO, FOR** | ??, ??, ??, ??, ?? |
+                    | **Ablative / FROM** | ???, ??, ????, ???, ???? |
+                    | **Instrumental / WITH** | ???, ???, ???, ???, ???? |
+                    | **Locative / IN, ON, AT** | ???, ?????, ????, ????, ??? |
+                    | **Orientational / BEFORE, AFTER, NEAR, FAR** | ???, ????, ???, ????, ???? |
 
                     _If a helper can sit in more than one row, choose the case that best matches the
                     **meaning of the clause**, and note the alternative in comments._\
                     """).strip() + "\\n\\n"
             
                 ending_cheat_sheet = textwrap.dedent("""\
-                    **POSTPOSITION QUICK-REFERENCE – SURFACE FORMS BY SEMANTIC GROUP**  
+                    **POSTPOSITION QUICK-REFERENCE � SURFACE FORMS BY SEMANTIC GROUP**  
 
                     | Role (Eng.) | Core Punjabi forms* | Notes |
                     |-------------|---------------------|-------|
-                    | **OF / Possessive** | ਦਾ, ਦੇ, ਦੀ · ਕਾ, ਕੇ, ਕੀ · ਕਾ, ਕੈ, ਕੈਹਿਉ · ਕੋਰਾ / ਕੋਰੈ | Masculine/Feminine variants; decline with possessed noun, not with owner |
-                    | **TO / FOR** | ਕਉ, ਕੂ, ਕੈ, ਕੋ · ਨੂ, ਨੂੰ · ਲਈ | Older endings (ਕਉ…) often fuse; **ਨੂੰ** modern |
-                    | **FROM / OUT OF** | ਤੋਂ, ਤੇ, ਉਤੋਂ, ਵੈਹੁ, ਬਾਹਰ, ਬਿਨਾ | Ablative / separative sense; *ਬਿਨਾ* also “without” |
-                    | **WITH / BY / ALONG** | ਨਾਲ, ਨਾਲੇ, ਸੰਗ, ਸਾਥ, ਸਿਉ, ਸੇਤੀ | Instrumental & associative; choice shaped by metre |
-                    | **WITHOUT / THAN** | ਬਾਜਹੁ, ਬਾਗੈ, ਬਿਨ, ਬਿਨੁ, ਵਿਣ, ਵਿਣਹੁ, ਥੋੜਾ | Negative / comparative nuance |
-                    | **IN / INSIDE / WITHIN** | ਵਿਚ, ਵਿ⸱ਚ, ਅੰਦਰਿ, ਮਾਹਿ, ਮਹਿ, ਮਾਹਰੈ | Locative & internal |
-                    | **ON / OVER / ABOVE** | ਉਪਰਿ, ਉਪਰ, ਉਤੇ, ਊਤੇ, ਊਪਰਿ | Spatial elevation; *ਤੇ* doubles as generic PP |
-                    | **UNDER / BELOW** | ਤਲਿ, ਥਲੈ, ਹੇਠ, ਹੇਠਾਂ | Lower level |
-                    | **BEFORE / FRONT** | ਅਗੈ, ਅਗੇ | Temporal or spatial precedence |
-                    | **AFTER / BEHIND** | ਪਿਛੈ, ਪਾਛੈ, ਪਿਛੋ | Temporal or spatial following |
-                    | **TOWARDS / NEAR / FAR** | ਵਲ, ਕਨ, ਕੋਲ, ਕੋਲੀ, ਨਿਕਟ, ਪਾਸਿ, ਪਾਸੇ, ਦੂਰਿ | Directional & proximity |
+                    | **OF / Possessive** | ??, ??, ?? � ??, ??, ?? � ??, ??, ????? � ???? / ???? | Masculine/Feminine variants; decline with possessed noun, not with owner |
+                    | **TO / FOR** | ??, ??, ??, ?? � ??, ??? � ?? | Older endings (??�) often fuse; **???** modern |
+                    | **FROM / OUT OF** | ???, ??, ????, ????, ????, ???? | Ablative / separative sense; *????* also �without� |
+                    | **WITH / BY / ALONG** | ???, ????, ???, ???, ???, ???? | Instrumental & associative; choice shaped by metre |
+                    | **WITHOUT / THAN** | ?????, ????, ???, ????, ???, ?????, ???? | Negative / comparative nuance |
+                    | **IN / INSIDE / WITHIN** | ???, ????, ?????, ????, ???, ????? | Locative & internal |
+                    | **ON / OVER / ABOVE** | ????, ???, ???, ???, ???? | Spatial elevation; *??* doubles as generic PP |
+                    | **UNDER / BELOW** | ???, ???, ???, ????? | Lower level |
+                    | **BEFORE / FRONT** | ???, ??? | Temporal or spatial precedence |
+                    | **AFTER / BEHIND** | ????, ????, ???? | Temporal or spatial following |
+                    | **TOWARDS / NEAR / FAR** | ??, ??, ???, ????, ????, ????, ????, ???? | Directional & proximity |
 
                     <sub>*Forms collated from pp. 1-7 of your textbook; diacritics left as printed.
-                    The list is not exhaustive—add dialectal or Braj variants as you meet them.</sub>
+                    The list is not exhaustive�add dialectal or Braj variants as you meet them.</sub>
 
-                    **Oblique rule** – The governed noun normally appears in the **oblique**; the
+                    **Oblique rule** � The governed noun normally appears in the **oblique**; the
                     postposition itself **never inflects**.
 
-                    **Pre-noun exception** – When **ਕੈ** precedes another PP, it may surface *before*
-                    its noun (e.g. “ਮੰਨੇ ਜਮ **ਕੈ** ਸਾਥ ਨ ਜਾਇ”) – still tag as postposition.
+                    **Pre-noun exception** � When **??** precedes another PP, it may surface *before*
+                    its noun (e.g. �???? ?? **??** ??? ? ???�) � still tag as postposition.
 
                     **Cross-case cautions**  
-                    • Some helpers (esp. “with”, “in”, “from”) can realise **Instrumental, Locative,
-                    or Ablative** – decide by semantics.  
-                    • Genitive set **ਦਾ/ਦੇ/ਦੀ** functions like an adjective in modern speech but
+                    � Some helpers (esp. �with�, �in�, �from�) can realise **Instrumental, Locative,
+                    or Ablative** � decide by semantics.  
+                    � Genitive set **??/??/??** functions like an adjective in modern speech but
                     grammatically remains a postposition in SGGS.
 
                     _Use this sheet to *reject impossible guesses* and to **confirm legal surface
                     forms** before finalising your annotation._\
                     """).strip() + "\\n\\n"
 
-            elif entry["Type"] == "Conjunction / ਯੋਜਕ":
+            elif entry["Type"] == "Conjunction / ????":
                 implicit_note = textwrap.dedent("""\
-                    **CONJUNCTIONS IN GURBĀṆĪ – HOW TO HEAR THE HINGES**
+                    **CONJUNCTIONS IN GURBA?I � HOW TO HEAR THE HINGES**
 
-                    A conjunction (_ਯੋਜਕ_) links words, phrases, or entire clauses—*and, but, or,
-                    if … then, even though…. *  Gurbāṇī uses a small core set, but the
-                    multilingual texture of the text supplies many **variants** (ੲੈ, ਅਤੇ, ਅਉ,
-                    ਫੁਨਿ; ਜੇ, ਜੇਕਰ; ਤਾ, ਤਾਂ, ਤਭ).
+                    A conjunction (_????_) links words, phrases, or entire clauses�*and, but, or,
+                    if � then, even though�. *  Gurba?i uses a small core set, but the
+                    multilingual texture of the text supplies many **variants** (??, ???, ??,
+                    ????; ??, ????; ??, ???, ??).
 
-                    #### 1 · Spotting them in the verse
-                    1. **Look for clause boundaries** – commas or the metrical “||” often signal the
+                    #### 1 � Spotting them in the verse
+                    1. **Look for clause boundaries** � commas or the metrical �||� often signal the
                     join.  
-                    2. **Map the gloss cue** – Prof. Sāhib Siṅgh frequently inserts
+                    2. **Map the gloss cue** � Prof. Sahib Si?gh frequently inserts
                     *and / but / or / if / then / even*, etc.  Trace that helper back to a Punjabi
-                    token (sometimes a tiny vowel like **ਤ, ਜੇ, ਤੇ**).  
-                    3. **Check the flow** – removing a true conjunction should split the sentence
+                    token (sometimes a tiny vowel like **?, ??, ??**).  
+                    3. **Check the flow** � removing a true conjunction should split the sentence
                     into two meaningful parts; if the sense collapses, the token may be an
-                    **adverb** (*ਤੌਂ = then* vs. *ਤੋਂ = from*), **post-position**, or **particle**.
+                    **adverb** (*??? = then* vs. *??? = from*), **post-position**, or **particle**.
 
-                    > **Rule of thumb** – If the gloss supplies an English linker and the Punjabi
-                    > token neither declines nor carries case, you’ve found a conjunction.
+                    > **Rule of thumb** � If the gloss supplies an English linker and the Punjabi
+                    > token neither declines nor carries case, you�ve found a conjunction.
                     """).strip() + "\\n\\n"
             
                 common_sense_note = textwrap.dedent("""\
-                    **SEMANTIC SANITY CHECK – DOES THIS REALLY JOIN THINGS?**
+                    **SEMANTIC SANITY CHECK � DOES THIS REALLY JOIN THINGS?**
 
-                    | Quick test | Keep as conjunction ✔︎ | Rethink ✘ |
+                    | Quick test | Keep as conjunction ?? | Rethink ? |
                     |------------|------------------------|-----------|
                     | **Function** | Links two clauses / words of equal status | Adds a helper to a noun (*post-position*) |
-                    | **Morphology** | Indeclinable; no gender/number | Ends -ਆ/-ਈ/-ਏ → likely adjective/noun |
-                    | **Mobility** | Can often move to clause edge without breaking grammar | Locked to noun it follows → PP/adjective |
-                    | **Gloss cue** | gloss shows *and, but, or, if … then* | gloss shows *to, of, from* → case helper |
+                    | **Morphology** | Indeclinable; no gender/number | Ends -?/-?/-? ? likely adjective/noun |
+                    | **Mobility** | Can often move to clause edge without breaking grammar | Locked to noun it follows ? PP/adjective |
+                    | **Gloss cue** | gloss shows *and, but, or, if � then* | gloss shows *to, of, from* ? case helper |
 
-                    #### Red-flag patterns 🚩
-                    * Token plus **post-position** (e.g. *ਜੇ ਕੋ*): maybe *ਜੇ* = “if” (OK) but *ਕੋ* =
-                    Dative → label both separately.  
-                    * **ਨੀ…ਨਾ** or **ਨੋ…ਨੋ** – might be emphatic repetition, not conjunction.  
-                    * **ਤਾ/ਤੇ/ਤੋਂ**: confirm rôle—*ਤਾ* = “then”, *ਤੇ* often Locative PP, *ਤੋਂ* Ablative.
+                    #### Red-flag patterns ??
+                    * Token plus **post-position** (e.g. *?? ??*): maybe *??* = �if� (OK) but *??* =
+                    Dative ? label both separately.  
+                    * **??�??** or **??�??** � might be emphatic repetition, not conjunction.  
+                    * **??/??/???**: confirm r�le�*??* = �then�, *??* often Locative PP, *???* Ablative.
                     """).strip() + "\\n\\n"
             
                 ending_cheat_sheet = textwrap.dedent("""\
-                    **CONJUNCTION QUICK-REFERENCE – HIGH-FREQ FORMS IN SGGS**
+                    **CONJUNCTION QUICK-REFERENCE � HIGH-FREQ FORMS IN SGGS**
 
                     | Logical role | Punjabi forms* | Example gloss cue |
                     |--------------|---------------|-------------------|
-                    | **AND / THEN** | ਤੇ, ਅਤੇ, ਅਤਿ, ਅਉ, ਅਵਰ, ਅਉਰੁ, ਫੁਨਿ | “and”, “then”, “also” |
-                    | **OR** | ਕੈ, ਕਿ, ਅਕੇ | “or / whether” |
-                    | **BUT / HOWEVER** | ਘਟ, ਪਰ, ਪਰੰਤੂ, ਫੁਨਿ | “but”, “yet” |
-                    | **IF** | ਜੇ, ਜੇਕਰ, ਜੇਵੀ | “if / provided that” |
-                    | **IF … THEN** | ਜੇ … ਤਾ/ਤਾਂ/ਤੋਂ | paired correlative |
-                    | **EVEN IF / EVEN THEN** | ਤ, ਜੇ, ਭਾਵੇ, ਤਉ ਭੀ, ਤਉ, ਤਉਂ | concessive |
-                    | **NEITHER … NOR** | ਨ … ਨਾ | correlative negative |
-                    | **OTHERWISE** | ਨਤ ਰਿ, ਨਤੂ, ਨਹੀਂ, ਨਹੀਂ ਤਾਂ | “otherwise” |
-                    | **THEREFORE / HENCE** | ਤਾ, ਤਾ ਤੇ, ਤਸੂ, ਕਾ ਤੇ | result / inference |
-                    | **AS / LIKE** | ਜਿਉ, ਜਿਵੇਂ | comparative |
-                    | **LEST** | ਮਤੁ | preventative |
+                    | **AND / THEN** | ??, ???, ???, ??, ???, ????, ???? | �and�, �then�, �also� |
+                    | **OR** | ??, ??, ??? | �or / whether� |
+                    | **BUT / HOWEVER** | ??, ??, ?????, ???? | �but�, �yet� |
+                    | **IF** | ??, ????, ???? | �if / provided that� |
+                    | **IF � THEN** | ?? � ??/???/??? | paired correlative |
+                    | **EVEN IF / EVEN THEN** | ?, ??, ????, ?? ??, ??, ??? | concessive |
+                    | **NEITHER � NOR** | ? � ?? | correlative negative |
+                    | **OTHERWISE** | ?? ??, ???, ????, ???? ??? | �otherwise� |
+                    | **THEREFORE / HENCE** | ??, ?? ??, ???, ?? ?? | result / inference |
+                    | **AS / LIKE** | ???, ????? | comparative |
+                    | **LEST** | ??? | preventative |
 
-                    <sub>*Forms taken from textbook pp. 8.1 – 8.4; diacritics preserved.</sub>
+                    <sub>*Forms taken from textbook pp. 8.1 � 8.4; diacritics preserved.</sub>
 
                     **Key reminders**
 
-                    * **Indeclinable** – conjunctions never carry case or agreement.
-                    * **Dual tokens** – Some forms (*ਤਾ, ਤੇ, ਤੋਂ*) double as post-positions.
-                    Decide by context: if it *links* clauses → conjunction; if it *marks* a noun
-                    → post-position.
-                    * **Correlative pairs** – Tag both halves (e.g. **ਜੇ** … **ਤਾਂ**) as one
-                    logical conjunction with a note “correlative”.
+                    * **Indeclinable** � conjunctions never carry case or agreement.
+                    * **Dual tokens** � Some forms (*??, ??, ???*) double as post-positions.
+                    Decide by context: if it *links* clauses ? conjunction; if it *marks* a noun
+                    ? post-position.
+                    * **Correlative pairs** � Tag both halves (e.g. **??** � **???**) as one
+                    logical conjunction with a note �correlative�.
                     """).strip() + "\\n\\n"
             
-            elif entry["Type"] == "Interjection / ਵਿਸਮਿਕ":
+            elif entry["Type"] == "Interjection / ??????":
                 implicit_note = textwrap.dedent("""\
-                    **INTERJECTIONS IN GURBĀṆĪ – PURE, UNINFLECTED EMOTION**
+                    **INTERJECTIONS IN GURBA?I � PURE, UNINFLECTED EMOTION**
 
-                    An interjection (_ਵਿਸਮਿਕ_) erupts outside normal grammar to voice **feeling**:
-                    surprise, pain, devotion, blessing, awe…  Because they sit *outside* the clause
+                    An interjection (_??????_) erupts outside normal grammar to voice **feeling**:
+                    surprise, pain, devotion, blessing, awe�  Because they sit *outside* the clause
                     structure, they **never govern case, never inflect, never agree**.
 
-                    #### 1 · What to notice in a verse
-                    1. **Standalone or comma-bound** tokens – often at the start, end, or mid-clause,
-                    separated by a breve pause.  E.g. **ਵਾਹੁ ਵਾਹੁ**, **ਹੈ ਹੈ**, **ਹਰਿ ਹਰਿ**.
-                    2. **Gloss cue** – Prof. Sāhib Siṅgh usually inserts an English exclamation
+                    #### 1 � What to notice in a verse
+                    1. **Standalone or comma-bound** tokens � often at the start, end, or mid-clause,
+                    separated by a breve pause.  E.g. **???? ????**, **?? ??**, **??? ???**.
+                    2. **Gloss cue** � Prof. Sahib Si?gh usually inserts an English exclamation
                     (*O!, Alas!, Wow!, Blessed!*) or italicises the Punjabi for emphasis.
-                    3. **No syntactic load** – if you remove the interjection, the grammar of the
+                    3. **No syntactic load** � if you remove the interjection, the grammar of the
                     sentence remains intact (though colour is lost).
 
-                    #### 2 · Ten broad emotional classes in SGGS
-                    1. **Vocative** – calling or invoking (*ਏ, ਐ, ਓ, ਹੈ, ਹਉ, ਹੇ ਜੀ…*).  
-                    2. **Repulsive** – aversion or disgust (*ਵਿਚੁ, ਫਿਟੁ*).  
-                    3. **Painful** – sorrow, lament (*ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ*).  
-                    4. **Submission** – ‘Divine willing’ (*ਅਲਹ*).  
-                    5. **Wondrous** – ecstatic awe (*ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਭੈਰੀ*).  
-                    6. **Caution / Warning** – prudent cry (*ਹਰਿ ਹਰਿ ਹਰੇ* used admonishingly).  
-                    7. **Blessing** – goodwill (*ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ*).  
-                    8. **Curse** – condemnation (*ਜਲਉ, ਜਲਿ ਜਾਉ*).  
-                    9. **Sacrificial** – self-offering (*ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ*).  
-                    10. **Reverence** – respectful welcome (*ਆਇ ਜੀ, ਪਿਛੋ ਜੀ*).
+                    #### 2 � Ten broad emotional classes in SGGS
+                    1. **Vocative** � calling or invoking (*?, ?, ?, ??, ??, ?? ??�*).  
+                    2. **Repulsive** � aversion or disgust (*????, ????*).  
+                    3. **Painful** � sorrow, lament (*?? ??, ??? ???, ?? ??*).  
+                    4. **Submission** � �Divine willing� (*???*).  
+                    5. **Wondrous** � ecstatic awe (*???? ????, ??? ????*).  
+                    6. **Caution / Warning** � prudent cry (*??? ??? ???* used admonishingly).  
+                    7. **Blessing** � goodwill (*???? ???? ?????*).  
+                    8. **Curse** � condemnation (*???, ??? ???*).  
+                    9. **Sacrificial** � self-offering (*???????, ??? ???*).  
+                    10. **Reverence** � respectful welcome (*?? ??, ???? ??*).
 
-                    > **Rule of thumb** – if the word communicates *only* emotion and detaches
+                    > **Rule of thumb** � if the word communicates *only* emotion and detaches
                     > cleanly from clause syntax, tag it as Interjection; otherwise test Adverb,
                     > Vocative Noun, or Particle.
                     """).strip() + "\\n\\n"
 
                 common_sense_note = textwrap.dedent("""\
-                    **SEMANTIC SANITY CHECK – IS THIS TOKEN *JUST* AN EMOTION?**
+                    **SEMANTIC SANITY CHECK � IS THIS TOKEN *JUST* AN EMOTION?**
 
-                    | Quick probe | Keep as Interjection ✔ | Rethink ✖ |
+                    | Quick probe | Keep as Interjection ? | Rethink ? |
                     |-------------|-----------------------|-----------|
                     | **Function** | Adds emotional colour, no syntactic role | Performs grammatical work (case, link, inflection) |
-                    | **Inflection** | Completely indeclinable | Shows –ਆ / –ਈ / –ਏ endings → maybe adjective/noun |
-                    | **Dependence** | Can float; removal leaves clause intact | Sentence breaks → probably verb/particle |
-                    | **Gloss cue** | Gloss marks “O!”, “Alas!”, “Blessed!” etc. | Gloss gives “to, from, with” → post-position |
+                    | **Inflection** | Completely indeclinable | Shows �? / �? / �? endings ? maybe adjective/noun |
+                    | **Dependence** | Can float; removal leaves clause intact | Sentence breaks ? probably verb/particle |
+                    | **Gloss cue** | Gloss marks �O!�, �Alas!�, �Blessed!� etc. | Gloss gives �to, from, with� ? post-position |
 
-                    #### Red-flag patterns 🚩
-                    * **ਵਾਹੁ ਵਾਹੁ** appears as noun/adjective elsewhere – decide per context.  
-                    * **ਹੈ ਮੈ, ਹੇ ਭਾਈ** – first token vocative interjection, second token noun;
-                    split tags, don’t bundle.  
-                    * Repeated **ਹਰਿ ਹਰਿ** could be mantra (noun) *or* caution interjection –
+                    #### Red-flag patterns ??
+                    * **???? ????** appears as noun/adjective elsewhere � decide per context.  
+                    * **?? ??, ?? ???** � first token vocative interjection, second token noun;
+                    split tags, don�t bundle.  
+                    * Repeated **??? ???** could be mantra (noun) *or* caution interjection �
                     weigh meaning.
 
                     _For every interjection, fill **Number = NA** and **Gender = NA**; they never
@@ -8741,25 +8741,25 @@ class GrammarApp:
                     """).strip() + "\\n\\n"
             
                 ending_cheat_sheet = textwrap.dedent("""\
-                    **INTERJECTION QUICK-REFERENCE – FREQUENT FORMS BY EMOTIONAL CLASS**
+                    **INTERJECTION QUICK-REFERENCE � FREQUENT FORMS BY EMOTIONAL CLASS**
 
                     | Class               | High-frequency tokens* (SGGS spelling)        |
                     |---------------------|----------------------------------------------|
-                    | **Vocative**        | ਏ, ਐ, ਓ, ਓਹ, ਹੇ, ਹੈ, ਹਉ, ਹਲੈ, ਮੁਸੈ, ਜੀ, ਰੇ, ਬੇ |
-                    | **Repulsive**       | ਵਿਚੁ, ਫਿਟੁ                                   |
-                    | **Painful**         | ਹਾ ਹਾ, ਹਾਏ ਹਾਏ, ਹੈ ਹੈ, ਝੂਅਹ ਬੂਢਹ           |
-                    | **Submission**      | ਅਲਹ                                          |
-                    | **Wondrous**        | ਵਾਹੁ ਵਾਹੁ, ਵਾਹ ਵਾਹ, ਵਾਅ ਵਾਅ, ਵਹੁ ਵਹੁ, ਵਾਹ ਭੈ, ਵਹੁ ਵਹੁ |
-                    | **Caution / Warning** | ਹਰਿ ਹਰਿ ਹਰੇ, ਹਰੇ ਹਰੇ                       |
-                    | **Blessing**        | ਜੁਗੁ ਜੁਗੁ ਜੀਵਹੁ, ਜੁਗੁ ਜੁਗੁ ਜੀਵੈ              |
-                    | **Curse**           | ਜਲਉ, ਜਲਿ ਜਾਉ, ਜਲਿ ਜਲਿ ਜਰਹੁ                  |
-                    | **Sacrificial**     | ਬਲਿਹਾਰੇ, ਬਲਿ ਬਲਿ, ਵਾਰੀ ਵੰਞਾ, ਕਣੀਏ ਵੰਞਾ    |
-                    | **Reverence**       | ਆਉ ਜੀ, ਆਇ ਜੀ, ਪਿਛੋ ਜੀ                       |
+                    | **Vocative**        | ?, ?, ?, ??, ??, ??, ??, ???, ????, ??, ??, ?? |
+                    | **Repulsive**       | ????, ????                                   |
+                    | **Painful**         | ?? ??, ??? ???, ?? ??, ???? ????           |
+                    | **Submission**      | ???                                          |
+                    | **Wondrous**        | ???? ????, ??? ???, ??? ???, ??? ???, ??? ??, ??? ??? |
+                    | **Caution / Warning** | ??? ??? ???, ??? ???                       |
+                    | **Blessing**        | ???? ???? ?????, ???? ???? ????              |
+                    | **Curse**           | ???, ??? ???, ??? ??? ????                  |
+                    | **Sacrificial**     | ???????, ??? ???, ???? ????, ???? ????    |
+                    | **Reverence**       | ?? ??, ?? ??, ???? ??                       |
 
-                    <sub>*Tokens taken from textbook pp. 9.1–9.4; diacritics preserved.  
+                    <sub>*Tokens taken from textbook pp. 9.1�9.4; diacritics preserved.  
                     Feel free to trim or expand as corpus stats evolve.</sub>
 
-                    **Remember** – Interjections are **indeclinable** and **carry no grammatical
+                    **Remember** � Interjections are **indeclinable** and **carry no grammatical
                     features**.  Therefore the spreadsheet needs **no ending table** beyond this
                     categorical list.
                     """).strip() + "\\n\\n"
@@ -8782,36 +8782,36 @@ class GrammarApp:
 
                 **My Current Selections:**  
                 - Word Under Analysis: **{ve}**  
-                - Number / ਵਚਨ: **{num}**  
-                - Grammar Case / ਵਯਾਕਰਣ: **{gram}**  
-                - Gender / ਲਿੰਗ: **{gen}**  
+                - Number / ???: **{num}**  
+                - Grammar Case / ??????: **{gram}**  
+                - Gender / ????: **{gen}**  
                 - Word Root: **{root}**
 
                 **Context (use *only* the Darpan gloss):**  
-                • **Verse:** {verse}  
-                • **Darpan Translation:** {trans}  
-                • **Darpan-Meanings:** {dm}
+                � **Verse:** {verse}  
+                � **Darpan Translation:** {trans}  
+                � **Darpan-Meanings:** {dm}
 
                 **Task:**  
-                1. **Confirm or correct** each feature—if blank, **choose** the best option  
+                1. **Confirm or correct** each feature�if blank, **choose** the best option  
                 (one-sentence rationale citing the inflection or usage).
-                • For finite forms, choose **1st / 2nd / 3rd Person** in Word-Root (do not use Past/Perfect there). 
+                � For finite forms, choose **1st / 2nd / 3rd Person** in Word-Root (do not use Past/Perfect there). 
                 2. **Corrections**, if any:  
-                - Number → …  
-                - Grammar Case → …  
-                - Word Root → …  
+                - Number ? �  
+                - Grammar Case ? �  
+                - Word Root ? �  
                 3. **Example Usage:**  
-                Provide **one** new Gurbāṇī-style sentence using **“{ve}”** with the
+                Provide **one** new Gurba?i-style sentence using **�{ve}�** with the
                 confirmed ending, number, case, gender, and root.
                 4. **Table citation:**  
-                Quote the person × number × tense row header you matched in the Canonical table  
-                (e.g., “1 Sg | Past”). **Use that row’s category name for “Grammar Case / ਵਯਾਕਰਣ,” unless a sanity rule forbids it.**
-                5. **Ending ⇄ Case cross-check:**
-                • If the cheat-sheet already lists a suffix for your chosen case, use it.  
-                • If the case is **missing**, you may propose a likely form
-                    (or say “uninflected”) **but give one-line reasoning**.
+                Quote the person � number � tense row header you matched in the Canonical table  
+                (e.g., �1 Sg | Past�). **Use that row�s category name for �Grammar Case / ??????,� unless a sanity rule forbids it.**
+                5. **Ending ? Case cross-check:**
+                � If the cheat-sheet already lists a suffix for your chosen case, use it.  
+                � If the case is **missing**, you may propose a likely form
+                    (or say �uninflected�) **but give one-line reasoning**.
                 6. **Commentary:**  
-                Please write 2–3 sentences as “ChatGPT Commentary:” explaining how you arrived at each feature choice.
+                Please write 2�3 sentences as �ChatGPT Commentary:� explaining how you arrived at each feature choice.
             """).strip()
 
             self.root.clipboard_clear()
@@ -8823,7 +8823,7 @@ class GrammarApp:
             )
 
         tk.Button(
-            frm, text="📋 Build Detailed Grammar Prompt",
+            frm, text="?? Build Detailed Grammar Prompt",
             font=("Arial", 12, "italic"),
             bg="white", fg="dark cyan",
             command=build_detailed_prompt
@@ -8837,14 +8837,14 @@ class GrammarApp:
         btns.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(6, BOTTOM_PAD))
 
         tk.Button(
-            btns, text="‹ Back",
+            btns, text="� Back",
             font=("Arial", 12), bg="gray", fg="white",
             command=lambda: [win.destroy(),
                             self.show_matches_grammar(self._last_matches, word, index)]
         ).pack(side=tk.LEFT)
 
         tk.Button(
-            btns, text="Save & Finish →",
+            btns, text="Save & Finish ?",
             font=("Arial", 12, "bold"), bg="dark cyan", fg="white",
             command=lambda: self.on_accept_detailed_grammar(win)
         ).pack(side=tk.RIGHT)
@@ -8884,11 +8884,11 @@ class GrammarApp:
             if ve:
                 entry["Vowel Ending"] = ve
             if num:
-                entry["Number / ਵਚਨ"] = num
+                entry["Number / ???"] = num
             if gram:
-                entry["Grammar / ਵਯਾਕਰਣ"] = gram
+                entry["Grammar / ??????"] = gram
             if gen:
-                entry["Gender / ਲਿੰਗ"] = gen
+                entry["Gender / ????"] = gen
             if root:
                 entry["Word Root"] = root
             # Keep existing fields: Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning
@@ -8931,14 +8931,14 @@ class GrammarApp:
 
     def _append_birha_csv_row(self, entry: dict, path: str = "1.1.1_birha.csv", require_confirm: bool = False, ui_parent=None):
         """Append a UTF-8 row to 1.1.1_birha.csv, creating it with headers if missing.
-        Expected headers: Vowel Ending, Number / ਵਚਨ, Grammar / ਵਯਾਕਰਣ, Gender / ਲਿੰਗ,
+        Expected headers: Vowel Ending, Number / ???, Grammar / ??????, Gender / ????,
         Word Root, Type, Evaluation, Reference Verse, Darpan Translation, Darpan Meaning, ChatGPT Commentry
         """
         headers = [
             "\ufeffVowel Ending",  # keep BOM in first header for compatibility with existing readers
-            "Number / ਵਚਨ",
-            "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",
+            "Number / ???",
+            "Grammar / ??????",
+            "Gender / ????",
             "Word Root",
             "Type",
             "Evaluation",
@@ -8954,9 +8954,9 @@ class GrammarApp:
         mapping = {
             "Vowel Ending": "Vowel Ending",
             "\ufeffVowel Ending": "Vowel Ending",
-            "Number / ਵਚਨ": "Number / ਵਚਨ",
-            "Grammar / ਵਯਾਕਰਣ": "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ": "Gender / ਲਿੰਗ",
+            "Number / ???": "Number / ???",
+            "Grammar / ??????": "Grammar / ??????",
+            "Gender / ????": "Gender / ????",
             "Word Root": "Word Root",
             "Type": "Type",
             "Evaluation": "Evaluation",
@@ -9618,9 +9618,9 @@ class GrammarApp:
         )
         translation_label.pack(fill=tk.X, padx=10, pady=(10, 5))
 
-        # Returns the real value if it isn’t NaN; otherwise it returns a “—” placeholder
+        # Returns the real value if it isn�t NaN; otherwise it returns a ��� placeholder
         def safe(val):
-            return val if pd.notna(val) else "—"
+            return val if pd.notna(val) else "�"
 
         # === Metadata (Raag, Writer, Bani, Page) ===
         metadata_frame = tk.Frame(main_frame, bg="light gray")
@@ -9727,8 +9727,8 @@ class GrammarApp:
         selected_items = set()
 
         columns = [
-            'Select', 'Word', 'Vowel Ending', 'Number / ਵਚਨ',
-            'Grammar / ਵਯਾਕਰਣ', 'Gender / ਲਿੰਗ', 'Word Type',
+            'Select', 'Word', 'Vowel Ending', 'Number / ???',
+            'Grammar / ??????', 'Gender / ????', 'Word Type',
             'Word Root', 'Word Index'
         ]
 
@@ -9768,9 +9768,9 @@ class GrammarApp:
                 "",  # checkbox
                 safe(self._norm_get(row, "Word")),
                 safe(self._norm_get(row, "\ufeffVowel Ending")),
-                safe(self._norm_get(row, "Number / ਵਚਨ")),
-                safe(self._norm_get(row, "Grammar / ਵਯਾਕਰਣ")),
-                safe(self._norm_get(row, "Gender / ਲਿੰਗ")),
+                safe(self._norm_get(row, "Number / ???")),
+                safe(self._norm_get(row, "Grammar / ??????")),
+                safe(self._norm_get(row, "Gender / ????")),
                 safe(self._norm_get(row, "Word Root")),
                 safe(self._norm_get(row, "Type")),
                 normalized_index
@@ -9782,7 +9782,7 @@ class GrammarApp:
             else:
                 tree.insert('', tk.END, iid=row_id, values=values, tags=('oddrow',))
 
-        # === Toggle ✓ in first column ===
+        # === Toggle ? in first column ===
         def on_tree_click(event):
             region = tree.identify_region(event.x, event.y)
             if region == 'cell':
@@ -9794,7 +9794,7 @@ class GrammarApp:
                         tree.set(row_id, 'Select', "")
                     else:
                         selected_items.add(row_id)
-                        tree.set(row_id, 'Select', "✓")
+                        tree.set(row_id, 'Select', "?")
 
         tree.bind('<Button-1>', on_tree_click)
 
@@ -9813,7 +9813,7 @@ class GrammarApp:
                     relief=tk.SUNKEN,
                     wrap=tk.WORD
                 )
-                self.results_text.pack_forget()  # Don’t show it to the user during re-analysis
+                self.results_text.pack_forget()  # Don�t show it to the user during re-analysis
 
             # Get column names to dynamically determine index of "Word" and "Word Index"
             column_names = tree["columns"]
@@ -9834,15 +9834,15 @@ class GrammarApp:
             if not selected_words_with_indices:
                 messagebox.showwarning(
                     "No Words Selected",
-                    "You haven’t selected any words for re-analysis.\n\n"
-                    "Click the ✓ box beside the word(s) you wish to re-analyze, then press the button again."
+                    "You haven�t selected any words for re-analysis.\n\n"
+                    "Click the ? box beside the word(s) you wish to re-analyze, then press the button again."
                 )
                 return
 
             # Step 1: Set context before any processing
             self.current_pankti = verse
             self.accumulated_pankti = verse
-            self.pankti_words = all_words_in_verse  # Keep '॥' if part of original flow
+            self.pankti_words = all_words_in_verse  # Keep '?' if part of original flow
             self.selected_verses = [verse]
             self.accumulated_meanings = [{} for _ in self.pankti_words]
             self.accumulated_finalized_matches = [[] for _ in self.pankti_words]
@@ -9911,9 +9911,9 @@ class GrammarApp:
                     self.past_word_details[idx] = {
                         "Word": word,
                         "\ufeffVowel Ending": self._norm_get(latest_row, "\ufeffVowel Ending") or "",
-                        "Number / ਵਚਨ": self._norm_get(latest_row, "Number / ਵਚਨ") or "",
-                        "Grammar / ਵਯਾਕਰਣ": self._norm_get(latest_row, "Grammar / ਵਯਾਕਰਣ") or "",
-                        "Gender / ਲਿੰਗ": self._norm_get(latest_row, "Gender / ਲਿੰਗ") or "",
+                        "Number / ???": self._norm_get(latest_row, "Number / ???") or "",
+                        "Grammar / ??????": self._norm_get(latest_row, "Grammar / ??????") or "",
+                        "Gender / ????": self._norm_get(latest_row, "Gender / ????") or "",
                         "Type": self._norm_get(latest_row, "Type") or "",
                         "Word Root": self._norm_get(latest_row, "Word Root") or "",
                         "Word Index": idx,
@@ -10119,22 +10119,22 @@ class GrammarApp:
         self.setup_options(
             right_pane,
             f"Do you know the Number of the word: '{word}'?",
-            [("Singular", "Singular / ਇਕ"), ("Plural", "Plural / ਬਹੁ"), ("Not Applicable", "NA")],
+            [("Singular", "Singular / ??"), ("Plural", "Plural / ???"), ("Not Applicable", "NA")],
             self.number_var
         )
         self.setup_options(
             right_pane,
             f"Do you know the Gender of the word: '{word}'?",
-            [("Masculine", "Masculine / ਪੁਲਿੰਗ"), ("Feminine", "Feminine / ਇਸਤਰੀ"), ("Neutral", "Trans / ਨਪੁਂਸਕ")],
+            [("Masculine", "Masculine / ??????"), ("Feminine", "Feminine / ?????"), ("Neutral", "Trans / ??????")],
             self.gender_var
         )
         self.setup_options(
             right_pane,
             f"Do you know the Part of Speech for the word: '{word}'?",
-            [("Noun", "Noun / ਨਾਂਵ"), ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
-            ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"), ("Verb", "Verb / ਕਿਰਿਆ"),
-            ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"), ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
-            ("Conjunction", "Conjunction / ਯੋਜਕ"), ("Interjection", "Interjection / ਵਿਸਮਿਕ")],
+            [("Noun", "Noun / ????"), ("Adjective", "Adjectives / ??????"),
+            ("Adverb", "Adverb / ????? ??????"), ("Verb", "Verb / ?????"),
+            ("Pronoun", "Pronoun / ??????"), ("Postposition", "Postposition / ??????"),
+            ("Conjunction", "Conjunction / ????"), ("Interjection", "Interjection / ??????")],
             self.pos_var
         )
 
@@ -10281,9 +10281,9 @@ class GrammarApp:
         heading_label.pack(pady=(5, 0))
 
         explanation_text = (
-            "• Highlighted selections (displayed in MistyRose) indicate the meanings or grammar rules that "
+            "� Highlighted selections (displayed in MistyRose) indicate the meanings or grammar rules that "
             "were previously confirmed in your assessment.\n"
-            "• This helps you quickly recognize which items reflect your earlier choices."
+            "� This helps you quickly recognize which items reflect your earlier choices."
         )
 
         body_label = tk.Label(
@@ -10292,7 +10292,7 @@ class GrammarApp:
             bg='AntiqueWhite', 
             fg='black', 
             font=('Arial', 12),
-            wraplength=900,    # Adjust wrap length to your window’s width
+            wraplength=900,    # Adjust wrap length to your window�s width
             justify=tk.LEFT
         )
         body_label.pack(pady=(0, 10), padx=10)
@@ -10552,7 +10552,7 @@ class GrammarApp:
         """Normalize grammar field keys for reanalysis highlight comparisons."""
         if not isinstance(key, str):
             return key
-        return key.replace("﻿", "").strip()
+        return key.replace("?", "").strip()
 
     def _reanalysis_allowed_highlight_fields(self):
         """Fields eligible for reanalysis highlight comparisons."""
@@ -10561,9 +10561,9 @@ class GrammarApp:
             return cached
         fields = (
             "Word",
-            "Number / ਵਚਨ",
-            "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",
+            "Number / ???",
+            "Grammar / ??????",
+            "Gender / ????",
             "Word Root",
             "Type",
         )
@@ -10695,7 +10695,7 @@ class GrammarApp:
             if pd.isna(v):
                 return ""
             # Turn into string, strip whitespace, remove BOM, and treat "NA" (any case) as empty
-            s = str(v).replace("﻿", "").strip()
+            s = str(v).replace("?", "").strip()
             return "" if s.upper() == "NA" else s
         return normalize(val1) == normalize(val2)
 
@@ -10703,8 +10703,8 @@ class GrammarApp:
         """
         Extract the fields that participate in reanalysis highlighting.
 
-        Returns a dict keyed by normalized field names for: Word, Number / ਵਚਨ,
-        Grammar / ਵਿਆਕਰਨ, Gender / ਲਿੰਗ, Word Root, and Type.
+        Returns a dict keyed by normalized field names for: Word, Number / ???,
+        Grammar / ??????, Gender / ????, Word Root, and Type.
         """
         normalized_assessment = {}
         for raw_key, value in (grammar_assessment or {}).items():
@@ -10723,9 +10723,9 @@ class GrammarApp:
         keys = (
             "Word",
             "Vowel Ending",
-            "Number / ਵਚਨ",
-            "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",
+            "Number / ???",
+            "Grammar / ??????",
+            "Gender / ????",
             "Word Root",
             "Type",
         )
@@ -10749,7 +10749,7 @@ class GrammarApp:
                 self.reset_input_variables()
                 self.user_input_reanalysis(word, pankti, index)
             else:
-                messagebox.showerror("Invalid Index", "Cannot return to word — index out of range.")
+                messagebox.showerror("Invalid Index", "Cannot return to word � index out of range.")
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred while going back: {e}")
@@ -10765,9 +10765,9 @@ class GrammarApp:
                 new_entry = {
                     "Word": data[0],
                     "\ufeffVowel Ending": data[1],
-                    "Number / ਵਚਨ": data[2],
-                    "Grammar / ਵਯਾਕਰਣ": data[3],
-                    "Gender / ਲਿੰਗ": data[4],
+                    "Number / ???": data[2],
+                    "Grammar / ??????": data[3],
+                    "Gender / ????": data[4],
                     "Word Root": data[5],
                     "Type": data[6]
                 }
@@ -10873,11 +10873,11 @@ class GrammarApp:
 
         for verse in self.selected_verses:
             self.accumulated_pankti = verse
-            current_verse_words = verse.replace('॥', '').split()
+            current_verse_words = verse.replace('?', '').split()
             selected_words = set(current_verse_words)
 
             # Filter grammar entries specific to this verse
-            # now you can pick only the entries for that exact word‐index
+            # now you can pick only the entries for that exact word-index
             filtered_new_entries = [
                 entry for entry in new_entries
                 if entry.get("Verse", "").strip() == verse.strip()
@@ -10889,8 +10889,8 @@ class GrammarApp:
             unique_entries = []
 
             keys = [
-                "Word", "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-                "Gender / ਲਿੰਗ", "Word Root", "Type", "Verse", 'Word Index'
+                "Word", "\ufeffVowel Ending", "Number / ???", "Grammar / ??????",
+                "Gender / ????", "Word Root", "Type", "Verse", 'Word Index'
             ]
 
             for entry in filtered_new_entries:
@@ -11011,13 +11011,13 @@ class GrammarApp:
             self.copy_button.config(state=tk.NORMAL)
 
     def normalize_save_results_reanalysis(self, v):
-        # Convert real NaN → ""
+        # Convert real NaN ? ""
         if pd.isna(v):
             return ""
-        # Convert None → ""
+        # Convert None ? ""
         if v is None:
             return ""
-        # Convert the literal string "NA" (any case, with whitespace) → ""
+        # Convert the literal string "NA" (any case, with whitespace) ? ""
         s = str(v).strip()
         return "" if s.upper() == "NA" else s
 
@@ -11162,9 +11162,9 @@ class GrammarApp:
                     clipboard_text += f"   - **Past Meanings:** {', '.join(past_meanings)}\n"
                 # Display grammar fields
                 clipboard_text += f"   - **Vowel Ending:** {self._norm_get(assessment_details, '\\ufeffVowel Ending') or 'N/A'}\n"
-                clipboard_text += f"   - **Number / ਵਚਨ:** {assessment_details.get('Number / ਵਚਨ', 'N/A')}\n"
-                clipboard_text += f"   - **Grammar / ਵਯਾਕਰਣ:** {assessment_details.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}\n"
-                clipboard_text += f"   - **Gender / ਲਿੰਗ:** {assessment_details.get('Gender / ਲਿੰਗ', 'N/A')}\n"
+                clipboard_text += f"   - **Number / ???:** {assessment_details.get('Number / ???', 'N/A')}\n"
+                clipboard_text += f"   - **Grammar / ??????:** {assessment_details.get('Grammar / ??????', 'N/A')}\n"
+                clipboard_text += f"   - **Gender / ????:** {assessment_details.get('Gender / ????', 'N/A')}\n"
                 clipboard_text += f"   - **Word Root:** {assessment_details.get('Word Root', 'N/A')}\n"
                 clipboard_text += f"   - **Word Type:** {self._norm_get(assessment_details, 'Type') or 'N/A'}\n"
 
@@ -11178,23 +11178,23 @@ class GrammarApp:
                         f"  - **Option {option_idx}:**\n"
                         f"      - **Word:** {self._norm_get(match, 'Word') or 'N/A'}\n"
                         f"      - **Vowel Ending:** {self._norm_get(match, '\\ufeffVowel Ending') or 'N/A'}\n"
-                        f"      - **Number / ਵਚਨ:** {match.get('Number / ਵਚਨ', 'N/A')}\n"
-                        f"      - **Grammar / ਵਯਾਕਰਣ:** {match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}\n"
-                        f"      - **Gender / ਲਿੰਗ:** {match.get('Gender / ਲਿੰਗ', 'N/A')}\n"
+                        f"      - **Number / ???:** {match.get('Number / ???', 'N/A')}\n"
+                        f"      - **Grammar / ??????:** {match.get('Grammar / ??????', 'N/A')}\n"
+                        f"      - **Gender / ????:** {match.get('Gender / ????', 'N/A')}\n"
                         f"      - **Word Root:** {match.get('Word Root', 'N/A')}\n"
                         f"      - **Type:** {self._norm_get(match, 'Type') or 'N/A'}\n"
                         f"      - **Literal Translation (Option {option_idx}):** The word '{word}' functions as a "
-                        f"'{self._norm_get(match, 'Type') or 'N/A'}' with '{match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}' usage, "
-                        f"in the '{match.get('Number / ਵਚਨ', 'N/A')}' form and '{match.get('Gender / ਲਿੰਗ', 'N/A')}' gender. Translation: …\n"
+                        f"'{self._norm_get(match, 'Type') or 'N/A'}' with '{match.get('Grammar / ??????', 'N/A')}' usage, "
+                        f"in the '{match.get('Number / ???', 'N/A')}' form and '{match.get('Gender / ????', 'N/A')}' gender. Translation: �\n"
                     )
             else:
                 clipboard_text += "  - No finalized grammar options available\n"
 
             clipboard_text += "\n"
 
-        if '॥' in current_verse_words:
+        if '?' in current_verse_words:
             clipboard_text += (
-                "**Symbol:** ॥\n"
+                "**Symbol:** ?\n"
                 "- **Meaning:** End of verse or sentence\n"
                 "- **Context:** Denotes the conclusion of the verse.\n\n"
             )
@@ -11296,12 +11296,12 @@ class GrammarApp:
         prompt_lines.append("The following grammar options are available:")
 
         fields = [
-            "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",   "Word Root", "Type"
+            "\ufeffVowel Ending", "Number / ???", "Grammar / ??????",
+            "Gender / ????",   "Word Root", "Type"
         ]
 
         for idx, entry in enumerate(word_entries, start=1):
-            # coerce each field to str, converting NaN → ""
+            # coerce each field to str, converting NaN ? ""
             parts = []
             for f in fields:
                 val = self._norm_get(entry, f) or ""
@@ -11361,12 +11361,12 @@ class GrammarApp:
         options_frame.bind("<Configure>", on_frame_configure)
 
         def as_str(val):
-            # turn real NaN → "" and everything else → string
+            # turn real NaN ? "" and everything else ? string
             return "" if pd.isna(val) else str(val)
 
         fields = [
-            "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ",
-            "Gender / ਲਿੰਗ",   "Word Root", "Type"
+            "\ufeffVowel Ending", "Number / ???", "Grammar / ??????",
+            "Gender / ????",   "Word Root", "Type"
         ]
 
         for idx, entry in enumerate(word_entries):
@@ -11459,8 +11459,8 @@ class GrammarApp:
         self._ensure_translation_for_reanalysis(new_entry)
 
         grammar_keys = [
-            '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
-            'Gender / ਲਿੰਗ', 'Word Root', 'Type'
+            '\ufeffVowel Ending', 'Number / ???', 'Grammar / ??????',
+            'Gender / ????', 'Word Root', 'Type'
         ]
 
         verse_value = new_entry.get("Verse")
@@ -11809,7 +11809,7 @@ class GrammarApp:
         self.input_submitted = False
         # normalize for repeat-note consistency
         verse_key = unicodedata.normalize(
-            "NFC", re.sub(r"\s+", " ", pankti.replace('॥', '').strip())
+            "NFC", re.sub(r"\s+", " ", pankti.replace('?', '').strip())
         )
         raw_tokens = pankti.split()
         word_norm = unicodedata.normalize("NFC", word.strip())
@@ -11817,7 +11817,7 @@ class GrammarApp:
         occurrence_idx = sum(
             1
             for tok in raw_tokens[:safe_idx]
-            if unicodedata.normalize("NFC", tok.strip().replace('॥', '')) == word_norm
+            if unicodedata.normalize("NFC", tok.strip().replace('?', '')) == word_norm
         )
         if occurrence_idx > 0 and not getattr(self, "_use_inline_literal_banner", True):
             self._maybe_show_repeat_important_note(word_norm, occurrence_idx, verse_key)
@@ -11948,22 +11948,22 @@ class GrammarApp:
         self.setup_options(
             right_pane,
             f"Do you know the Number of the word: '{word}'?",
-            [("Singular", "Singular / ਇਕ"), ("Plural", "Plural / ਬਹੁ"), ("Not Applicable", "NA")],
+            [("Singular", "Singular / ??"), ("Plural", "Plural / ???"), ("Not Applicable", "NA")],
             self.number_var
         )
         self.setup_options(
             right_pane,
             f"Do you know the Gender of the word: '{word}'?",
-            [("Masculine", "Masculine / ਪੁਲਿੰਗ"), ("Feminine", "Feminine / ਇਸਤਰੀ"), ("Neutral", "Trans / ਨਪੁਂਸਕ")],
+            [("Masculine", "Masculine / ??????"), ("Feminine", "Feminine / ?????"), ("Neutral", "Trans / ??????")],
             self.gender_var
         )
         self.setup_options(
             right_pane,
             f"Do you know the Part of Speech for the word: '{word}'?",
-            [("Noun", "Noun / ਨਾਂਵ"), ("Adjective", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"),
-            ("Adverb", "Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ"), ("Verb", "Verb / ਕਿਰਿਆ"),
-            ("Pronoun", "Pronoun / ਪੜਨਾਂਵ"), ("Postposition", "Postposition / ਸੰਬੰਧਕ"),
-            ("Conjunction", "Conjunction / ਯੋਜਕ"), ("Interjection", "Interjection / ਵਿਸਮਿਕ")],
+            [("Noun", "Noun / ????"), ("Adjective", "Adjectives / ??????"),
+            ("Adverb", "Adverb / ????? ??????"), ("Verb", "Verb / ?????"),
+            ("Pronoun", "Pronoun / ??????"), ("Postposition", "Postposition / ??????"),
+            ("Conjunction", "Conjunction / ????"), ("Interjection", "Interjection / ??????")],
             self.pos_var
         )
 
@@ -12099,9 +12099,9 @@ class GrammarApp:
         return " | ".join([
             d.get("Word",""),
             d.get("\ufeffVowel Ending",""),
-            d.get("Number / ਵਚਨ",""),
-            d.get("Grammar / ਵਯਾਕਰਣ",""),
-            d.get("Gender / ਲਿੰਗ",""),
+            d.get("Number / ???",""),
+            d.get("Grammar / ??????",""),
+            d.get("Gender / ????",""),
             d.get("Word Root",""),
             d.get("Type",""),
         ]).strip()
@@ -12120,9 +12120,9 @@ class GrammarApp:
                 new_entry = {
                     "Word": data[0],
                     "\ufeffVowel Ending": data[1],
-                    "Number / ਵਚਨ": data[2],
-                    "Grammar / ਵਯਾਕਰਣ": data[3],
-                    "Gender / ਲਿੰਗ": data[4],
+                    "Number / ???": data[2],
+                    "Grammar / ??????": data[3],
+                    "Gender / ????": data[4],
                     "Word Root": data[5],
                     "Type": data[6],
                 }
@@ -12230,7 +12230,7 @@ class GrammarApp:
                 mgr.maximize()
         except Exception:
             pass
-        # New window ⇒ allow a fresh one-time resize binding
+        # New window ? allow a fresh one-time resize binding
         self._inline_resize_bound = False
         try:
             # If the window is destroyed via an atypical path, ensure the next window can rebind
@@ -12296,7 +12296,7 @@ class GrammarApp:
         pankti_display.tag_config("highlight", foreground="red", font=('Arial', 32, 'bold'))
         pankti_display.config(state=tk.DISABLED)
 
-        # ----- Inline Important Note — Literal Analysis (conditional replica of reanalysis) -----
+        # ----- Inline Important Note � Literal Analysis (conditional replica of reanalysis) -----
         # Anchor just under the Pankti for deterministic placement (mirrors reanalysis)
         banner_anchor = tk.Frame(self.match_window, bg='light gray')
         banner_anchor.pack(fill=tk.X, padx=20, pady=(0, 0))
@@ -12322,7 +12322,7 @@ class GrammarApp:
                     pass
                 self.literal_note_frame = tk.Frame(banner_anchor, bg='AntiqueWhite', relief='groove', bd=2)
                 self.literal_note_title = tk.Label(self.literal_note_frame,
-                                                   text="Important Note — Literal Analysis",
+                                                   text="Important Note � Literal Analysis",
                                                    font=("Arial", 14, 'bold'),
                                                    bg='AntiqueWhite')
                 self.literal_note_title.pack(pady=(5, 0))
@@ -12332,9 +12332,9 @@ class GrammarApp:
                 self.literal_note_body.pack(pady=(0, 10), padx=10)
 
             explanation_text = (
-                "• Highlighted selections (displayed in Yellow) indicate the meanings or grammar rules that "
+                "� Highlighted selections (displayed in Yellow) indicate the meanings or grammar rules that "
                 "were previously confirmed in your assessment.\n"
-                "• This helps you quickly recognize which items reflect your earlier choices."
+                "� This helps you quickly recognize which items reflect your earlier choices."
             )
             self.literal_note_body.config(
                 text=explanation_text,
@@ -12702,7 +12702,7 @@ class GrammarApp:
         inflection_chars = self.break_into_characters(inflection)
 
         # Only consider specified endings for nouns
-        if (pos == "Noun / ਨਾਂਵ" or pos == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ") and inflection == 'ਮੁਕਤਾ':
+        if (pos == "Noun / ????" or pos == "Adjectives / ??????") and inflection == '?????':
             return 0  # No suffix match needed for this case
 
         # Initialize the match count
@@ -12882,7 +12882,7 @@ class GrammarApp:
             else:
                 self.fetch_data(word, pankti)  # Process current word
         else:
-            # All words processed—prompt to save using the global accumulator
+            # All words processed�prompt to save using the global accumulator
             self.save_results_btn.config(state=tk.NORMAL)
             self.prompt_save_results(self.all_new_entries)
 
@@ -12972,7 +12972,7 @@ class GrammarApp:
         bool: True if the word consists only of non-word characters; False otherwise.
         """
         # Regular expression pattern to match non-word characters and digits
-        pattern = r"^[^\w\s]*[\d॥]+[^\w\s]*$"
+        pattern = r"^[^\w\s]*[\d?]+[^\w\s]*$"
 
         # Check if the word matches the pattern
         return re.match(pattern, word) is not None
@@ -12982,12 +12982,12 @@ class GrammarApp:
         seen = set()  # To store unique combinations
 
         # Part of Speech: Noun, Verb
-        if pos in ["Noun / ਨਾਂਵ", "Verb / ਕਿਰਿਆ"]:
+        if pos in ["Noun / ????", "Verb / ?????"]:
             specified_endings = [
-                "ੌ", "ੋ", "ੈ", "ੇ", "ੂ", "ੁ", "ੀਹੋ", "ੀਹੂ", "ੀਏ", "ੀਈਂ", "ੀਈ", "ਏ",
-                "ੀਆ", "ੀਅੈ", "ੀਅਹੁ", "ੀਓ", "ੀਂ", "ੀ", "ਿਨ", "ਿਹੋ", "ਿਈਂ", "ਿਆਂ",
-                "ਿਆ", "ਿਅਨ", "ਿਅਹੁ", "ਿ", "ਾਰੂ", "ਾਹੁ", "ਾਹਿ", "ਾਂ", "ਾ", "ਹਿ",
-                "ਸੈ", "ਸ", "ਈਦਿ", "ਈ", "ਉ", "ਓ", "ਹਿਉ", "ਗਾ", "ਆ", "ਇ", "ਨ"
+                "?", "?", "?", "?", "?", "?", "???", "???", "??", "???", "??", "?",
+                "??", "???", "????", "??", "??", "?", "??", "???", "???", "???",
+                "??", "???", "????", "?", "???", "???", "???", "??", "?", "??",
+                "??", "?", "???", "?", "?", "?", "???", "??", "?", "?", "?"
             ]
 
             # Determine if the word is truly inflectionless
@@ -12995,26 +12995,26 @@ class GrammarApp:
 
             # Iterate through each rule in the grammar data
             for rule in self.grammar_data:
-                current_number = number if number != "NA" else rule['Number / ਵਚਨ']
-                current_gender = gender if gender != "NA" else rule['Gender / ਲਿੰਗ']
+                current_number = number if number != "NA" else rule['Number / ???']
+                current_gender = gender if gender != "NA" else rule['Gender / ????']
                 current_pos = pos if pos != "NA" else rule['Type']
 
-                # Handle the 'ਮੁਕਤਾ' case
-                include_mukta = is_inflectionless and current_pos == "Noun / ਨਾਂਵ"
+                # Handle the '?????' case
+                include_mukta = is_inflectionless and current_pos == "Noun / ????"
 
-                if include_mukta and rule['\ufeffVowel Ending'] == "ਮੁਕਤਾ" and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                if include_mukta and rule['\ufeffVowel Ending'] == "?????" and rule['Number / ???'] == current_number and rule['Gender / ????'] == current_gender and rule['Type'] == current_pos:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
                     match_count, match_percentage = (1, 100.0)
                     matches.append((result, match_count, match_percentage))
-                elif not include_mukta and rule['\ufeffVowel Ending'] != "ਮੁਕਤਾ" and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                elif not include_mukta and rule['\ufeffVowel Ending'] != "?????" and rule['Number / ???'] == current_number and rule['Gender / ????'] == current_gender and rule['Type'] == current_pos:
                     # Regular inflection matching
                     inflections = rule['\ufeffVowel Ending'].split()
                     for inflection in inflections:
@@ -13023,48 +13023,48 @@ class GrammarApp:
                             result = " | ".join([
                                 word,
                                 inflection,
-                                rule.get('Number / ਵਚਨ', ""),
-                                rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                                rule.get('Gender / ਲਿੰਗ', ""),
+                                rule.get('Number / ???', ""),
+                                rule.get('Grammar / ??????', ""),
+                                rule.get('Gender / ????', ""),
                                 rule.get('Word Root', ""),
                                 rule.get('Type', "")
                             ])
                             matches.append((result, match_count, match_percentage))
 
         # Part of Speech: Adjective (Always perform both searches)
-        elif pos == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ":
+        elif pos == "Adjectives / ??????":
             specified_endings = [
-                "ੌ", "ੋ", "ੈ", "ੇ", "ੂ", "ੁ", "ੀਹੋ", "ੀਹੂ", "ੀਏ", "ੀਈਂ", "ੀਈ", "ਏ",
-                "ੀਆ", "ੀਅੈ", "ੀਅਹੁ", "ੀਓ", "ੀਂ", "ੀ", "ਿਨ", "ਿਹੋ", "ਿਈਂ", "ਿਆਂ",
-                "ਿਆ", "ਿਅਨ", "ਿਅਹੁ", "ਿ", "ਾਰੂ", "ਾਹੁ", "ਾਹਿ", "ਾਂ", "ਾ", "ਹਿ",
-                "ਸੈ", "ਸ", "ਈਦਿ", "ਈ", "ਉ", "ਓ", "ਹਿਉ", "ਗਾ", "ਆ", "ਇ", "ਨ"
+                "?", "?", "?", "?", "?", "?", "???", "???", "??", "???", "??", "?",
+                "??", "???", "????", "??", "??", "?", "??", "???", "???", "???",
+                "??", "???", "????", "?", "???", "???", "???", "??", "?", "??",
+                "??", "?", "???", "?", "?", "?", "???", "??", "?", "?", "?"
             ]
 
             # Determine if the word is truly inflectionless
             is_inflectionless = all(not word.endswith(ending) for ending in specified_endings)
 
             for rule in self.grammar_data:
-                current_number = number if number != "NA" else rule['Number / ਵਚਨ']
-                current_gender = gender if gender != "NA" else rule['Gender / ਲਿੰਗ']
+                current_number = number if number != "NA" else rule['Number / ???']
+                current_gender = gender if gender != "NA" else rule['Gender / ????']
                 current_pos = pos if pos != "NA" else rule['Type']
 
-                # Handle the 'ਮੁਕਤਾ' case
-                include_mukta = is_inflectionless and current_pos == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ"
+                # Handle the '?????' case
+                include_mukta = is_inflectionless and current_pos == "Adjectives / ??????"
 
                 # Handle inflections (like Nouns)
-                if include_mukta and rule['\ufeffVowel Ending'] == "ਮੁਕਤਾ" and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                if include_mukta and rule['\ufeffVowel Ending'] == "?????" and rule['Number / ???'] == current_number and rule['Gender / ????'] == current_gender and rule['Type'] == current_pos:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
                     match_count, match_percentage = (1, 100.0)
                     matches.append((result, match_count, match_percentage))
-                elif not include_mukta and rule['\ufeffVowel Ending'] != "ਮੁਕਤਾ" and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                elif not include_mukta and rule['\ufeffVowel Ending'] != "?????" and rule['Number / ???'] == current_number and rule['Gender / ????'] == current_gender and rule['Type'] == current_pos:
                     inflections = rule['\ufeffVowel Ending'].split()
                     for inflection in inflections:
                         match_count, match_percentage = self.calculate_match_metrics(word, inflection)
@@ -13072,22 +13072,22 @@ class GrammarApp:
                             result = " | ".join([
                                 word,
                                 inflection,
-                                rule.get('Number / ਵਚਨ', ""),
-                                rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                                rule.get('Gender / ਲਿੰਗ', ""),
+                                rule.get('Number / ???', ""),
+                                rule.get('Grammar / ??????', ""),
+                                rule.get('Gender / ????', ""),
                                 rule.get('Word Root', ""),
                                 rule.get('Type', "")
                             ])
                             matches.append((result, match_count, match_percentage))
 
                 # Also check for exact matches (like Pronouns)
-                if word in rule['\ufeffVowel Ending'] and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == current_pos:
+                if word in rule['\ufeffVowel Ending'] and rule['Number / ???'] == current_number and rule['Gender / ????'] == current_gender and rule['Type'] == current_pos:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
@@ -13095,18 +13095,18 @@ class GrammarApp:
                     matches.append((result, match_count, match_percentage))
 
         # Part of Speech: Pronoun
-        elif pos == "Pronoun / ਪੜਨਾਂਵ":
+        elif pos == "Pronoun / ??????":
             for rule in self.grammar_data:
-                current_number = number if number != "NA" else rule['Number / ਵਚਨ']
-                current_gender = gender if gender != "NA" else rule['Gender / ਲਿੰਗ']
+                current_number = number if number != "NA" else rule['Number / ???']
+                current_gender = gender if gender != "NA" else rule['Gender / ????']
 
-                if word in rule['\ufeffVowel Ending'] and rule['Number / ਵਚਨ'] == current_number and rule['Gender / ਲਿੰਗ'] == current_gender and rule['Type'] == pos:
+                if word in rule['\ufeffVowel Ending'] and rule['Number / ???'] == current_number and rule['Gender / ????'] == current_gender and rule['Type'] == pos:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
@@ -13114,15 +13114,15 @@ class GrammarApp:
                     matches.append((result, match_count, match_percentage))
 
         # Part of Speech: Adverb, Postposition, Conjunction
-        elif pos in ["Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ", "Postposition / ਸੰਬੰਧਕ", "Conjunction / ਯੋਜਕ", "Interjection / ਵਿਸਮਿਕ"]:
+        elif pos in ["Adverb / ????? ??????", "Postposition / ??????", "Conjunction / ????", "Interjection / ??????"]:
             for rule in self.grammar_data:
                 if word in rule['\ufeffVowel Ending'] and rule['Type'] == pos:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
@@ -13150,10 +13150,10 @@ class GrammarApp:
 
         # Define the specified endings for inflectionless check
         specified_endings = [
-            "ੌ", "ੋ", "ੈ", "ੇ", "ੂ", "ੁ", "ੀਹੋ", "ੀਹੂ", "ੀਏ", "ੀਈਂ", "ੀਈ", "ਏ",
-            "ੀਆ", "ੀਅੈ", "ੀਅਹੁ", "ੀਓ", "ੀਂ", "ੀ", "ਿਨ", "ਿਹੋ", "ਿਈਂ", "ਿਆਂ",
-            "ਿਆ", "ਿਅਨ", "ਿਅਹੁ", "ਿ", "ਾਰੂ", "ਾਹੁ", "ਾਹਿ", "ਾਂ", "ਾ", "ਹਿ",
-            "ਸੈ", "ਸ", "ਈਦਿ", "ਈ", "ਉ", "ਓ", "ਹਿਉ", "ਗਾ", "ਆ", "ਇ", "ਨ"
+            "?", "?", "?", "?", "?", "?", "???", "???", "??", "???", "??", "?",
+            "??", "???", "????", "??", "??", "?", "??", "???", "???", "???",
+            "??", "???", "????", "?", "???", "???", "???", "??", "?", "??",
+            "??", "?", "???", "?", "?", "?", "???", "??", "?", "?", "?"
         ]
 
         # Determine if the word is truly inflectionless
@@ -13167,17 +13167,17 @@ class GrammarApp:
             rule_pos = rule['Type']
 
             # Noun, Adjective, and Verb processing
-            if rule_pos in ["Noun / ਨਾਂਵ", "Adjectives / ਵਿਸ਼ੇਸ਼ਣ", "Verb / ਕਿਰਿਆ"]:
-                include_mukta = is_inflectionless and (rule_pos == "Noun / ਨਾਂਵ" or rule_pos == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ")
+            if rule_pos in ["Noun / ????", "Adjectives / ??????", "Verb / ?????"]:
+                include_mukta = is_inflectionless and (rule_pos == "Noun / ????" or rule_pos == "Adjectives / ??????")
 
-                if include_mukta and rule['\ufeffVowel Ending'] == "ਮੁਕਤਾ":
-                    # Handle the 'ਮੁਕਤਾ' case
+                if include_mukta and rule['\ufeffVowel Ending'] == "?????":
+                    # Handle the '?????' case
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
@@ -13192,21 +13192,21 @@ class GrammarApp:
                             result = " | ".join([
                                 word,
                                 inflection,
-                                rule.get('Number / ਵਚਨ', ""),
-                                rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                                rule.get('Gender / ਲਿੰਗ', ""),
+                                rule.get('Number / ???', ""),
+                                rule.get('Grammar / ??????', ""),
+                                rule.get('Gender / ????', ""),
                                 rule.get('Word Root', ""),
                                 rule.get('Type', "")
                             ])
                             matches.append((result, match_count, match_percentage))
                     # Hybrid handling for Adjectives
-                    if rule_pos == "Adjectives / ਵਿਸ਼ੇਸ਼ਣ" and word in rule['\ufeffVowel Ending']:
+                    if rule_pos == "Adjectives / ??????" and word in rule['\ufeffVowel Ending']:
                         result = " | ".join([
                             word,
                             rule.get('\ufeffVowel Ending', ""),
-                            rule.get('Number / ਵਚਨ', ""),
-                            rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                            rule.get('Gender / ਲਿੰਗ', ""),
+                            rule.get('Number / ???', ""),
+                            rule.get('Grammar / ??????', ""),
+                            rule.get('Gender / ????', ""),
                             rule.get('Word Root', ""),
                             rule.get('Type', "")
                         ])
@@ -13214,14 +13214,14 @@ class GrammarApp:
                         matches.append((result, match_count, match_percentage))
 
             # Pronoun processing
-            elif rule_pos == "Pronoun / ਪੜਨਾਂਵ":
+            elif rule_pos == "Pronoun / ??????":
                 if word in rule['\ufeffVowel Ending']:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
@@ -13229,14 +13229,14 @@ class GrammarApp:
                     matches.append((result, match_count, match_percentage))
 
             # Adverb, Postposition, and Conjunction processing
-            elif rule_pos in ["Adverb / ਕਿਰਿਆ ਵਿਸੇਸ਼ਣ", "Postposition / ਸੰਬੰਧਕ", "Conjunction / ਯੋਜਕ", "Interjection / ਵਿਸਮਿਕ"]:
+            elif rule_pos in ["Adverb / ????? ??????", "Postposition / ??????", "Conjunction / ????", "Interjection / ??????"]:
                 if word in rule['\ufeffVowel Ending']:
                     result = " | ".join([
                         word,
                         rule.get('\ufeffVowel Ending', ""),
-                        rule.get('Number / ਵਚਨ', ""),
-                        rule.get('Grammar / ਵਯਾਕਰਣ', ""),
-                        rule.get('Gender / ਲਿੰਗ', ""),
+                        rule.get('Number / ???', ""),
+                        rule.get('Grammar / ??????', ""),
+                        rule.get('Gender / ????', ""),
                         rule.get('Word Root', ""),
                         rule.get('Type', "")
                     ])
@@ -13250,7 +13250,7 @@ class GrammarApp:
 
     def analyze_pankti(self):
         """
-        1) Get user’s typed verse/pankti.
+        1) Get user�s typed verse/pankti.
         2) Fuzzy-match it against SGGS data.
         3) Show radio buttons for each match so user can select exactly one.
         """
@@ -13342,8 +13342,8 @@ class GrammarApp:
         # Iterate over the rows in SGGS data
         for i, (_, row) in enumerate(self.sggs_data.iterrows()):
             verse_text = row['NormalizedVerse']
-            # Remove extra spaces around numbers within "॥" markers
-            verse_text = re.sub(r'॥\s*(\d+)\s*॥', r'॥\1॥', verse_text)
+            # Remove extra spaces around numbers within "?" markers
+            verse_text = re.sub(r'?\s*(\d+)\s*?', r'?\1?', verse_text)
             score = fuzz.token_sort_ratio(normalized_input, verse_text)
             if score >= min_score:
                 candidate_matches.append({
@@ -13843,8 +13843,8 @@ class GrammarApp:
         # Get the Special Type Demonstrator value.
         special_type = chosen_match.get('Special Type Demonstrator', '')
 
-        # If it's 'ਸ਼ਲੋਕ', then we don't ask the user because a ਸ਼ਲੋਕ is always a stanza.
-        if special_type == 'ਸ਼ਲੋਕ':
+        # If it's '????', then we don't ask the user because a ???? is always a stanza.
+        if special_type == '????':
             choice = False
         else:
             choice = messagebox.askyesno(
@@ -13956,7 +13956,7 @@ class GrammarApp:
     def load_existing_assessment_data(self, file_path):
         expected_columns = [
             "Verse", "Translation", "Translation Revision",
-            "Word", "Selected Darpan Meaning", "\ufeffVowel Ending", "Number / ਵਚਨ", "Grammar / ਵਯਾਕਰਣ", "Gender / ਲਿੰਗ", "Word Root", "Type", "Grammar Revision", "Word Index",
+            "Word", "Selected Darpan Meaning", "\ufeffVowel Ending", "Number / ???", "Grammar / ??????", "Gender / ????", "Word Root", "Type", "Grammar Revision", "Word Index",
             "S. No.", "Verse No.", "Stanza No.", "Text Set No.", "Raag (Fixed)", "Sub-Raag", "Writer (Fixed)",
             "Verse Configuration (Optional)", "Stanza Configuration (Optional)", "Bani Name", "Musical Note Configuration",
             "Special Type Demonstrator", "Verse Type", "Page Number",
@@ -13993,8 +13993,8 @@ class GrammarApp:
         
         # Define the grammar keys to compare (excluding Translation, which is updated separately).
         grammar_keys = [
-            '\ufeffVowel Ending', 'Number / ਵਚਨ', 'Grammar / ਵਯਾਕਰਣ',
-            'Gender / ਲਿੰਗ', 'Word Root', 'Type'
+            '\ufeffVowel Ending', 'Number / ???', 'Grammar / ??????',
+            'Gender / ????', 'Word Root', 'Type'
         ]
         
         # Update the Translation for all rows in the same verse.
@@ -14322,25 +14322,25 @@ class GrammarApp:
                         f"  - **Option {option_idx}:**\n"
                         f"      - **Word:** {self._norm_get(match, 'Word') or 'N/A'}\n"
                         f"      - **Vowel Ending:** {self._norm_get(match, '\\ufeffVowel Ending') or 'N/A'}\n"
-                        f"      - **Number / ਵਚਨ:** {match.get('Number / ਵਚਨ', 'N/A')}\n"
-                        f"      - **Grammar / ਵਯਾਕਰਣ:** {match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}\n"
-                        f"      - **Gender / ਲਿੰਗ:** {match.get('Gender / ਲਿੰਗ', 'N/A')}\n"
+                        f"      - **Number / ???:** {match.get('Number / ???', 'N/A')}\n"
+                        f"      - **Grammar / ??????:** {match.get('Grammar / ??????', 'N/A')}\n"
+                        f"      - **Gender / ????:** {match.get('Gender / ????', 'N/A')}\n"
                         f"      - **Word Root:** {match.get('Word Root', 'N/A')}\n"
                         f"      - **Type:** {self._norm_get(match, 'Type') or 'N/A'}\n"
                     )
                     clipboard_text += (
                         f"      - **Literal Translation (Option {option_idx}):** The word '{word}' functions as a "
-                        f"'{self._norm_get(match, 'Type') or 'N/A'}' with '{match.get('Grammar / ਵਯਾਕਰਣ', 'N/A')}' usage, in the "
-                        f"'{match.get('Number / ਵਚਨ', 'N/A')}' form and '{match.get('Gender / ਲਿੰਗ', 'N/A')}' gender. Translation: …\n"
+                        f"'{self._norm_get(match, 'Type') or 'N/A'}' with '{match.get('Grammar / ??????', 'N/A')}' usage, in the "
+                        f"'{match.get('Number / ???', 'N/A')}' form and '{match.get('Gender / ????', 'N/A')}' gender. Translation: �\n"
                     )
             else:
                 clipboard_text += "  - No finalized grammar options available\n"
             
             clipboard_text += "\n"
         
-        if '॥' in current_verse_words:
+        if '?' in current_verse_words:
             clipboard_text += (
-                "**Symbol:** ॥\n"
+                "**Symbol:** ?\n"
                 "- **Meaning:** End of verse or sentence\n"
                 "- **Context:** Denotes the conclusion of the verse.\n\n"
             )
@@ -14398,9 +14398,9 @@ class GrammarApp:
         for idx, entry in enumerate(word_entries, start=1):
             summary = " | ".join([
                 self._norm_get(entry, "\ufeffVowel Ending") or "",
-                self._norm_get(entry, "Number / ਵਚਨ") or "",
-                self._norm_get(entry, "Grammar / ਵਯਾਕਰਣ") or "",
-                self._norm_get(entry, "Gender / ਲਿੰਗ") or "",
+                self._norm_get(entry, "Number / ???") or "",
+                self._norm_get(entry, "Grammar / ??????") or "",
+                self._norm_get(entry, "Gender / ????") or "",
                 self._norm_get(entry, "Word Root") or "",
                 self._norm_get(entry, "Type") or ""
             ])
@@ -14472,9 +14472,9 @@ class GrammarApp:
         for idx, entry in enumerate(word_entries):
             summary = " | ".join([
                 self._norm_get(entry, "\ufeffVowel Ending") or "",
-                self._norm_get(entry, "Number / ਵਚਨ") or "",
-                self._norm_get(entry, "Grammar / ਵਯਾਕਰਣ") or "",
-                self._norm_get(entry, "Gender / ਲਿੰਗ") or "",
+                self._norm_get(entry, "Number / ???") or "",
+                self._norm_get(entry, "Grammar / ??????") or "",
+                self._norm_get(entry, "Gender / ????") or "",
                 self._norm_get(entry, "Word Root") or "",
                 self._norm_get(entry, "Type") or ""
             ])
@@ -14536,7 +14536,7 @@ class GrammarApp:
 
             # normalize for repeat-note consistency
             verse_key = unicodedata.normalize(
-                "NFC", re.sub(r"\s+", " ", verse_norm.replace('॥', '').strip())
+                "NFC", re.sub(r"\s+", " ", verse_norm.replace('?', '').strip())
             )
             current_verse_words = verse_key.split()
 
@@ -14560,9 +14560,9 @@ class GrammarApp:
             for new_entry in filtered_new_entries:
                 new_word = self._norm_get(new_entry, "Word")
                 new_ve = self._norm_get(new_entry, "\ufeffVowel Ending")
-                new_num = self._norm_get(new_entry, "Number / ਵਚਨ")
-                new_grammar = self._norm_get(new_entry, "Grammar / ਵਯਾਕਰਣ")
-                new_gender = self._norm_get(new_entry, "Gender / ਲਿੰਗ")
+                new_num = self._norm_get(new_entry, "Number / ???")
+                new_grammar = self._norm_get(new_entry, "Grammar / ??????")
+                new_gender = self._norm_get(new_entry, "Gender / ????")
                 new_root = self._norm_get(new_entry, "Word Root")
                 new_type = self._norm_get(new_entry, "Type")
                 new_verse = self._norm_get(new_entry, "Verse")
@@ -14570,9 +14570,9 @@ class GrammarApp:
                 if any(
                     new_word == self._norm_get(existing_entry, "Word") and
                     new_ve == self._norm_get(existing_entry, "\ufeffVowel Ending") and
-                    new_num == self._norm_get(existing_entry, "Number / ਵਚਨ") and
-                    new_grammar == self._norm_get(existing_entry, "Grammar / ਵਯਾਕਰਣ") and
-                    new_gender == self._norm_get(existing_entry, "Gender / ਲਿੰਗ") and
+                    new_num == self._norm_get(existing_entry, "Number / ???") and
+                    new_grammar == self._norm_get(existing_entry, "Grammar / ??????") and
+                    new_gender == self._norm_get(existing_entry, "Gender / ????") and
                     new_root == self._norm_get(existing_entry, "Word Root") and
                     new_type == self._norm_get(existing_entry, "Type") and
                     new_verse == self._norm_get(existing_entry, "Verse")
@@ -14989,6 +14989,24 @@ class GrammarApp:
         return total_match_count, max_match_percentage
 
 
+
+# === Axioms T1 (do not edit existing functions; additive only) ===
+
+def derive_axiom_category(framework: bool, explicit: bool) -> str:
+    """Return 'Primary', 'Secondary', or 'None' per contract mapping for later save-path use."""
+    if framework and explicit:
+        return "Primary"
+    if framework and not explicit:
+        return "Secondary"
+    return "None"
+
+
+def apply_framework_default(record: dict, key: str = "Framework?") -> dict:
+    """Return a copy with the framework flag defaulted so GrammarApp save flows can call it before persisting."""
+    updated = dict(record)
+    if key not in updated or updated[key] is None or updated[key] == "":
+        updated[key] = True
+    return updated
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
