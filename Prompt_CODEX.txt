@@ -3,135 +3,110 @@ Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only r
 You may only add new functions, dataclasses, constants, and unit tests.
 No renames, no signature changes, no in-place edits, no deleted lines in existing code.
 
-Full Prompt (Thorough) – Task 9
+---
 
-Context
-You are enhancing Birha v1.1.0 (Tkinter app). The source of truth is @Prompt_CODEX.txt and @0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx. Implement Task 9 only: the Keyword Manager, handling the four keyword categories per axiom (Literal Synonyms, Literal Antonyms, Spiritual Synonyms, Spiritual Antonyms). All changes must be additive.
+# Full Prompt (Thorough) – Task 10
 
-Non-negotiables
+**Context**
+You are enhancing *Birha v1.1.0* (Tkinter app). The source of truth is **@Prompt_CODEX.txt** and **@0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx**. Implement **Task 10 only**: the Non-Explicit Linking Flow, ensuring Secondary verses (Explicit?=0) are linked to one or more Primary verses. All changes must be additive. 
 
-Do not alter any existing functions, constants, or strings in 1.1.0_birha.py. Treat current code as read-only reference.
+---
 
-No renames, refactors, in-place edits, or deletions.
+**Non-negotiables**
 
-Add all new code only under this header:
-# === Axioms T9: Keyword Manager (additive only) ===
+* Do **not** alter any existing functions, constants, or strings in `1.1.0_birha.py`.
+* No renames, refactors, in-place edits, or deletions.
+* Add all new code only under this header:
+  `# === Axioms T10: Non-Explicit Linking Flow (additive only) ===`
+* Canonical headers and string constants must remain untouched.
 
-Canonical headers and string constants must remain untouched.
+---
 
-Deliverables
+**Deliverables**
 
-New functions
+1. **New UI dialog**
+   `class NonExplicitLinkDialog(tk.Toplevel):`
 
-def build_keywords_prompt(
-    axiom_id: str,
-    bucket: str,
+* Launched when user finalizes an axiom for a verse with `Explicit?=0`.
+* Provides search box + list of candidate Primary verses (from `AxiomContribStore` with category=Primary).
+* Allows selecting one or more supporting Primaries.
+* Shows warnings if none selected.
+* On save: writes parent/supporting relations to `AxiomContributions`.
+
+2. **New functions**
+
+```python
+def link_secondary_to_primary(
+    secondary_verse_key: str,
+    primary_verse_keys: List[str],
     store_path: Optional[Union[str, Path]] = None
-) -> str:
+) -> None:
     """
-    Build a structured prompt for managing keywords in the given bucket.
-    Sections include:
-      - Current keywords for this axiom in the specified bucket
-      - Guidance for generating new keywords (synonyms/antonyms, literal/spiritual)
-      - Deduplication notice and cross-axiom density warnings
-    Returns a markdown/plaintext string.
+    Persist supporting relations for a Secondary verse.
+    Raises ValueError if no primary_verse_keys provided.
+    Detects and rejects circular references.
     """
 
-def merge_keywords(
-    axiom_id: str,
-    bucket: str,
-    new_keywords: List[str],
+def find_candidate_primaries(
     store_path: Optional[Union[str, Path]] = None
 ) -> List[dict]:
     """
-    Merge a list of candidate keywords into the store for this axiom+bucket.
-      - Deduplicates case-insensitively
-      - Skips stop-words and too-short tokens
-      - Preserves prior entries with timestamps
-    Returns the updated keyword list.
+    Return list of all Primary contributions in the store
+    (axiom_id, verse_key, category).
     """
+```
 
-def delete_keyword(
-    axiom_id: str,
-    bucket: str,
-    keyword: str,
-    store_path: Optional[Union[str, Path]] = None
-) -> bool:
-    """
-    Delete a keyword from the specified axiom+bucket if present.
-    Returns True if deleted, False if not found.
-    """
+3. **Logic rules**
 
+* Secondary verses **must** link to at least one Primary; otherwise finalization is blocked.
+* Store the relation by writing supporting rows in `AxiomContributions` with fields:
 
-Content rules
+  * `axiom_id` (from the selected Primary)
+  * `verse_key` (Secondary’s key)
+  * `category="Secondary"`
+  * `is_supporting_of=primary_verse_key`
+* Detect circular references (no Secondary can indirectly support itself through chains).
 
-Buckets supported: "LiteralSyn", "LiteralAnt", "SpiritualSyn", "SpiritualAnt".
+---
 
-Stop-words: ignore generic tokens like “and”, “the”, “of”.
+**Acceptance Criteria**
 
-Min length: ignore tokens shorter than 3 chars.
+* When Explicit?=0, finalization triggers the Non-Explicit Link dialog.
+* User must select ≥1 Primary; cannot save without this.
+* Relations persisted to `AxiomContributions` correctly (including `is_supporting_of`).
+* Circular references are rejected with clear error.
+* Unit tests confirm:
 
-Deduplicate within bucket case-insensitively.
+  * Attempt to finalize with no Primary raises ValueError.
+  * Linking succeeds with valid Primary(s).
+  * Circular detection prevents invalid chains.
+* No regressions to existing Explicit (Primary) linking flows.
 
-Cross-axiom density: compute frequency of each keyword across all axioms; mark those that appear in more than N axioms (e.g. N=5) with a warning in the prompt.
+---
 
-Prompt output should have clear sections: Current Keywords, Guidance for New Keywords, Warnings.
+**Tests**
+File: `tests/axioms/test_task10_nonexplicit.py`
 
-Optional helpers
+* `test_link_secondary_requires_primary()` → must raise if no primaries.
+* `test_link_secondary_to_single_primary()` → persists relation correctly.
+* `test_link_secondary_to_multiple_primaries()` → all links recorded.
+* `test_detect_circular_reference()` → reject loop.
+* `test_find_candidate_primaries_returns_only_primary()` → returns correct filtered list.
+* Use `TemporaryDirectory` and mock Excel stores for isolation.
 
-_normalize_keyword(token: str) -> str for canonical form.
+---
 
-_cross_axiom_keyword_density(keyword: str) -> int to count usage across all axioms.
+**PR Workflow**
 
-Acceptance Criteria
+* Branch: `feature/axioms-T10-nonexplicit-linking`
+* Commit: `feat(axioms): T10 add Non-Explicit Linking Flow (Secondary → Primary)`
+* PR Title: `Axioms T10 — Non-Explicit Linking Flow (Secondary → Primary)`
+* PR Body Checklist:
 
-build_keywords_prompt() produces a string listing current keywords, guidance, and warnings.
+  * [ ] Additive only, no edits to existing functions/constants
+  * [ ] Secondary verses cannot finalize without Primary link(s)
+  * [ ] Parent/supporting relations stored in AxiomContributions
+  * [ ] Circular references prevented
+  * [ ] Unit tests green
 
-merge_keywords() adds new tokens, rejects duplicates, ignores invalids, and preserves existing entries.
-
-delete_keyword() removes exact matches when requested.
-
-Case-insensitive dedupe works (e.g., “Truth” vs “truth”).
-
-Cross-axiom density warnings appear when a keyword occurs in >N axioms.
-
-Unit tests cover merges, deletes, dedupes, and warnings.
-
-No modifications to existing code outside additive header.
-
-Tests
-File: tests/axioms/test_task9_keywords.py
-
-test_merge_keywords_adds_and_dedupes() → add mixed-case words, confirm deduplication.
-
-test_merge_keywords_filters_stopwords_and_short_tokens() → confirm these are skipped.
-
-test_delete_keyword_removes_entry() → ensure True/False return is correct.
-
-test_build_keywords_prompt_includes_current_and_warnings() → prompt lists existing + warning for high-density words.
-
-test_cross_axiom_density_check() → confirm frequency counts trigger warnings at threshold.
-
-Use TemporaryDirectory and mock Excel stores for isolation.
-
-PR Workflow
-
-Branch: feature/axioms-T9-keyword-manager
-
-Commit: feat(axioms): T9 add keyword manager (4 buckets, additive only)
-
-PR Title: Axioms T9 — Keyword Manager (4 Buckets)
-
-PR Body Checklist:
-
- Additive only, no edits to existing functions/constants
-
- build_keywords_prompt() outputs structured keyword guidance
-
- merge_keywords() dedupes, filters, preserves history
-
- delete_keyword() works correctly
-
- Cross-axiom density check included
-
- Unit tests green
+---
