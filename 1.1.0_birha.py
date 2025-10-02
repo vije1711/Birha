@@ -2722,7 +2722,7 @@ class GrammarApp:
                 self._derived_cache = None
                 self._derived_cache_mtime = None
                 return suggestions
-            df.columns = [str(c).lstrip("") for c in df.columns]
+            df.columns = [str(c).lstrip("\ufeff") for c in df.columns]
             self._derived_cache = df
             self._derived_cache_mtime = mtime
         else:
