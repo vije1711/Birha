@@ -17577,12 +17577,13 @@ def find_candidate_primaries(
 
 def link_secondary_to_primary(
     secondary_verse_key: str,
-    primary_verse_keys: List[str],
+    primary_verse_keys: List[Union[str, Tuple[str, str], dict]],
     store_path: Optional[Union[str, Path]] = None,
 ) -> None:
     """
     Persist supporting relations for a Secondary verse.
-    Raises ValueError if no primary_verse_keys provided or circular reference detected.
+    Accepts either raw verse strings, (axiom_id, verse_key) tuples, or primary records.
+    Raises ValueError if selections are missing, ambiguous, or circular.
     """
     normalized_secondary = _normalize_verse_key(secondary_verse_key or "")
     if not normalized_secondary:
@@ -17595,58 +17596,106 @@ def link_secondary_to_primary(
     _ensure_t10_support_column_initialized(store)
 
     candidates = find_candidate_primaries(store_path=store_path)
-    candidate_map: Dict[str, List[dict]] = {}
+    candidate_lookup: Dict[Tuple[str, str], dict] = {}
+    verse_lookup: Dict[str, List[dict]] = {}
     for record in candidates:
-        verse_key = _normalize_verse_key(record.get("verse_key") or "")
-        if verse_key:
-            candidate_map.setdefault(verse_key, []).append(record)
-
-    normalized_primaries: List[str] = []
-    seen: Set[str] = set()
-    for key in primary_verse_keys:
-        normalized = _normalize_verse_key(key or "")
-        if not normalized:
+        axiom_token = str(record.get("axiom_id") or "").strip()
+        verse_value = record.get("verse_key")
+        normalized_verse = _normalize_verse_key(verse_value or "")
+        if not axiom_token or not normalized_verse:
             continue
-        if normalized == normalized_secondary:
-            raise ValueError("Secondary verse cannot link to itself")
-        if normalized not in candidate_map:
-            raise ValueError(f"Primary verse not recognized: {key}")
-        if normalized not in seen:
-            normalized_primaries.append(normalized)
-            seen.add(normalized)
+        pair = (axiom_token, normalized_verse)
+        candidate_lookup[pair] = record
+        verse_lookup.setdefault(normalized_verse, []).append(record)
 
-    if not normalized_primaries:
+    selection_entries: List[Tuple[str, str]] = []
+    selected_records: List[dict] = []
+    seen_pairs: Set[Tuple[str, str]] = set()
+
+    for entry in primary_verse_keys:
+        raw_verse: Optional[str] = None
+        axiom_identifier: str = ""
+        candidate_record: Optional[dict] = None
+
+        if isinstance(entry, dict):
+            raw_verse = entry.get("verse_key")
+            candidate_axiom = entry.get("axiom_id")
+            if candidate_axiom is not None:
+                axiom_identifier = str(candidate_axiom).strip()
+        elif isinstance(entry, (tuple, list)) and len(entry) >= 2:
+            axiom_candidate = entry[0]
+            raw_verse = entry[1]
+            if axiom_candidate is not None:
+                axiom_identifier = str(axiom_candidate).strip()
+        else:
+            raw_verse = entry
+
+        normalized_primary = _normalize_verse_key(raw_verse or "")
+        if not normalized_primary:
+            continue
+
+        if axiom_identifier:
+            pair = (axiom_identifier, normalized_primary)
+            candidate_record = candidate_lookup.get(pair)
+            if candidate_record is None:
+                raise ValueError(
+                    f"Primary selection not recognized for axiom {axiom_identifier}: {raw_verse}"
+                )
+        else:
+            matching = verse_lookup.get(normalized_primary, [])
+            if not matching:
+                raise ValueError(f"Primary verse not recognized: {raw_verse}")
+            if len(matching) > 1:
+                raise ValueError(
+                    f"Primary verse '{raw_verse}' maps to multiple axioms; specify which axiom to link."
+                )
+            candidate_record = matching[0]
+            axiom_identifier = str(candidate_record.get("axiom_id") or "").strip()
+            if not axiom_identifier:
+                raise ValueError(f"Primary selection missing axiom id: {raw_verse}")
+            pair = (axiom_identifier, normalized_primary)
+
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+        selection_entries.append(pair)
+        selected_records.append(candidate_record if candidate_record is not None else dict(entry))
+
+    if not selection_entries:
         raise ValueError("No valid primary verse keys provided")
 
     graph = _build_support_graph(store)
-    for primary_key in normalized_primaries:
-        if _detect_cycle(primary_key, normalized_secondary, graph):
+    for _, normalized_primary in selection_entries:
+        if _detect_cycle(normalized_primary, normalized_secondary, graph):
             raise ValueError(
-                f"Linking {normalized_secondary} to {primary_key} would create a circular reference"
+                f"Linking {normalized_secondary} to {normalized_primary} would create a circular reference"
             )
-        graph.setdefault(normalized_secondary, set()).add(primary_key)
+        graph.setdefault(normalized_secondary, set()).add(normalized_primary)
 
-    for primary_key in normalized_primaries:
-        records = candidate_map.get(primary_key, [])
-        for record in records:
-            axiom_id = record.get("axiom_id")
-            if not axiom_id:
-                continue
-            revision_seen = record.get("translation_revision_seen")
-            try:
-                revision_value = int(revision_seen) if revision_seen is not None else 0
-            except (ValueError, TypeError):
-                revision_value = 0
-            display_key = record.get("verse_key") or primary_key
-            contribution_notes = f"Supporting Primary: {display_key}"
-            _update_supporting_relation(
-                store,
-                axiom_id,
-                normalized_secondary,
-                primary_key,
-                notes=contribution_notes,
-                revision_value=revision_value,
-            )
+    for (axiom_identifier, _), record in zip(selection_entries, selected_records):
+        axiom_id = axiom_identifier
+        if not axiom_id:
+            axiom_id = str(record.get("axiom_id") or "").strip()
+        if not axiom_id:
+            continue
+        revision_seen = record.get("translation_revision_seen") if isinstance(record, dict) else None
+        try:
+            revision_value = int(revision_seen) if revision_seen is not None else 0
+        except (ValueError, TypeError):
+            revision_value = 0
+        primary_value = record.get("verse_key") if isinstance(record, dict) else None
+        if not primary_value:
+            primary_value = _normalize_verse_key(record if isinstance(record, str) else "")
+        display_key = primary_value or "(unknown primary)"
+        contribution_notes = f"Supporting Primary: {display_key}"
+        _update_supporting_relation(
+            store,
+            axiom_id,
+            normalized_secondary,
+            primary_value,
+            notes=contribution_notes,
+            revision_value=revision_value,
+        )
 
 
 def _format_primary_label(record: dict) -> str:
@@ -17740,23 +17789,23 @@ class NonExplicitLinkDialog(tk.Toplevel):
         else:
             self.message_var.set("")
 
-    def _selected_primary_keys(self) -> List[str]:
+    def _selected_primary_keys(self) -> List[dict]:
         indices = self.listbox.curselection()
-        keys: List[str] = []
+        selections: List[dict] = []
         for idx in indices:
             if 0 <= idx < len(self._filtered):
-                keys.append(self._filtered[idx].get("verse_key", ""))
-        return keys
+                selections.append(dict(self._filtered[idx]))
+        return selections
 
     def _on_save(self) -> None:
-        selected_keys = self._selected_primary_keys()
-        if not selected_keys:
+        selected_records = self._selected_primary_keys()
+        if not selected_records:
             self.message_var.set("Select at least one Primary verse before linking.")
             return
         try:
             link_secondary_to_primary(
                 secondary_verse_key=self.secondary_normalized or self.secondary_verse_key,
-                primary_verse_keys=selected_keys,
+                primary_verse_keys=selected_records,
                 store_path=self.store_path,
             )
         except ValueError as exc:

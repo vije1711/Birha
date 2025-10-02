@@ -100,49 +100,54 @@ class NonExplicitLinkingTaskTest(unittest.TestCase):
             self.assertIn(_normalize_verse_key(primary_key_one), {m[1] for m in matching})
             self.assertIn(_normalize_verse_key(primary_key_two), {m[1] for m in matching})
 
-    def test_link_secondary_to_multiple_primaries_same_axiom(self):
+    def test_link_secondary_same_verse_different_axioms(self):
         with TemporaryDirectory() as tmp_dir:
             store_path = Path(tmp_dir) / "1.3.0_axioms.xlsx"
-            axiom = create_axiom("Unified Law", store_path=store_path)
+            axiom_one = create_axiom("Unified Law A", store_path=store_path)
+            axiom_two = create_axiom("Unified Law B", store_path=store_path)
 
-            primary_one = "ang:truth beacon"
-            primary_two = "ang:truth echo"
+            shared_primary = "ang:truth beacon"
 
             link_contribution(
-                axiom["axiom_id"],
-                primary_one,
+                axiom_one["axiom_id"],
+                shared_primary,
                 category="Primary",
                 store_path=store_path,
             )
             link_contribution(
-                axiom["axiom_id"],
-                primary_two,
+                axiom_two["axiom_id"],
+                shared_primary,
                 category="Primary",
                 store_path=store_path,
             )
+
+            primaries = find_candidate_primaries(store_path=store_path)
+            selected = [
+                record
+                for record in primaries
+                if record.get("axiom_id") in {axiom_one["axiom_id"], axiom_two["axiom_id"]}
+            ]
+            self.assertEqual(len(selected), 2)
 
             secondary_key = "ang:devotee reflection"
             link_secondary_to_primary(
                 secondary_key,
-                [primary_one, primary_two],
+                selected,
                 store_path=store_path,
             )
 
             contrib_store = AxiomContribStore(store_path=store_path)
             normalized_secondary = _normalize_verse_key(secondary_key)
-            records = contrib_store.list_contributions(axiom_id=axiom["axiom_id"])
+            records = contrib_store.list_contributions()
             secondary_rows = [
                 r
                 for r in records
                 if r.get("verse_key") == normalized_secondary and r.get("category") == "Secondary"
             ]
             self.assertEqual(len(secondary_rows), 2)
-            supporting = {r.get("is_supporting_of") for r in secondary_rows}
-            expected = {
-                _normalize_verse_key(primary_one),
-                _normalize_verse_key(primary_two),
-            }
-            self.assertEqual(supporting, expected)
+            axiom_ids = {r.get("axiom_id") for r in secondary_rows}
+            self.assertEqual(axiom_ids, {axiom_one["axiom_id"], axiom_two["axiom_id"]})
+            self.assertTrue(all(r.get("is_supporting_of") == _normalize_verse_key(shared_primary) for r in secondary_rows))
 
     def test_detect_circular_reference(self):
         with TemporaryDirectory() as tmp_dir:
