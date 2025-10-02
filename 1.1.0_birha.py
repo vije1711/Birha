@@ -16780,6 +16780,7 @@ def link_contributions_bulk(
         )
         results.append(record)
     return results
+
 # === Axioms T7: Finalize Axiom Prompt Generator (additive only) ===
 
 from typing import Mapping as _Mapping
