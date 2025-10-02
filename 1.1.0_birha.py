@@ -17163,10 +17163,18 @@ def save_description(
         raise ValueError("type must be 'verse_specific' or 'axiom_specific'")
 
     desc_store = AxiomDescStore(store_path=store_path)
+    normalized_key: Optional[str] = None
+    if type == "verse_specific":
+        if not verse_key:
+            raise ValueError("verse_key is required for verse_specific descriptions")
+        normalized_key = _normalize_verse_key(verse_key)
+        if not normalized_key:
+            raise ValueError("verse_key could not be normalized")
+
     current_records = desc_store.list_descriptions(
         axiom_id,
         type=type,
-        verse_key=_normalize_verse_key(verse_key) if verse_key and type == "verse_specific" else None,
+        verse_key=normalized_key,
     )
     latest = _select_latest_description(current_records)
 

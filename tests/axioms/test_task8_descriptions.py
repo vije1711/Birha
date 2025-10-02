@@ -9,6 +9,7 @@ import pandas as pd
 MODULE_PATH = Path(__file__).resolve().parents[2] / "1.1.0_birha.py"
 
 
+
 def _load_birha_module():
     spec = importlib.util.spec_from_file_location("birha_module_t8", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
@@ -80,6 +81,30 @@ class AxiomDescriptionsEngineTest(unittest.TestCase):
                 store_path=store_path,
             )
             self.assertEqual(verse_saved_again["revision"], 0)
+
+    def test_save_description_requires_normalizable_verse_key(self):
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            store_path = tmp / "1.3.0_axioms.xlsx"
+            axiom = create_axiom("Law", store_path=store_path)
+
+            with self.assertRaises(ValueError):
+                save_description(
+                    axiom["axiom_id"],
+                    type="verse_specific",
+                    verse_key=None,
+                    text="Missing key",
+                    store_path=store_path,
+                )
+
+            with self.assertRaises(ValueError):
+                save_description(
+                    axiom["axiom_id"],
+                    type="verse_specific",
+                    verse_key="   ",
+                    text="Blank key",
+                    store_path=store_path,
+                )
 
     def test_build_description_prompt_includes_context(self):
         with TemporaryDirectory() as tmp_dir:
