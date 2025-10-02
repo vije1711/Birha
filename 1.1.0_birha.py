@@ -14988,6 +14988,7 @@ class GrammarApp:
 
         return total_match_count, max_match_percentage
 
+
 # === Axioms T1 (do not edit existing functions; additive only) ===
 
 def derive_axiom_category(framework: bool, explicit: bool) -> str:
@@ -15538,6 +15539,7 @@ if __name__ == "__main__":
     app = GrammarApp(root)
     root.mainloop()
 
+
 # === Axioms T3: Workbench UI Shell (additive only) ===
 
 class AxiomsWorkbench(tk.Toplevel):
@@ -15960,6 +15962,8 @@ def register_axioms_workbench_menu(root: tk.Misc) -> tk.Menu:
     axioms_menu.add_command(label="Open Workbench", command=_open)
     menu_bar.add_cascade(label="Axioms", menu=axioms_menu)
     return axioms_menu
+
+
 # === Axioms T4: Pause/Resume Driver (additive only) ===
 
 from dataclasses import dataclass
@@ -16376,6 +16380,7 @@ def start_axiom_driver_for(
         except Exception:
             pass
 
+
 # === Axioms T5: Reanalysis Scanner (additive only) ===
 
 from dataclasses import dataclass, field
@@ -16681,6 +16686,7 @@ def scan_for_axiom_work(
 
     return results
 
+
 # === Axioms T6: Axiom Catalog CRUD (additive only) ===
 
 from typing import Iterable as _Iterable
@@ -16780,6 +16786,7 @@ def link_contributions_bulk(
         )
         results.append(record)
     return results
+
 
 # === Axioms T7: Finalize Axiom Prompt Generator (additive only) ===
 
@@ -16984,3 +16991,198 @@ def build_axiom_finalization_prompt(
     lines.append("4. Provide contribution notes capturing literal insight vs. spiritual inference for downstream descriptions.")
 
     return "\n".join(lines)
+
+
+# === Axioms T8: Descriptions Engine (additive only) ===
+
+from typing import Literal as _Literal
+
+
+def _select_latest_description(records: Sequence[dict]) -> Optional[dict]:
+    if not records:
+        return None
+    sorted_records = sorted(
+        records,
+        key=lambda item: (
+            int(item.get("revision", 0) or 0),
+            str(item.get("updated_at", "")),
+        ),
+        reverse=True,
+    )
+    return sorted_records[0]
+
+
+def build_description_prompt(
+    axiom_id: str,
+    *,
+    verse_key: Optional[str] = None,
+    assessment_path: Optional[Union[str, Path]] = None,
+    store_path: Optional[Union[str, Path]] = None,
+) -> str:
+    """Assemble a markdown prompt guiding verse-specific vs axiom-specific description updates."""
+    if not axiom_id:
+        raise ValueError("axiom_id is required")
+
+    contrib_store = AxiomContribStore(store_path=store_path)
+    axioms_store = AxiomsStore(store_path=store_path)
+    desc_store = AxiomDescStore(store_path=store_path)
+
+    axioms_index = _load_axioms_index(axioms_store)
+    raw_axiom = axioms_index.get(axiom_id)
+    if raw_axiom is None:
+        raise ValueError(f"Unknown axiom id: {axiom_id}")
+    if isinstance(raw_axiom, dict):
+        axiom = raw_axiom
+    else:
+        try:
+            axiom = dict(raw_axiom)
+        except Exception:
+            converter = getattr(raw_axiom, 'to_dict', None)
+            if callable(converter):
+                axiom = converter()
+            else:
+                axiom = {'axiom_id': axiom_id}
+
+    verse_context: Optional[dict] = None
+    normalized_key = ""
+    if verse_key:
+        normalized_key = _normalize_verse_key(verse_key)
+        if normalized_key:
+            verse_context = _load_assessment_context(
+                normalized_key,
+                assessment_path=Path(assessment_path or "1.2.1 assessment_data.xlsx"),
+            )
+
+    verse_descriptions = desc_store.list_descriptions(
+        axiom_id,
+        type="verse_specific",
+        verse_key=normalized_key or None,
+    )
+    latest_verse_desc = _select_latest_description(verse_descriptions)
+
+    axiom_descriptions = desc_store.list_descriptions(
+        axiom_id,
+        type="axiom_specific",
+    )
+    latest_axiom_desc = _select_latest_description(axiom_descriptions)
+
+    contributions = contrib_store.list_contributions(axiom_id=axiom_id)
+    linked_verses = sorted({record.get("verse_key") for record in contributions if record.get("verse_key")})
+
+    lines: List[str] = []
+    lines.append(f"# Description Update for Axiom `{axiom_id}`")
+    lines.append("")
+    lines.append("## Current Axiom Law")
+    lines.append(f"- Law: {axiom.get('axiom_law', '(no law recorded)')}")
+    lines.append(f"- Status: {axiom.get('status', 'NA')}")
+    lines.append("")
+
+    lines.append("## Existing Descriptions")
+    if latest_axiom_desc:
+        lines.append("### Axiom-Specific (latest)")
+        lines.append(f"- Revision: {latest_axiom_desc.get('revision', 0)}")
+        lines.append(f"- Updated: {latest_axiom_desc.get('updated_at', 'NA')}")
+        lines.append("")
+        lines.append(latest_axiom_desc.get("description", "").strip() or "(empty)")
+        lines.append("")
+    else:
+        lines.append("- No axiom-specific description recorded yet.")
+        lines.append("")
+
+    if verse_context:
+        lines.append(f"### Verse-Specific for `{normalized_key}`")
+        if latest_verse_desc:
+            lines.append(f"- Revision: {latest_verse_desc.get('revision', 0)}")
+            lines.append(f"- Updated: {latest_verse_desc.get('updated_at', 'NA')}")
+            lines.append("")
+            lines.append(latest_verse_desc.get("description", "").strip() or "(empty)")
+        else:
+            lines.append("- No verse-specific description recorded yet.")
+        lines.append("")
+
+    if verse_context:
+        lines.append("## Verse Context")
+        lines.append(f"- Verse: {verse_context.get('verse_text', '(unavailable)')}")
+        lines.append(f"- Translation: {verse_context.get('translation', '(unavailable)')}")
+        lines.append(f"- Framework?: {_format_bool(verse_context.get('is_framework', False))}")
+        lines.append(f"- Explicit?: {_format_bool(verse_context.get('is_explicit', False))}")
+        if verse_context.get("grammar_highlights"):
+            lines.append("")
+            lines.append("### Grammar Highlights")
+            for entry in verse_context["grammar_highlights"]:
+                word = entry.get("word", "")
+                detail = ", ".join(
+                    part
+                    for part in [
+                        entry.get("meaning"),
+                        entry.get("grammar"),
+                        entry.get("pos"),
+                        entry.get("number"),
+                        entry.get("gender"),
+                    ]
+                    if part
+                )
+                lines.append(f"- **{word}** — {detail or 'no detail'}")
+        lines.append("")
+
+    lines.append("## Linked Verses")
+    if linked_verses:
+        for key in linked_verses:
+            lines.append(f"- {key}")
+    else:
+        lines.append("- No linked verses yet.")
+    lines.append("")
+
+    lines.append("## Guidance")
+    lines.append("1. Draft a verse-specific description when a verse introduces fresh nuance; keep it concise and literal.")
+    lines.append("2. Update axiom-specific description when the overall law shifts meaningfully; increment revision via save helper.")
+    lines.append("3. Note whether adjustments stem from translation changes, new supporting verses, or reinterpretation.")
+
+    return "\n".join(lines)
+
+
+def save_description(
+    axiom_id: str,
+    *,
+    type: _Literal["verse_specific", "axiom_specific"],
+    text: str,
+    verse_key: Optional[str] = None,
+    store_path: Optional[Union[str, Path]] = None,
+) -> dict:
+    """Persist a description entry, incrementing axiom-specific revisions on change."""
+    if not axiom_id:
+        raise ValueError("axiom_id is required")
+    if type not in {"verse_specific", "axiom_specific"}:
+        raise ValueError("type must be 'verse_specific' or 'axiom_specific'")
+
+    desc_store = AxiomDescStore(store_path=store_path)
+    current_records = desc_store.list_descriptions(
+        axiom_id,
+        type=type,
+        verse_key=_normalize_verse_key(verse_key) if verse_key and type == "verse_specific" else None,
+    )
+    latest = _select_latest_description(current_records)
+
+    cleaned_text = (text or "").strip()
+    if latest and latest.get("description", "").strip() == cleaned_text:
+        return latest
+
+    revision = 0
+    if type == "axiom_specific" and latest:
+        revision = int(latest.get("revision", 0) or 0) + 1
+    elif latest:
+        revision = int(latest.get("revision", 0) or 0)
+
+    normalized_key = None
+    if type == "verse_specific" and verse_key:
+        normalized_key = _normalize_verse_key(verse_key)
+        if not normalized_key:
+            raise ValueError("verse_key could not be normalized")
+
+    return desc_store.add_description(
+        axiom_id=axiom_id,
+        type=type,
+        description=cleaned_text,
+        verse_key=normalized_key,
+        revision=revision,
+    )
