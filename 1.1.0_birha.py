@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import os
 import logging
 from tkinter import messagebox, scrolledtext, simpledialog
@@ -2137,7 +2137,7 @@ def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, p
         state_col = "Row State"
         df[state_col] = ""
 
-    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
+    ve_col = _resolve_col(df, "Vowel Ending", "Vowel Ending")
     ref_col = _resolve_col(df, "Reference Verse", "Verse")
     idx_col = _resolve_col(df, "Word Index", "word_index")
 
@@ -2722,14 +2722,14 @@ class GrammarApp:
                 self._derived_cache = None
                 self._derived_cache_mtime = None
                 return suggestions
-            df.columns = [str(c).lstrip("﻿") for c in df.columns]
+            df.columns = [str(c).lstrip("") for c in df.columns]
             self._derived_cache = df
             self._derived_cache_mtime = mtime
         else:
             df = cache_df
         if df is None or getattr(df, "empty", True):
             return suggestions
-        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("﻿Vowel Ending" if "﻿Vowel Ending" in df.columns else None)
+        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("Vowel Ending" if "Vowel Ending" in df.columns else None)
         ecol = "Evaluation" if "Evaluation" in df.columns else None
         if not vcol or not ecol:
             return suggestions
@@ -3891,7 +3891,7 @@ class GrammarApp:
         except Exception:
             grammar_df = pd.DataFrame()
 
-        ve_col = _resolve_col(grammar_df, "﻿Vowel Ending", "Vowel Ending") if not grammar_df.empty else None
+        ve_col = _resolve_col(grammar_df, "Vowel Ending", "Vowel Ending") if not grammar_df.empty else None
         num_col = _resolve_col(grammar_df, COL_NUMBER, "Number") if not grammar_df.empty else None
         gram_col = _resolve_col(grammar_df, COL_GRAMMAR, "Grammar") if not grammar_df.empty else None
         gender_col = _resolve_col(grammar_df, COL_GENDER, "Gender") if not grammar_df.empty else None
@@ -10552,7 +10552,7 @@ class GrammarApp:
         """Normalize grammar field keys for reanalysis highlight comparisons."""
         if not isinstance(key, str):
             return key
-        return key.replace("﻿", "").strip()
+        return key.replace("", "").strip()
 
     def _reanalysis_allowed_highlight_fields(self):
         """Fields eligible for reanalysis highlight comparisons."""
@@ -10695,7 +10695,7 @@ class GrammarApp:
             if pd.isna(v):
                 return ""
             # Turn into string, strip whitespace, remove BOM, and treat "NA" (any case) as empty
-            s = str(v).replace("﻿", "").strip()
+            s = str(v).replace("", "").strip()
             return "" if s.upper() == "NA" else s
         return normalize(val1) == normalize(val2)
 
@@ -17472,7 +17472,6 @@ def _ensure_t10_support_column_initialized(store: AxiomContribStore) -> None:
         sheets["AxiomContributions"] = frame
         store._write_all_sheets(sheets)
     elif frame.empty:
-        # Ensure the workbook persists the new column even when empty.
         store._write_all_sheets(sheets)
 
 
@@ -17511,14 +17510,55 @@ def _update_supporting_relation(
     axiom_id: str,
     secondary_key: str,
     primary_key: str,
+    *,
+    notes: str,
+    revision_value: int,
 ) -> None:
     sheets = store._read_all_sheets()
     frame = sheets["AxiomContributions"]
-    mask = (frame["axiom_id"] == axiom_id) & (frame["verse_key"] == secondary_key)
-    if not mask.any():
-        raise ValueError("Unable to locate contribution to update supporting relation")
-    idx = frame.index[mask][0]
-    frame.at[idx, AXIOMS_T10_SUPPORTING_COLUMN] = primary_key
+    if AXIOMS_T10_SUPPORTING_COLUMN not in frame.columns:
+        frame = frame.copy()
+        frame[AXIOMS_T10_SUPPORTING_COLUMN] = pd.Series([None] * len(frame), dtype="object")
+    timestamp = store._timestamp()
+    mask = (
+        (frame["axiom_id"] == axiom_id)
+        & (frame["verse_key"] == secondary_key)
+        & (frame["category"] == "Secondary")
+    )
+    subset = frame[mask]
+    normalized_primary = _normalize_verse_key(primary_key)
+    existing_targets = subset[AXIOMS_T10_SUPPORTING_COLUMN].fillna("").map(_normalize_verse_key)
+    int_revision = int(revision_value)
+
+    target_indices = [idx for idx, value in zip(subset.index, existing_targets) if value == normalized_primary]
+    blank_indices = [idx for idx, value in zip(subset.index, existing_targets) if not value]
+
+    if target_indices:
+        idx = target_indices[0]
+        frame.at[idx, "contribution_notes"] = notes or ""
+        frame.at[idx, "translation_revision_seen"] = int_revision
+        frame.at[idx, "updated_at"] = timestamp
+    elif blank_indices:
+        idx = blank_indices[0]
+        frame.at[idx, AXIOMS_T10_SUPPORTING_COLUMN] = normalized_primary
+        frame.at[idx, "contribution_notes"] = notes or ""
+        frame.at[idx, "translation_revision_seen"] = int_revision
+        frame.at[idx, "updated_at"] = timestamp
+        if not frame.at[idx, "created_at"]:
+            frame.at[idx, "created_at"] = timestamp
+    else:
+        record = {
+            "axiom_id": axiom_id,
+            "verse_key": secondary_key,
+            "category": "Secondary",
+            "contribution_notes": notes or "",
+            "translation_revision_seen": int_revision,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+            AXIOMS_T10_SUPPORTING_COLUMN: normalized_primary,
+        }
+        frame = pd.concat([frame, pd.DataFrame([record])], ignore_index=True)
+
     sheets["AxiomContributions"] = frame
     store._write_all_sheets(sheets)
 
@@ -17597,21 +17637,22 @@ def link_secondary_to_primary(
                 revision_value = int(revision_seen) if revision_seen is not None else 0
             except (ValueError, TypeError):
                 revision_value = 0
-            contribution_notes = f"Supporting Primary: {primary_key}"
-            store.link_contribution(
-                axiom_id=axiom_id,
-                verse_key=normalized_secondary,
-                category="Secondary",
-                contribution_notes=contribution_notes,
-                translation_revision_seen=revision_value,
+            display_key = record.get("verse_key") or primary_key
+            contribution_notes = f"Supporting Primary: {display_key}"
+            _update_supporting_relation(
+                store,
+                axiom_id,
+                normalized_secondary,
+                primary_key,
+                notes=contribution_notes,
+                revision_value=revision_value,
             )
-            _update_supporting_relation(store, axiom_id, normalized_secondary, primary_key)
 
 
 def _format_primary_label(record: dict) -> str:
     verse_key = record.get("verse_key") or "(unknown verse)"
     axiom_id = record.get("axiom_id") or "(axiom?)"
-    return f"{verse_key} — {axiom_id}"
+    return f"{verse_key} - {axiom_id}"
 
 
 class NonExplicitLinkDialog(tk.Toplevel):

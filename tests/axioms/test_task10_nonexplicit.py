@@ -100,6 +100,50 @@ class NonExplicitLinkingTaskTest(unittest.TestCase):
             self.assertIn(_normalize_verse_key(primary_key_one), {m[1] for m in matching})
             self.assertIn(_normalize_verse_key(primary_key_two), {m[1] for m in matching})
 
+    def test_link_secondary_to_multiple_primaries_same_axiom(self):
+        with TemporaryDirectory() as tmp_dir:
+            store_path = Path(tmp_dir) / "1.3.0_axioms.xlsx"
+            axiom = create_axiom("Unified Law", store_path=store_path)
+
+            primary_one = "ang:truth beacon"
+            primary_two = "ang:truth echo"
+
+            link_contribution(
+                axiom["axiom_id"],
+                primary_one,
+                category="Primary",
+                store_path=store_path,
+            )
+            link_contribution(
+                axiom["axiom_id"],
+                primary_two,
+                category="Primary",
+                store_path=store_path,
+            )
+
+            secondary_key = "ang:devotee reflection"
+            link_secondary_to_primary(
+                secondary_key,
+                [primary_one, primary_two],
+                store_path=store_path,
+            )
+
+            contrib_store = AxiomContribStore(store_path=store_path)
+            normalized_secondary = _normalize_verse_key(secondary_key)
+            records = contrib_store.list_contributions(axiom_id=axiom["axiom_id"])
+            secondary_rows = [
+                r
+                for r in records
+                if r.get("verse_key") == normalized_secondary and r.get("category") == "Secondary"
+            ]
+            self.assertEqual(len(secondary_rows), 2)
+            supporting = {r.get("is_supporting_of") for r in secondary_rows}
+            expected = {
+                _normalize_verse_key(primary_one),
+                _normalize_verse_key(primary_two),
+            }
+            self.assertEqual(supporting, expected)
+
     def test_detect_circular_reference(self):
         with TemporaryDirectory() as tmp_dir:
             store_path = Path(tmp_dir) / "1.3.0_axioms.xlsx"
