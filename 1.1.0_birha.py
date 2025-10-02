@@ -17089,8 +17089,15 @@ def build_description_prompt(
         lines.append("- No axiom-specific description recorded yet.")
         lines.append("")
 
-    if verse_context:
-        lines.append(f"### Verse-Specific for `{normalized_key}`")
+    verse_label = None
+    if latest_verse_desc:
+        verse_label = latest_verse_desc.get('verse_key') or normalized_key or (verse_key or '(verse key unavailable)')
+    elif normalized_key or verse_key:
+        verse_label = normalized_key or (verse_key or '(verse key unavailable)')
+
+    if verse_context or verse_label:
+        display_key = verse_label or normalized_key or (verse_key or '(verse key unavailable)')
+        lines.append(f"### Verse-Specific for `{display_key}`")
         if latest_verse_desc:
             lines.append(f"- Revision: {latest_verse_desc.get('revision', 0)}")
             lines.append(f"- Updated: {latest_verse_desc.get('updated_at', 'NA')}")
