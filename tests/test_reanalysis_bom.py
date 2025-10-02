@@ -30,3 +30,6 @@ class ReanalysisBomTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    def test_safe_equal_strips_bom(self):
+        app = GrammarApp.__new__(GrammarApp)
+        self.assertTrue(app.safe_equal_matches_reanalysis("\ufeffਕਾ", "ਕਾ"))
