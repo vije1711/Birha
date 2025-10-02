@@ -17201,3 +17201,250 @@ def save_description(
         verse_key=normalized_key,
         revision=revision,
     )
+
+# === Axioms T9: Keyword Manager (additive only) ===
+AXIOMS_T9_KEYWORD_MIN_LENGTH = 3
+AXIOMS_T9_KEYWORD_DENSITY_THRESHOLD = 5
+AXIOMS_T9_KEYWORD_STOP_WORDS = {
+    "and",
+    "the",
+    "of",
+    "for",
+    "to",
+    "in",
+    "is",
+    "are",
+    "be",
+    "was",
+    "were",
+    "has",
+    "have",
+    "had",
+    "with",
+    "from",
+    "that",
+    "this",
+}
+AXIOMS_T9_BUCKET_GUIDANCE = {
+    "LiteralSyn": "Focus on literal Punjabi/Hindi/English equivalents that preserve surface meaning.",
+    "LiteralAnt": "List literal counter-terms or negations that appear in translations or commentaries.",
+    "SpiritualSyn": "Capture metaphors, titles, and spiritual attributes that align with the axiom.",
+    "SpiritualAnt": "Document spiritual pitfalls or opposing concepts that the axiom warns against.",
+}
+
+
+def _normalize_keyword(token: str) -> str:
+    """Normalize keyword text for comparisons (case-fold, trim, collapse whitespace)."""
+    if token is None:
+        return ""
+    normalized = unicodedata.normalize("NFKC", str(token)).strip()
+    if not normalized:
+        return ""
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.lower()
+
+
+def _is_valid_keyword(token: str) -> bool:
+    normalized = _normalize_keyword(token)
+    if not normalized:
+        return False
+    if len(normalized) < AXIOMS_T9_KEYWORD_MIN_LENGTH:
+        return False
+    if normalized in AXIOMS_T9_KEYWORD_STOP_WORDS:
+        return False
+    return True
+
+
+def _keyword_sort_key(record: dict) -> tuple[str, str]:
+    keyword = str(record.get("keyword", ""))
+    updated = str(record.get("updated_at", ""))
+    return (_normalize_keyword(keyword), updated)
+
+
+def _build_keyword_density_map(store: AxiomKeywordsStore) -> dict[str, int]:
+    frame = store._read_all_sheets()["AxiomKeywords"]
+    if frame.empty:
+        return {}
+    density: dict[str, set[str]] = {}
+    for entry in store._frame_to_records("AxiomKeywords", frame):
+        axiom_id = (entry.get("axiom_id") or "").strip()
+        keyword = _normalize_keyword(entry.get("keyword"))
+        if not axiom_id or not keyword:
+            continue
+        density.setdefault(keyword, set()).add(axiom_id)
+    return {keyword: len(ids) for keyword, ids in density.items()}
+
+
+def _cross_axiom_keyword_density(
+    keyword: str,
+    store_path: Optional[Union[str, Path]] = None,
+) -> int:
+    """Return the number of distinct axioms that already use this keyword."""
+    normalized = _normalize_keyword(keyword)
+    if not normalized:
+        return 0
+    store = AxiomKeywordsStore(store_path=store_path)
+    density_map = _build_keyword_density_map(store)
+    return density_map.get(normalized, 0)
+
+
+_DEF_BUCKET_NAMES = tuple(sorted(AxiomKeywordsStore.KEYWORD_BUCKETS))
+
+
+def build_keywords_prompt(
+    axiom_id: str,
+    bucket: str,
+    store_path: Optional[Union[str, Path]] = None,
+) -> str:
+    """
+    Build a structured prompt for managing keywords in the given bucket.
+    Sections include current keywords, guidance, and warnings.
+    """
+    if not axiom_id:
+        raise ValueError("axiom_id is required")
+    if bucket not in AxiomKeywordsStore.KEYWORD_BUCKETS:
+        raise ValueError(f"bucket must be one of {_DEF_BUCKET_NAMES}")
+
+    store = AxiomKeywordsStore(store_path=store_path)
+    current_records = store.list_keywords(axiom_id, bucket)
+    density_map = _build_keyword_density_map(store)
+
+    sorted_records = sorted(current_records, key=_keyword_sort_key)
+
+    warning_lines: list[str] = []
+    for record in sorted_records:
+        keyword = record.get("keyword") or ""
+        normalized = _normalize_keyword(keyword)
+        density = density_map.get(normalized, 0)
+        if density > AXIOMS_T9_KEYWORD_DENSITY_THRESHOLD:
+            warning_lines.append(
+                (
+                    f"Keyword '{keyword}' appears in {density} axioms (>"
+                    f"{AXIOMS_T9_KEYWORD_DENSITY_THRESHOLD}). Consider refining for specificity."
+                )
+            )
+
+    lines: list[str] = []
+    lines.append(f"# Keyword Manager for Axiom `{axiom_id}`")
+    lines.append(f"- Bucket: {bucket}")
+    lines.append("")
+    lines.append("## Current Keywords")
+    if sorted_records:
+        for record in sorted_records:
+            keyword = record.get("keyword") or ""
+            weight = record.get("weight", 1)
+            source = record.get("source", "generated")
+            updated_at = record.get("updated_at", "NA")
+            density = density_map.get(_normalize_keyword(keyword), 0)
+            lines.append(
+                f"- {keyword} (weight: {weight}, source: {source}, updated: {updated_at}, axioms: {density})"
+            )
+    else:
+        lines.append("- No keywords recorded yet.")
+    lines.append("")
+
+    lines.append("## Guidance for New Keywords")
+    bucket_guidance = AXIOMS_T9_BUCKET_GUIDANCE.get(bucket)
+    if bucket_guidance:
+        lines.append(f"- {bucket_guidance}")
+    lines.append(
+        f"- Provide concise single or hyphenated tokens; entries shorter than {AXIOMS_T9_KEYWORD_MIN_LENGTH} characters or stop-words are auto-filtered."
+    )
+    lines.append("- Include both original script and transliteration when it clarifies nuance.")
+    lines.append("- Avoid duplicates; the store merges case-insensitively across existing entries.")
+    lines.append("")
+
+    lines.append("## Warnings")
+    if warning_lines:
+        for warning in warning_lines:
+            lines.append(f"- {warning}")
+    else:
+        lines.append("- No density warnings; feel free to propose fresh candidates.")
+    lines.append("")
+
+    lines.append("### Cross-Axiom Density Guide")
+    lines.append(
+        f"- Keywords used in more than {AXIOMS_T9_KEYWORD_DENSITY_THRESHOLD} distinct axioms trigger the warnings above so each axiom keeps distinct vocabulary."
+    )
+    lines.append("- Prioritize specificity: tie keywords back to verse context or unique theological framing when reuse is high.")
+
+    return "\n".join(lines)
+
+
+def merge_keywords(
+    axiom_id: str,
+    bucket: str,
+    new_keywords: List[str],
+    store_path: Optional[Union[str, Path]] = None,
+) -> List[dict]:
+    """Merge candidate keywords into the axiom bucket, enforcing filters and dedupe rules."""
+    if not axiom_id:
+        raise ValueError("axiom_id is required")
+    if bucket not in AxiomKeywordsStore.KEYWORD_BUCKETS:
+        raise ValueError(f"bucket must be one of {_DEF_BUCKET_NAMES}")
+    if new_keywords is None:
+        raise ValueError("new_keywords must be provided")
+
+    store = AxiomKeywordsStore(store_path=store_path)
+    existing_records = store.list_keywords(axiom_id, bucket)
+    seen = {
+        _normalize_keyword(record.get("keyword"))
+        for record in existing_records
+        if record.get("keyword")
+    }
+
+    additions: list[str] = []
+    for token in new_keywords:
+        normalized = _normalize_keyword(token)
+        if not _is_valid_keyword(token):
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        additions.append((token or "").strip())
+
+    if additions:
+        store.add_keywords(axiom_id, bucket, additions)
+
+    updated = store.list_keywords(axiom_id, bucket)
+    return sorted(updated, key=_keyword_sort_key)
+
+
+def delete_keyword(
+    axiom_id: str,
+    bucket: str,
+    keyword: str,
+    store_path: Optional[Union[str, Path]] = None,
+) -> bool:
+    """Delete a keyword from the specified axiom and bucket if it exists."""
+    if not axiom_id:
+        raise ValueError("axiom_id is required")
+    if bucket not in AxiomKeywordsStore.KEYWORD_BUCKETS:
+        raise ValueError(f"bucket must be one of {_DEF_BUCKET_NAMES}")
+    normalized_target = _normalize_keyword(keyword)
+    if not normalized_target:
+        return False
+
+    store = AxiomKeywordsStore(store_path=store_path)
+    sheets = store._read_all_sheets()
+    frame = sheets["AxiomKeywords"]
+    if frame.empty:
+        return False
+
+    mask = (frame["axiom_id"] == axiom_id) & (frame["bucket"] == bucket)
+    subset = frame[mask]
+    if subset.empty:
+        return False
+
+    to_drop: list[int] = []
+    for idx, row in subset.iterrows():
+        existing_keyword = _normalize_keyword(row.get("keyword"))
+        if existing_keyword == normalized_target:
+            to_drop.append(idx)
+
+    if not to_drop:
+        return False
+
+    sheets["AxiomKeywords"] = frame.drop(index=to_drop)
+    store._write_all_sheets(sheets)
+    return True
