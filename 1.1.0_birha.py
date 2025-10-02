@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import os
 import logging
 from tkinter import messagebox, scrolledtext, simpledialog
@@ -2137,7 +2137,7 @@ def _update_birha_row_state(word: str, verse: str, word_index, new_state: str, p
         state_col = "Row State"
         df[state_col] = ""
 
-    ve_col = _resolve_col(df, "﻿Vowel Ending", "Vowel Ending")
+    ve_col = _resolve_col(df, "Vowel Ending", "Vowel Ending")
     ref_col = _resolve_col(df, "Reference Verse", "Verse")
     idx_col = _resolve_col(df, "Word Index", "word_index")
 
@@ -2722,14 +2722,14 @@ class GrammarApp:
                 self._derived_cache = None
                 self._derived_cache_mtime = None
                 return suggestions
-            df.columns = [str(c).lstrip("﻿") for c in df.columns]
+            df.columns = [str(c).lstrip("\ufeff") for c in df.columns]
             self._derived_cache = df
             self._derived_cache_mtime = mtime
         else:
             df = cache_df
         if df is None or getattr(df, "empty", True):
             return suggestions
-        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("﻿Vowel Ending" if "﻿Vowel Ending" in df.columns else None)
+        vcol = "Vowel Ending" if "Vowel Ending" in df.columns else ("Vowel Ending" if "Vowel Ending" in df.columns else None)
         ecol = "Evaluation" if "Evaluation" in df.columns else None
         if not vcol or not ecol:
             return suggestions
@@ -3891,7 +3891,7 @@ class GrammarApp:
         except Exception:
             grammar_df = pd.DataFrame()
 
-        ve_col = _resolve_col(grammar_df, "﻿Vowel Ending", "Vowel Ending") if not grammar_df.empty else None
+        ve_col = _resolve_col(grammar_df, "Vowel Ending", "Vowel Ending") if not grammar_df.empty else None
         num_col = _resolve_col(grammar_df, COL_NUMBER, "Number") if not grammar_df.empty else None
         gram_col = _resolve_col(grammar_df, COL_GRAMMAR, "Grammar") if not grammar_df.empty else None
         gender_col = _resolve_col(grammar_df, COL_GENDER, "Gender") if not grammar_df.empty else None
@@ -10552,7 +10552,7 @@ class GrammarApp:
         """Normalize grammar field keys for reanalysis highlight comparisons."""
         if not isinstance(key, str):
             return key
-        return key.replace("﻿", "").strip()
+        return key.replace("\ufeff", "").strip()
 
     def _reanalysis_allowed_highlight_fields(self):
         """Fields eligible for reanalysis highlight comparisons."""
@@ -10695,7 +10695,7 @@ class GrammarApp:
             if pd.isna(v):
                 return ""
             # Turn into string, strip whitespace, remove BOM, and treat "NA" (any case) as empty
-            s = str(v).replace("﻿", "").strip()
+            s = str(v).replace("", "").strip()
             return "" if s.upper() == "NA" else s
         return normalize(val1) == normalize(val2)
 
@@ -17448,3 +17448,370 @@ def delete_keyword(
     sheets["AxiomKeywords"] = frame.drop(index=to_drop)
     store._write_all_sheets(sheets)
     return True
+
+# === Axioms T10: Non-Explicit Linking Flow (additive only) ===
+AXIOMS_T10_SUPPORTING_COLUMN = "is_supporting_of"
+
+
+def _ensure_t10_support_column_schema() -> None:
+    columns = AxiomContribStore.SHEET_SCHEMAS.get("AxiomContributions")
+    if not columns:
+        return
+    if AXIOMS_T10_SUPPORTING_COLUMN not in columns:
+        updated = tuple(list(columns) + [AXIOMS_T10_SUPPORTING_COLUMN])
+        AxiomContribStore.SHEET_SCHEMAS["AxiomContributions"] = updated
+
+
+def _ensure_t10_support_column_initialized(store: AxiomContribStore) -> None:
+    _ensure_t10_support_column_schema()
+    sheets = store._read_all_sheets()
+    frame = sheets["AxiomContributions"]
+    if AXIOMS_T10_SUPPORTING_COLUMN not in frame.columns:
+        frame = frame.copy()
+        frame[AXIOMS_T10_SUPPORTING_COLUMN] = pd.Series([None] * len(frame), dtype="object")
+        sheets["AxiomContributions"] = frame
+        store._write_all_sheets(sheets)
+    elif frame.empty:
+        store._write_all_sheets(sheets)
+
+
+def _build_support_graph(store: AxiomContribStore) -> Dict[str, Set[str]]:
+    records = store.list_contributions()
+    graph: Dict[str, Set[str]] = {}
+    for record in records:
+        if record.get("category") != "Secondary":
+            continue
+        source = _normalize_verse_key(record.get("verse_key") or "")
+        target = _normalize_verse_key(record.get(AXIOMS_T10_SUPPORTING_COLUMN) or "")
+        if not source or not target:
+            continue
+        graph.setdefault(source, set()).add(target)
+    return graph
+
+
+def _detect_cycle(start: str, target: str, graph: Dict[str, Set[str]]) -> bool:
+    if start == target:
+        return True
+    stack = [start]
+    visited: Set[str] = set()
+    while stack:
+        node = stack.pop()
+        if node == target:
+            return True
+        if node in visited:
+            continue
+        visited.add(node)
+        stack.extend(graph.get(node, ()))
+    return False
+
+
+def _update_supporting_relation(
+    store: AxiomContribStore,
+    axiom_id: str,
+    secondary_key: str,
+    primary_key: str,
+    *,
+    notes: str,
+    revision_value: int,
+) -> None:
+    sheets = store._read_all_sheets()
+    frame = sheets["AxiomContributions"]
+    if AXIOMS_T10_SUPPORTING_COLUMN not in frame.columns:
+        frame = frame.copy()
+        frame[AXIOMS_T10_SUPPORTING_COLUMN] = pd.Series([None] * len(frame), dtype="object")
+    timestamp = store._timestamp()
+    mask = (
+        (frame["axiom_id"] == axiom_id)
+        & (frame["verse_key"] == secondary_key)
+        & (frame["category"] == "Secondary")
+    )
+    subset = frame[mask]
+    normalized_primary = _normalize_verse_key(primary_key)
+    existing_targets = subset[AXIOMS_T10_SUPPORTING_COLUMN].fillna("").map(_normalize_verse_key)
+    int_revision = int(revision_value)
+
+    target_indices = [idx for idx, value in zip(subset.index, existing_targets) if value == normalized_primary]
+    blank_indices = [idx for idx, value in zip(subset.index, existing_targets) if not value]
+
+    if target_indices:
+        idx = target_indices[0]
+        frame.at[idx, "contribution_notes"] = notes or ""
+        frame.at[idx, "translation_revision_seen"] = int_revision
+        frame.at[idx, "updated_at"] = timestamp
+    elif blank_indices:
+        idx = blank_indices[0]
+        frame.at[idx, AXIOMS_T10_SUPPORTING_COLUMN] = normalized_primary
+        frame.at[idx, "contribution_notes"] = notes or ""
+        frame.at[idx, "translation_revision_seen"] = int_revision
+        frame.at[idx, "updated_at"] = timestamp
+        if not frame.at[idx, "created_at"]:
+            frame.at[idx, "created_at"] = timestamp
+    else:
+        record = {
+            "axiom_id": axiom_id,
+            "verse_key": secondary_key,
+            "category": "Secondary",
+            "contribution_notes": notes or "",
+            "translation_revision_seen": int_revision,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+            AXIOMS_T10_SUPPORTING_COLUMN: normalized_primary,
+        }
+        frame = pd.concat([frame, pd.DataFrame([record])], ignore_index=True)
+
+    sheets["AxiomContributions"] = frame
+    store._write_all_sheets(sheets)
+
+
+def find_candidate_primaries(
+    store_path: Optional[Union[str, Path]] = None,
+) -> List[dict]:
+    """Return all contribution records categorized as Primary."""
+    store = AxiomContribStore(store_path=store_path)
+    _ensure_t10_support_column_schema()
+    contributions = store.list_contributions()
+    primaries = [record for record in contributions if record.get("category") == "Primary"]
+    primaries.sort(key=lambda item: (str(item.get("verse_key") or ""), str(item.get("axiom_id") or "")))
+    return primaries
+
+
+def link_secondary_to_primary(
+    secondary_verse_key: str,
+    primary_verse_keys: List[Union[str, Tuple[str, str], dict]],
+    store_path: Optional[Union[str, Path]] = None,
+) -> None:
+    """
+    Persist supporting relations for a Secondary verse.
+    Accepts either raw verse strings, (axiom_id, verse_key) tuples, or primary records.
+    Raises ValueError if selections are missing, ambiguous, or circular.
+    """
+    normalized_secondary = _normalize_verse_key(secondary_verse_key or "")
+    if not normalized_secondary:
+        raise ValueError("secondary_verse_key is required")
+
+    if not primary_verse_keys:
+        raise ValueError("At least one primary verse key is required")
+
+    store = AxiomContribStore(store_path=store_path)
+    _ensure_t10_support_column_initialized(store)
+
+    candidates = find_candidate_primaries(store_path=store_path)
+    candidate_lookup: Dict[Tuple[str, str], dict] = {}
+    verse_lookup: Dict[str, List[dict]] = {}
+    for record in candidates:
+        axiom_token = str(record.get("axiom_id") or "").strip()
+        verse_value = record.get("verse_key")
+        normalized_verse = _normalize_verse_key(verse_value or "")
+        if not axiom_token or not normalized_verse:
+            continue
+        pair = (axiom_token, normalized_verse)
+        candidate_lookup[pair] = record
+        verse_lookup.setdefault(normalized_verse, []).append(record)
+
+    selection_entries: List[Tuple[str, str]] = []
+    selected_records: List[dict] = []
+    seen_pairs: Set[Tuple[str, str]] = set()
+
+    for entry in primary_verse_keys:
+        raw_verse: Optional[str] = None
+        axiom_identifier: str = ""
+        candidate_record: Optional[dict] = None
+
+        if isinstance(entry, dict):
+            raw_verse = entry.get("verse_key")
+            candidate_axiom = entry.get("axiom_id")
+            if candidate_axiom is not None:
+                axiom_identifier = str(candidate_axiom).strip()
+        elif isinstance(entry, (tuple, list)) and len(entry) >= 2:
+            axiom_candidate = entry[0]
+            raw_verse = entry[1]
+            if axiom_candidate is not None:
+                axiom_identifier = str(axiom_candidate).strip()
+        else:
+            raw_verse = entry
+
+        normalized_primary = _normalize_verse_key(raw_verse or "")
+        if not normalized_primary:
+            continue
+
+        if axiom_identifier:
+            pair = (axiom_identifier, normalized_primary)
+            candidate_record = candidate_lookup.get(pair)
+            if candidate_record is None:
+                raise ValueError(
+                    f"Primary selection not recognized for axiom {axiom_identifier}: {raw_verse}"
+                )
+        else:
+            matching = verse_lookup.get(normalized_primary, [])
+            if not matching:
+                raise ValueError(f"Primary verse not recognized: {raw_verse}")
+            if len(matching) > 1:
+                raise ValueError(
+                    f"Primary verse '{raw_verse}' maps to multiple axioms; specify which axiom to link."
+                )
+            candidate_record = matching[0]
+            axiom_identifier = str(candidate_record.get("axiom_id") or "").strip()
+            if not axiom_identifier:
+                raise ValueError(f"Primary selection missing axiom id: {raw_verse}")
+            pair = (axiom_identifier, normalized_primary)
+
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+        selection_entries.append(pair)
+        selected_records.append(candidate_record if candidate_record is not None else dict(entry))
+
+    if not selection_entries:
+        raise ValueError("No valid primary verse keys provided")
+
+    graph = _build_support_graph(store)
+    for _, normalized_primary in selection_entries:
+        if _detect_cycle(normalized_primary, normalized_secondary, graph):
+            raise ValueError(
+                f"Linking {normalized_secondary} to {normalized_primary} would create a circular reference"
+            )
+        graph.setdefault(normalized_secondary, set()).add(normalized_primary)
+
+    for (axiom_identifier, _), record in zip(selection_entries, selected_records):
+        axiom_id = axiom_identifier
+        if not axiom_id:
+            axiom_id = str(record.get("axiom_id") or "").strip()
+        if not axiom_id:
+            continue
+        revision_seen = record.get("translation_revision_seen") if isinstance(record, dict) else None
+        try:
+            revision_value = int(revision_seen) if revision_seen is not None else 0
+        except (ValueError, TypeError):
+            revision_value = 0
+        primary_value = record.get("verse_key") if isinstance(record, dict) else None
+        if not primary_value:
+            primary_value = _normalize_verse_key(record if isinstance(record, str) else "")
+        display_key = primary_value or "(unknown primary)"
+        contribution_notes = f"Supporting Primary: {display_key}"
+        _update_supporting_relation(
+            store,
+            axiom_id,
+            normalized_secondary,
+            primary_value,
+            notes=contribution_notes,
+            revision_value=revision_value,
+        )
+
+
+def _format_primary_label(record: dict) -> str:
+    verse_key = record.get("verse_key") or "(unknown verse)"
+    axiom_id = record.get("axiom_id") or "(axiom?)"
+    return f"{verse_key} - {axiom_id}"
+
+
+class NonExplicitLinkDialog(tk.Toplevel):
+    """Modal dialog to link a Secondary verse to one or more Primary verses."""
+
+    def __init__(
+        self,
+        master: Optional[tk.Misc],
+        secondary_verse_key: str,
+        *,
+        store_path: Optional[Union[str, Path]] = None,
+    ) -> None:
+        super().__init__(master=master)
+        self.title("Link Secondary Verse")
+        self.secondary_verse_key = secondary_verse_key
+        self.store_path = store_path
+        self.secondary_normalized = _normalize_verse_key(secondary_verse_key or "")
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        self.search_var = tk.StringVar()
+        self.message_var = tk.StringVar()
+        self._candidates = find_candidate_primaries(store_path=store_path)
+        self._filtered: List[dict] = []
+        self._build_ui()
+        self._refresh_list()
+
+    def _build_ui(self) -> None:
+        self.configure(padx=16, pady=16)
+
+        header = ttk.Label(
+            self,
+            text="Select Primary verse(s) that clarify this Secondary verse.",
+            wraplength=360,
+            justify="left",
+        )
+        header.grid(row=0, column=0, columnspan=2, sticky="w")
+
+        search_label = ttk.Label(self, text="Search Primaries:")
+        search_label.grid(row=1, column=0, sticky="w", pady=(12, 4))
+
+        search_entry = ttk.Entry(self, textvariable=self.search_var, width=40)
+        search_entry.grid(row=1, column=1, sticky="ew", pady=(12, 4))
+        search_entry.bind("<KeyRelease>", lambda _event: self._refresh_list())
+
+        self.listbox = tk.Listbox(self, selectmode=tk.MULTIPLE, width=60, height=12)
+        self.listbox.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.listbox.yview)
+        scrollbar.grid(row=2, column=2, sticky="nsw")
+        self.listbox.configure(yscrollcommand=scrollbar.set)
+
+        warning = ttk.Label(self, textvariable=self.message_var, foreground="red", wraplength=360)
+        warning.grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        button_frame = ttk.Frame(self)
+        button_frame.grid(row=4, column=0, columnspan=2, pady=(12, 0), sticky="e")
+
+        save_btn = ttk.Button(button_frame, text="Link Selected", command=self._on_save)
+        save_btn.grid(row=0, column=0, padx=(0, 8))
+
+        cancel_btn = ttk.Button(button_frame, text="Cancel", command=self._on_cancel)
+        cancel_btn.grid(row=0, column=1)
+
+        self.columnconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
+
+    def _refresh_list(self) -> None:
+        term = self.search_var.get().strip().lower()
+        if term:
+            filtered = [
+                record
+                for record in self._candidates
+                if term in str(record.get("verse_key", "")).lower()
+                or term in str(record.get("axiom_id", "")).lower()
+            ]
+        else:
+            filtered = list(self._candidates)
+        self._filtered = filtered
+        self.listbox.delete(0, tk.END)
+        for record in filtered:
+            self.listbox.insert(tk.END, _format_primary_label(record))
+        if not filtered:
+            self.message_var.set("No Primary contributions found. Finalization is blocked until one exists.")
+        else:
+            self.message_var.set("")
+
+    def _selected_primary_keys(self) -> List[dict]:
+        indices = self.listbox.curselection()
+        selections: List[dict] = []
+        for idx in indices:
+            if 0 <= idx < len(self._filtered):
+                selections.append(dict(self._filtered[idx]))
+        return selections
+
+    def _on_save(self) -> None:
+        selected_records = self._selected_primary_keys()
+        if not selected_records:
+            self.message_var.set("Select at least one Primary verse before linking.")
+            return
+        try:
+            link_secondary_to_primary(
+                secondary_verse_key=self.secondary_normalized or self.secondary_verse_key,
+                primary_verse_keys=selected_records,
+                store_path=self.store_path,
+            )
+        except ValueError as exc:
+            self.message_var.set(str(exc))
+            return
+        self.destroy()
+
+    def _on_cancel(self) -> None:
+        self.destroy()
