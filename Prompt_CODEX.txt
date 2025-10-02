@@ -3,10 +3,10 @@ Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only r
 You may only add new functions, dataclasses, constants, and unit tests.
 No renames, no signature changes, no in-place edits, no deleted lines in existing code.
 
-Full Prompt (Thorough) – Task 8
+Full Prompt (Thorough) – Task 9
 
 Context
-You are enhancing Birha v1.1.0 (Tkinter app). The source of truth is @Prompt_CODEX.txt and @0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx. Implement Task 8 only: the Descriptions Engine, handling both verse-specific and axiom-specific descriptions with append/redraft decision logic. All changes must be additive.
+You are enhancing Birha v1.1.0 (Tkinter app). The source of truth is @Prompt_CODEX.txt and @0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx. Implement Task 9 only: the Keyword Manager, handling the four keyword categories per axiom (Literal Synonyms, Literal Antonyms, Spiritual Synonyms, Spiritual Antonyms). All changes must be additive.
 
 Non-negotiables
 
@@ -15,7 +15,7 @@ Do not alter any existing functions, constants, or strings in 1.1.0_birha.py. Tr
 No renames, refactors, in-place edits, or deletions.
 
 Add all new code only under this header:
-# === Axioms T8: Descriptions Engine (additive only) ===
+# === Axioms T9: Keyword Manager (additive only) ===
 
 Canonical headers and string constants must remain untouched.
 
@@ -23,101 +23,115 @@ Deliverables
 
 New functions
 
-def build_description_prompt(
+def build_keywords_prompt(
     axiom_id: str,
-    verse_key: Optional[str] = None,
+    bucket: str,
     store_path: Optional[Union[str, Path]] = None
 ) -> str:
     """
-    Build a structured prompt that includes:
-      - Prior verse-specific descriptions (for the verse, if any)
-      - Current axiom-specific description (latest revision)
-      - Decision instruction: append a new verse-specific description or redraft axiom-specific one
-    Returns a markdown/plaintext string suitable for downstream use.
+    Build a structured prompt for managing keywords in the given bucket.
+    Sections include:
+      - Current keywords for this axiom in the specified bucket
+      - Guidance for generating new keywords (synonyms/antonyms, literal/spiritual)
+      - Deduplication notice and cross-axiom density warnings
+    Returns a markdown/plaintext string.
     """
 
-def save_description(
+def merge_keywords(
     axiom_id: str,
-    type: str,
-    text: str,
-    verse_key: Optional[str] = None,
+    bucket: str,
+    new_keywords: List[str],
     store_path: Optional[Union[str, Path]] = None
-) -> dict:
+) -> List[dict]:
     """
-    Save a description record into AxiomDescriptions.
-      - If type == 'verse_specific': create a new row with verse_key.
-      - If type == 'axiom_specific': increment revision if text changed, preserve prior rows for history.
-    Returns the saved record.
+    Merge a list of candidate keywords into the store for this axiom+bucket.
+      - Deduplicates case-insensitively
+      - Skips stop-words and too-short tokens
+      - Preserves prior entries with timestamps
+    Returns the updated keyword list.
+    """
+
+def delete_keyword(
+    axiom_id: str,
+    bucket: str,
+    keyword: str,
+    store_path: Optional[Union[str, Path]] = None
+) -> bool:
+    """
+    Delete a keyword from the specified axiom+bucket if present.
+    Returns True if deleted, False if not found.
     """
 
 
 Content rules
 
-Verse-specific descriptions: tied to a verse_key; each save creates a new row.
+Buckets supported: "LiteralSyn", "LiteralAnt", "SpiritualSyn", "SpiritualAnt".
 
-Axiom-specific descriptions: tied only to axiom_id; if text changes, increment revision and preserve history.
+Stop-words: ignore generic tokens like “and”, “the”, “of”.
 
-Prompt must present both prior verse-specific entries and the latest axiom-specific text, then instruct whether to append (verse) or redraft (axiom).
+Min length: ignore tokens shorter than 3 chars.
 
-Format prompt in markdown with clear sections: Verse-Specific Descriptions, Axiom-Specific Description, Decision Guidance.
+Deduplicate within bucket case-insensitively.
+
+Cross-axiom density: compute frequency of each keyword across all axioms; mark those that appear in more than N axioms (e.g. N=5) with a warning in the prompt.
+
+Prompt output should have clear sections: Current Keywords, Guidance for New Keywords, Warnings.
 
 Optional helpers
 
-_fetch_descriptions(axiom_id, type, verse_key) to isolate store lookups.
+_normalize_keyword(token: str) -> str for canonical form.
 
-_format_description_history(records) for neat markdown output.
+_cross_axiom_keyword_density(keyword: str) -> int to count usage across all axioms.
 
 Acceptance Criteria
 
-build_description_prompt(axiom_id, verse_key) returns a string containing:
+build_keywords_prompt() produces a string listing current keywords, guidance, and warnings.
 
-Any prior verse-specific descriptions for that verse.
+merge_keywords() adds new tokens, rejects duplicates, ignores invalids, and preserves existing entries.
 
-The latest axiom-specific description (with revision number).
+delete_keyword() removes exact matches when requested.
 
-Clear guidance on whether to append or redraft.
+Case-insensitive dedupe works (e.g., “Truth” vs “truth”).
 
-save_description() correctly:
+Cross-axiom density warnings appear when a keyword occurs in >N axioms.
 
-Adds new verse-specific description rows.
+Unit tests cover merges, deletes, dedupes, and warnings.
 
-Creates a new axiom-specific row with incremented revision when text differs from the latest.
-
-History of descriptions preserved; no overwrites.
-
-Unit tests confirm correct saving, revision increments, and prompt output.
-
-No modifications to existing code; all additions in the Task 8 header block.
+No modifications to existing code outside additive header.
 
 Tests
-File: tests/axioms/test_task8_descriptions.py
+File: tests/axioms/test_task9_keywords.py
 
-test_save_and_fetch_verse_specific_description() → create a verse-specific record and verify prompt shows it.
+test_merge_keywords_adds_and_dedupes() → add mixed-case words, confirm deduplication.
 
-test_save_axiom_specific_creates_revision() → saving new axiom-specific text increments revision, old revision still retrievable.
+test_merge_keywords_filters_stopwords_and_short_tokens() → confirm these are skipped.
 
-test_prompt_includes_prior_descriptions() → prompt output includes past verse-specific entries and axiom-specific description.
+test_delete_keyword_removes_entry() → ensure True/False return is correct.
 
-test_prompt_structure_sections_present() → assert sections appear in markdown.
+test_build_keywords_prompt_includes_current_and_warnings() → prompt lists existing + warning for high-density words.
+
+test_cross_axiom_density_check() → confirm frequency counts trigger warnings at threshold.
 
 Use TemporaryDirectory and mock Excel stores for isolation.
 
 PR Workflow
 
-Branch: feature/axioms-T8-descriptions-engine
+Branch: feature/axioms-T9-keyword-manager
 
-Commit: feat(axioms): T8 add descriptions engine for verse/axiom-specific records (additive only)
+Commit: feat(axioms): T9 add keyword manager (4 buckets, additive only)
 
-PR Title: Axioms T8 — Descriptions Engine (verse-specific & axiom-specific)
+PR Title: Axioms T9 — Keyword Manager (4 Buckets)
 
 PR Body Checklist:
 
  Additive only, no edits to existing functions/constants
 
- build_description_prompt() returns structured output with history and guidance
+ build_keywords_prompt() outputs structured keyword guidance
 
- save_description() handles both verse-specific and axiom-specific correctly
+ merge_keywords() dedupes, filters, preserves history
 
- Revisions increment properly; history preserved
+ delete_keyword() works correctly
+
+ Cross-axiom density check included
 
  Unit tests green
