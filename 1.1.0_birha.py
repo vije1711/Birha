@@ -10552,7 +10552,7 @@ class GrammarApp:
         """Normalize grammar field keys for reanalysis highlight comparisons."""
         if not isinstance(key, str):
             return key
-        return key.replace("", "").strip()
+        return key.replace("\ufeff", "").strip()
 
     def _reanalysis_allowed_highlight_fields(self):
         """Fields eligible for reanalysis highlight comparisons."""
