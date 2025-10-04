@@ -17898,6 +17898,8 @@ def import_axioms_csv(
 
 # === Axioms T12: Testing Harness (additive only) ===
 
+from typing import Tuple
+
 AXIOMS_T12_TEST_PATTERN = "test_task*.py"
 AXIOMS_T12_EXPECTED_TESTS: Tuple[str, ...] = (
     "test_task1_category.py",
