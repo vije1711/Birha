@@ -17815,3 +17815,80 @@ class NonExplicitLinkDialog(tk.Toplevel):
 
     def _on_cancel(self) -> None:
         self.destroy()
+
+# === Axioms T11: Export/Import & CSV Bridges (additive only) ===
+
+
+AXIOMS_T11_SHEETS: Tuple[str, ...] = (
+    "Axioms",
+    "AxiomContributions",
+    "AxiomDescriptions",
+    "AxiomKeywords",
+    "AxiomWorkqueue",
+)
+
+
+def _axioms_t11_store_and_dir(
+    directory: Union[str, Path],
+    store_path: Optional[Union[str, Path]] = None,
+) -> Tuple[AxiomsStore, Path]:
+    store = AxiomsStore(store_path=store_path)
+    target_dir = Path(directory).resolve()
+    return store, target_dir
+
+
+def export_axioms_csv(
+    directory: Union[str, Path],
+    store_path: Optional[Union[str, Path]] = None,
+) -> List[Path]:
+    """Export all Axiom sheets to CSV files matching schema order."""
+    store, target_dir = _axioms_t11_store_and_dir(directory, store_path=store_path)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    sheets = store._read_all_sheets()
+    exported: List[Path] = []
+
+    for sheet_name in AXIOMS_T11_SHEETS:
+        columns = list(store.SHEET_SCHEMAS[sheet_name])
+        frame = sheets.get(sheet_name)
+        if frame is None or frame.empty:
+            working = pd.DataFrame(columns=columns)
+        else:
+            working = frame.reindex(columns=columns)
+        working = working.astype(object)
+        working = working.where(pd.notna(working), None)
+        csv_path = target_dir / f"{sheet_name}.csv"
+        working.to_csv(csv_path, index=False, encoding="utf-8")
+        exported.append(csv_path)
+
+    return exported
+
+
+def import_axioms_csv(
+    directory: Union[str, Path],
+    store_path: Optional[Union[str, Path]] = None,
+) -> None:
+    """Import Axiom CSV data back into the store after validating schema."""
+    store, source_dir = _axioms_t11_store_and_dir(directory, store_path=store_path)
+    if not source_dir.exists():
+        raise FileNotFoundError(source_dir)
+
+    sheets: Dict[str, pd.DataFrame] = {}
+
+    for sheet_name in AXIOMS_T11_SHEETS:
+        csv_path = source_dir / f"{sheet_name}.csv"
+        if not csv_path.exists():
+            raise FileNotFoundError(csv_path)
+        frame = pd.read_csv(csv_path, dtype=object)
+        expected = list(store.SHEET_SCHEMAS[sheet_name])
+        actual = [str(col) for col in frame.columns]
+        if actual != expected:
+            raise ValueError(
+                f"Header mismatch for {sheet_name}: expected {expected}, found {actual}"
+            )
+        working = frame.reindex(columns=expected)
+        working = working.astype(object)
+        working = working.where(pd.notna(working), None)
+        sheets[sheet_name] = working
+
+    store._write_all_sheets(sheets)
