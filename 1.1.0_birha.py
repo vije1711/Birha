@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import os
 import logging
 from tkinter import messagebox, scrolledtext, simpledialog
@@ -17449,6 +17449,7 @@ def delete_keyword(
     store._write_all_sheets(sheets)
     return True
 
+
 # === Axioms T10: Non-Explicit Linking Flow (additive only) ===
 AXIOMS_T10_SUPPORTING_COLUMN = "is_supporting_of"
 
@@ -17816,6 +17817,7 @@ class NonExplicitLinkDialog(tk.Toplevel):
     def _on_cancel(self) -> None:
         self.destroy()
 
+
 # === Axioms T11: Export/Import & CSV Bridges (additive only) ===
 
 
@@ -17892,3 +17894,110 @@ def import_axioms_csv(
         sheets[sheet_name] = working
 
     store._write_all_sheets(sheets)
+
+
+# === Axioms T12: Testing Harness (additive only) ===
+
+from typing import Tuple
+
+AXIOMS_T12_TEST_PATTERN = "test_task*.py"
+AXIOMS_T12_EXPECTED_TESTS: Tuple[str, ...] = (
+    "test_task1_category.py",
+    "test_task2_store_adapter.py",
+    "test_task3_workbench.py",
+    "test_task4_driver.py",
+    "test_task5_scanner.py",
+    "test_task6_catalog.py",
+    "test_task7_prompt.py",
+    "test_task8_descriptions.py",
+    "test_task9_keywords.py",
+    "test_task10_nonexplicit.py",
+    "test_task11_csv.py",
+)
+
+
+def _axioms_t12_default_root() -> Path:
+    """Return the root directory where axioms tests are expected to live."""
+    return Path(__file__).resolve().parent / "tests" / "axioms"
+
+
+def _axioms_t12_pytest_args(pattern: str, root: Path) -> List[str]:
+    args = [str(root), "-o", f"python_files={pattern}"]
+    return args
+
+
+def list_axioms_test_files(
+    directory: Optional[Union[str, Path]] = None,
+) -> List[Path]:
+    """Return an ordered list of expected test file paths for the axioms suite."""
+    root = Path(directory) if directory is not None else _axioms_t12_default_root()
+    return [root / name for name in AXIOMS_T12_EXPECTED_TESTS]
+
+
+def verify_axioms_test_suite(
+    directory: Optional[Union[str, Path]] = None,
+    pattern: str = AXIOMS_T12_TEST_PATTERN,
+) -> Dict[str, List[Path]]:
+    """Check for missing or unexpected files in the axioms test suite."""
+    root = Path(directory) if directory is not None else _axioms_t12_default_root()
+    expected_paths = list_axioms_test_files(root)
+    missing = [path for path in expected_paths if not path.exists()]
+    unexpected = sorted(
+        (path for path in root.glob(pattern) if path.name not in AXIOMS_T12_EXPECTED_TESTS),
+        key=lambda item: item.name,
+    )
+    return {"missing": missing, "unexpected": unexpected}
+
+
+def discover_axioms_tests(
+    pattern: str = AXIOMS_T12_TEST_PATTERN,
+    directory: Optional[Union[str, Path]] = None,
+) -> List[str]:
+    """Collect pytest node IDs for the axioms suite."""
+    try:
+        import pytest  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("pytest is required to collect axioms tests") from exc
+
+    root = Path(directory) if directory is not None else _axioms_t12_default_root()
+    if not root.exists():
+        raise FileNotFoundError(root)
+
+    collected: List[str] = []
+
+    class _Collector:
+        def pytest_collection_finish(self, session):  # type: ignore[override]
+            collected.extend(item.nodeid for item in session.items)
+
+    args = _axioms_t12_pytest_args(pattern, root) + ["--collect-only"]
+    exit_code = pytest.main(args, plugins=[_Collector()])
+    if exit_code not in (0, 5):  # 5 => no tests collected
+        raise RuntimeError(f"pytest collection failed with exit code {exit_code}")
+    return collected
+
+
+def run_axioms_tests(
+    pattern: str = AXIOMS_T12_TEST_PATTERN,
+    directory: Optional[Union[str, Path]] = None,
+    *,
+    verbosity: int = 1,
+    buffer: bool = False,
+) -> int:
+    """Execute the axioms suite via pytest and return the exit code."""
+    try:
+        import pytest  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("pytest is required to run axioms tests") from exc
+
+    root = Path(directory) if directory is not None else _axioms_t12_default_root()
+    if not root.exists():
+        raise FileNotFoundError(root)
+
+    args = _axioms_t12_pytest_args(pattern, root)
+    if verbosity <= 0:
+        args.append("-q")
+    elif verbosity >= 2:
+        args.append("-vv")
+    if buffer:
+        args.append("--capture=tee-sys")
+    return pytest.main(args)
