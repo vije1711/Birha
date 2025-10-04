@@ -5,10 +5,10 @@ No renames, no signature changes, no in-place edits, no deleted lines in existin
 
 ---
 
-# Full Prompt (Thorough) – Task 10
+# Full Prompt (Thorough) – Task 12
 
 **Context**
-You are enhancing *Birha v1.1.0* (Tkinter app). The source of truth is **@Prompt_CODEX.txt** and **@0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx**. Implement **Task 10 only**: the Non-Explicit Linking Flow, ensuring Secondary verses (Explicit?=0) are linked to one or more Primary verses. All changes must be additive. 
+You are enhancing *Birha v1.1.0* (Tkinter app). The source of truth is **@Prompt_CODEX.txt** and **@0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx**. Implement **Task 12 only**: the Testing Harness, to provide repeatable tests for stores, scanners, and mappers. All changes must be additive. 
 
 ---
 
@@ -17,96 +17,80 @@ You are enhancing *Birha v1.1.0* (Tkinter app). The source of truth is **@Prompt
 * Do **not** alter any existing functions, constants, or strings in `1.1.0_birha.py`.
 * No renames, refactors, in-place edits, or deletions.
 * Add all new code only under this header:
-  `# === Axioms T10: Non-Explicit Linking Flow (additive only) ===`
+  `# === Axioms T12: Testing Harness (additive only) ===`
 * Canonical headers and string constants must remain untouched.
 
 ---
 
 **Deliverables**
 
-1. **New UI dialog**
-   `class NonExplicitLinkDialog(tk.Toplevel):`
+1. **Test suite structure**
+   Create a new directory `tests/axioms/` with modules covering Tasks 1–11.
 
-* Launched when user finalizes an axiom for a verse with `Explicit?=0`.
-* Provides search box + list of candidate Primary verses (from `AxiomContribStore` with category=Primary).
-* Allows selecting one or more supporting Primaries.
-* Shows warnings if none selected.
-* On save: writes parent/supporting relations to `AxiomContributions`.
+* `test_task1_category.py`
+* `test_task2_store_adapter.py`
+* `test_task3_workbench.py`
+* `test_task4_driver.py`
+* `test_task5_scanner.py`
+* `test_task6_catalog.py`
+* `test_task7_prompt.py`
+* `test_task8_descriptions.py`
+* `test_task9_keywords.py`
+* `test_task10_nonexplicit.py`
+* `test_task11_csv.py`
 
-2. **New functions**
+2. **Fixtures**
 
-```python
-def link_secondary_to_primary(
-    secondary_verse_key: str,
-    primary_verse_keys: List[str],
-    store_path: Optional[Union[str, Path]] = None
-) -> None:
-    """
-    Persist supporting relations for a Secondary verse.
-    Raises ValueError if no primary_verse_keys provided.
-    Detects and rejects circular references.
-    """
+* Use `TemporaryDirectory` for store_path isolation.
+* Mock minimal Excel/CSV data with `pandas`.
+* Provide sample `verse_key` and dummy axiom entries.
 
-def find_candidate_primaries(
-    store_path: Optional[Union[str, Path]] = None
-) -> List[dict]:
-    """
-    Return list of all Primary contributions in the store
-    (axiom_id, verse_key, category).
-    """
-```
+3. **Minimal Tk adapters**
 
-3. **Logic rules**
-
-* Secondary verses **must** link to at least one Primary; otherwise finalization is blocked.
-* Store the relation by writing supporting rows in `AxiomContributions` with fields:
-
-  * `axiom_id` (from the selected Primary)
-  * `verse_key` (Secondary’s key)
-  * `category="Secondary"`
-  * `is_supporting_of=primary_verse_key`
-* Detect circular references (no Secondary can indirectly support itself through chains).
+* Wrap Tk tests with guards: `@unittest.skipIf("DISPLAY" not in os.environ, "No display available")`.
+* Use `root = tk.Tk(); root.withdraw()` for headless contexts.
 
 ---
 
 **Acceptance Criteria**
 
-* When Explicit?=0, finalization triggers the Non-Explicit Link dialog.
-* User must select ≥1 Primary; cannot save without this.
-* Relations persisted to `AxiomContributions` correctly (including `is_supporting_of`).
-* Circular references are rejected with clear error.
-* Unit tests confirm:
-
-  * Attempt to finalize with no Primary raises ValueError.
-  * Linking succeeds with valid Primary(s).
-  * Circular detection prevents invalid chains.
-* No regressions to existing Explicit (Primary) linking flows.
+* Running `pytest tests/axioms/` passes all unit tests without requiring manual setup.
+* Headless environments skip Tk tests cleanly (no `TclError`).
+* Store round-trips (Excel/CSV) are tested and verified for schema lock.
+* Reanalysis scanner correctly enqueues missing/revised verses.
+* Catalog CRUD, prompt generation, description revisions, and keyword deduplication all verified.
+* Non-Explicit linking flow tested with multiple primaries and circular detection.
+* CSV export/import round-trip validated.
 
 ---
 
-**Tests**
-File: `tests/axioms/test_task10_nonexplicit.py`
+**Tests to include**
 
-* `test_link_secondary_requires_primary()` → must raise if no primaries.
-* `test_link_secondary_to_single_primary()` → persists relation correctly.
-* `test_link_secondary_to_multiple_primaries()` → all links recorded.
-* `test_detect_circular_reference()` → reject loop.
-* `test_find_candidate_primaries_returns_only_primary()` → returns correct filtered list.
-* Use `TemporaryDirectory` and mock Excel stores for isolation.
+* **Category mapping**: All combinations of Framework/Explicit flags → Primary/Secondary.
+* **Store adapters**: Create, update, query on all sheets.
+* **Workbench smoke**: Window opens and closes without errors.
+* **Driver pause/resume**: State persists across restart.
+* **Scanner**: Adds missing Framework=1 verses; marks reanalysis when revisions advance.
+* **Catalog CRUD**: Unique axiom_id, no duplicate links.
+* **Prompt generator**: Output contains verse, flags, category, and actions.
+* **Descriptions engine**: Verse-specific append, axiom-specific revision increments.
+* **Keyword manager**: Stop-words rejected, duplicates deduped, density warnings appear.
+* **Non-explicit linking**: Secondary blocked without Primary, circular detection works.
+* **CSV bridges**: Export → Import → Export round-trip identical.
 
 ---
 
 **PR Workflow**
 
-* Branch: `feature/axioms-T10-nonexplicit-linking`
-* Commit: `feat(axioms): T10 add Non-Explicit Linking Flow (Secondary → Primary)`
-* PR Title: `Axioms T10 — Non-Explicit Linking Flow (Secondary → Primary)`
+* Branch: `feature/axioms-T12-testing-harness`
+* Commit: `test(axioms): T12 add testing harness with fixtures for stores, scanners, and mappers`
+* PR Title: `Axioms T12 — Testing Harness`
 * PR Body Checklist:
 
   * [ ] Additive only, no edits to existing functions/constants
-  * [ ] Secondary verses cannot finalize without Primary link(s)
-  * [ ] Parent/supporting relations stored in AxiomContributions
-  * [ ] Circular references prevented
-  * [ ] Unit tests green
+  * [ ] Test suite covers Tasks 1–11
+  * [ ] Headless Tk tests skip gracefully
+  * [ ] Round-trip and scanner logic verified
+  * [ ] All tests green
 
 ---
