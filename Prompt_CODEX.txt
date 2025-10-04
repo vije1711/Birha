@@ -5,92 +5,85 @@ No renames, no signature changes, no in-place edits, no deleted lines in existin
 
 ---
 
-# Full Prompt (Thorough) – Task 12
+# Full Prompt (Thorough) – Task 13
 
 **Context**
-You are enhancing *Birha v1.1.0* (Tkinter app). The source of truth is **@Prompt_CODEX.txt** and **@0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx**. Implement **Task 12 only**: the Testing Harness, to provide repeatable tests for stores, scanners, and mappers. All changes must be additive. 
+You are enhancing *Birha v1.1.0* (Tkinter app). The sources of truth are **@Prompt_CODEX.txt** and **@0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx**. Implement **Task 13 only**: Final Integration & Regression Guardrails, ensuring that the Axioms/Framework feature coexists cleanly with the existing Literal Translation and Grammar flows, without regressions. 
 
 ---
 
 **Non-negotiables**
 
-* Do **not** alter any existing functions, constants, or strings in `1.1.0_birha.py`.
+* Do **not** alter any existing functions, constants, or strings in `1.1.0_birha.py`. Treat them as read-only reference.
 * No renames, refactors, in-place edits, or deletions.
 * Add all new code only under this header:
-  `# === Axioms T12: Testing Harness (additive only) ===`
+  `# === Axioms T13: Final Integration & Regression Guardrails (additive only) ===`
 * Canonical headers and string constants must remain untouched.
 
 ---
 
 **Deliverables**
 
-1. **Test suite structure**
-   Create a new directory `tests/axioms/` with modules covering Tasks 1–11.
+1. **Smoke Tests & Guardrails**
 
-* `test_task1_category.py`
-* `test_task2_store_adapter.py`
-* `test_task3_workbench.py`
-* `test_task4_driver.py`
-* `test_task5_scanner.py`
-* `test_task6_catalog.py`
-* `test_task7_prompt.py`
-* `test_task8_descriptions.py`
-* `test_task9_keywords.py`
-* `test_task10_nonexplicit.py`
-* `test_task11_csv.py`
+   * Create smoke tests covering coexistence with existing Literal Translation and Grammar flows.
+   * Ensure that when saving verses, **existing save behavior remains unchanged** unless the user explicitly interacts with Axioms features.
+   * Verify that Grammar assessments, Literal translations, and Verse data persistence are unaffected by Axioms flows.
 
-2. **Fixtures**
+2. **UI Integration**
 
-* Use `TemporaryDirectory` for store_path isolation.
-* Mock minimal Excel/CSV data with `pandas`.
-* Provide sample `verse_key` and dummy axiom entries.
+   * Ensure launching the Axioms workbench from the dashboard or post-save panel does not alter any state until the user confirms “Save/Finalize Axioms.”
+   * Add non-blocking hooks so the “Finalize Axioms” panel launches after Literal Translation/Grammar save, but remains optional.
+   * Verify that Axioms dialogs close gracefully without side-effects.
 
-3. **Minimal Tk adapters**
+3. **Stress & Edge Cases**
 
-* Wrap Tk tests with guards: `@unittest.skipIf("DISPLAY" not in os.environ, "No display available")`.
-* Use `root = tk.Tk(); root.withdraw()` for headless contexts.
+   * Validate that large verses (>300 characters) and multi-verse selections behave consistently, without errors or regressions.
+   * Confirm that Axioms features handle edge cases like missing Framework?/Explicit? flags gracefully.
+   * Ensure reanalysis triggers still work correctly if translation revisions advance.
+
+4. **Regression Checklist**
+
+   * Literal Translation saves produce identical data before/after Axioms code.
+   * Grammar saves and highlights are unaffected.
+   * No schema drift in existing CSV/Excel outputs.
+   * ABW driver behavior remains consistent with pre-Axioms functionality.
 
 ---
 
 **Acceptance Criteria**
 
-* Running `pytest tests/axioms/` passes all unit tests without requiring manual setup.
-* Headless environments skip Tk tests cleanly (no `TclError`).
-* Store round-trips (Excel/CSV) are tested and verified for schema lock.
-* Reanalysis scanner correctly enqueues missing/revised verses.
-* Catalog CRUD, prompt generation, description revisions, and keyword deduplication all verified.
-* Non-Explicit linking flow tested with multiple primaries and circular detection.
-* CSV export/import round-trip validated.
+* Existing save behaviors (Literal/Grammar) are preserved exactly.
+* Launching Axioms workbench has no side-effects until user finalizes.
+* Large verse and multi-verse selections process correctly.
+* Reanalysis queue continues to function as before.
+* End-to-end flow works: Verse → Finalize Literal/Grammar → Launch Axioms → Save/Finalize → Export → Re-import → Re-run tests.
+* All unit and smoke tests pass.
 
 ---
 
-**Tests to include**
+**Tests**
+File: `tests/axioms/test_task13_integration.py`
 
-* **Category mapping**: All combinations of Framework/Explicit flags → Primary/Secondary.
-* **Store adapters**: Create, update, query on all sheets.
-* **Workbench smoke**: Window opens and closes without errors.
-* **Driver pause/resume**: State persists across restart.
-* **Scanner**: Adds missing Framework=1 verses; marks reanalysis when revisions advance.
-* **Catalog CRUD**: Unique axiom_id, no duplicate links.
-* **Prompt generator**: Output contains verse, flags, category, and actions.
-* **Descriptions engine**: Verse-specific append, axiom-specific revision increments.
-* **Keyword manager**: Stop-words rejected, duplicates deduped, density warnings appear.
-* **Non-explicit linking**: Secondary blocked without Primary, circular detection works.
-* **CSV bridges**: Export → Import → Export round-trip identical.
+* `test_literal_translation_unchanged()` → saving translation behaves identically pre/post Axioms.
+* `test_grammar_flow_unchanged()` → grammar assessments unaffected.
+* `test_axioms_workbench_launch_no_side_effects()` → opening/closing without saving leaves state untouched.
+* `test_large_verse_and_multiverse_selection()` → edge cases work consistently.
+* `test_axioms_save_with_translation_revision()` → reanalysis triggers when revisions advance.
 
 ---
 
 **PR Workflow**
 
-* Branch: `feature/axioms-T12-testing-harness`
-* Commit: `test(axioms): T12 add testing harness with fixtures for stores, scanners, and mappers`
-* PR Title: `Axioms T12 — Testing Harness`
+* Branch: `feature/axioms-T13-final-integration`
+* Commit: `feat(axioms): T13 add final integration & regression guardrails`
+* PR Title: `Axioms T13 — Final Integration & Regression Guardrails`
 * PR Body Checklist:
 
   * [ ] Additive only, no edits to existing functions/constants
-  * [ ] Test suite covers Tasks 1–11
-  * [ ] Headless Tk tests skip gracefully
-  * [ ] Round-trip and scanner logic verified
-  * [ ] All tests green
+  * [ ] Existing Literal/Grammar flows unchanged
+  * [ ] Axioms workbench optional, no side-effects
+  * [ ] Edge cases validated (large/multi-verse)
+  * [ ] All smoke tests and unit tests green
 
 ---
