@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import os
 import logging
 from tkinter import messagebox, scrolledtext, simpledialog
@@ -18001,3 +18001,47 @@ def run_axioms_tests(
     if buffer:
         args.append("--capture=tee-sys")
     return pytest.main(args)
+
+# === Axioms T13: Final Integration & Regression Guardrails (additive only) ===
+
+AXIOMS_T13_MINIMUM_VERSION = "1.1.0"
+AXIOMS_T13_SUITE_DESC = "pytest -o python_files=test_task*.py tests/axioms"
+
+
+def ensure_axioms_regression_ready(
+    *,
+    directory: Optional[Union[str, Path]] = None,
+    pattern: str = AXIOMS_T12_TEST_PATTERN,
+) -> None:
+    """Raise an error when required task tests are missing or unexpected files appear."""
+    report = verify_axioms_test_suite(directory=directory, pattern=pattern)
+    missing = report.get("missing", [])
+    unexpected = report.get("unexpected", [])
+    if missing or unexpected:
+        parts: List[str] = []
+        if missing:
+            parts.append(
+                "Missing tests: " + ", ".join(sorted(str(item) for item in missing))
+            )
+        if unexpected:
+            parts.append(
+                "Unexpected files: " + ", ".join(sorted(str(item) for item in unexpected))
+            )
+        raise ValueError("; ".join(parts))
+
+
+def run_axioms_regression_suite(
+    *,
+    directory: Optional[Union[str, Path]] = None,
+    pattern: str = AXIOMS_T12_TEST_PATTERN,
+    verbosity: int = 1,
+    buffer: bool = False,
+) -> int:
+    """Execute the full axioms regression harness via pytest and return its exit code."""
+    ensure_axioms_regression_ready(directory=directory, pattern=pattern)
+    return run_axioms_tests(
+        pattern=pattern,
+        directory=directory,
+        verbosity=verbosity,
+        buffer=buffer,
+    )
