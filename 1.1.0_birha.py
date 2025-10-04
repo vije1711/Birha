@@ -17921,6 +17921,11 @@ def _axioms_t12_default_root() -> Path:
     return Path(__file__).resolve().parent / "tests" / "axioms"
 
 
+def _axioms_t12_pytest_args(pattern: str, root: Path) -> List[str]:
+    args = [str(root), "-o", f"python_files={pattern}"]
+    return args
+
+
 def list_axioms_test_files(
     directory: Optional[Union[str, Path]] = None,
 ) -> List[Path]:
@@ -17947,15 +17952,28 @@ def verify_axioms_test_suite(
 def discover_axioms_tests(
     pattern: str = AXIOMS_T12_TEST_PATTERN,
     directory: Optional[Union[str, Path]] = None,
-):
-    """Discover the axioms test suite using unittest discovery semantics."""
-    import unittest
+) -> List[str]:
+    """Collect pytest node IDs for the axioms suite."""
+    try:
+        import pytest  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("pytest is required to collect axioms tests") from exc
 
     root = Path(directory) if directory is not None else _axioms_t12_default_root()
     if not root.exists():
         raise FileNotFoundError(root)
-    loader = unittest.TestLoader()
-    return loader.discover(str(root), pattern=pattern)
+
+    collected: List[str] = []
+
+    class _Collector:
+        def pytest_collection_finish(self, session):  # type: ignore[override]
+            collected.extend(item.nodeid for item in session.items)
+
+    args = _axioms_t12_pytest_args(pattern, root) + ["--collect-only"]
+    exit_code = pytest.main(args, plugins=[_Collector()])
+    if exit_code not in (0, 5):  # 5 => no tests collected
+        raise RuntimeError(f"pytest collection failed with exit code {exit_code}")
+    return collected
 
 
 def run_axioms_tests(
@@ -17964,11 +17982,22 @@ def run_axioms_tests(
     *,
     verbosity: int = 1,
     buffer: bool = False,
-):
-    """Execute the axioms test suite and return the unittest result object."""
-    import unittest
+) -> int:
+    """Execute the axioms suite via pytest and return the exit code."""
+    try:
+        import pytest  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("pytest is required to run axioms tests") from exc
 
-    suite = discover_axioms_tests(pattern=pattern, directory=directory)
-    runner = unittest.TextTestRunner(verbosity=verbosity, buffer=buffer)
-    return runner.run(suite)
+    root = Path(directory) if directory is not None else _axioms_t12_default_root()
+    if not root.exists():
+        raise FileNotFoundError(root)
 
+    args = _axioms_t12_pytest_args(pattern, root)
+    if verbosity <= 0:
+        args.append("-q")
+    elif verbosity >= 2:
+        args.append("-vv")
+    if buffer:
+        args.append("--capture=tee-sys")
+    return pytest.main(args)
