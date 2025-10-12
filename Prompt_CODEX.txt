@@ -51,7 +51,8 @@ This feature must be additive and must not wire Axioms into other app flows (Lit
    * Do not auto-launch the Axiom Dashboard from literal/grammar save flows.
    * No changes to existing save logic, scanners, or checkboxes.
 
-**Acceptance Criteria**
+   * Do not auto-launch the Axiom Dashboard from literal/grammar save flows.
+   * No changes to existing save logic, scanners, or checkboxes.
 
 * Launch the app normally; after the main dashboard appears, call `schedule_axioms_inject()` (from a tiny test harness or manual REPL) and verify a **new “Axioms (beta)”** button shows up on the “Welcome to Gurbani Software Dashboard” window without any regressions.
 * Clicking **Axioms (beta)** opens **Axiom Dashboard (beta)** with two buttons:
@@ -77,3 +78,5 @@ This feature must be additive and must not wire Axioms into other app flows (Lit
 ```
 # === Axioms UI Entry: Dashboard & Buttons (additive only) ===
 ```
+
+
