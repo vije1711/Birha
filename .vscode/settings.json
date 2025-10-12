@@ -1,5 +1,7 @@
 {
-  "python.defaultInterpreterPath": "/home/vije1711/Projects/2.1 Main Software/.venv/bin/python3.12",
+  "python.defaultInterpreterPath": "/home/vije1711/Projects/2.1 Main Software/.venv/bin/python3",
   "python.terminal.activateEnvironment": true,
-  "terminal.integrated.defaultProfile.linux": "bash"
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "git.path": "/usr/bin/git",
+  "git.ssh": "/usr/bin/ssh"
 }
