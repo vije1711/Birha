@@ -1,5 +1,4 @@
 {
-  "python.defaultInterpreterPath": "/home/vije1711/Projects/2.1 Main Software/.venv/bin/python",
-  "python.terminal.activateEnvironment": true,
-  "terminal.integrated.cwd": "/home/vije1711/Projects/2.1 Main Software"
+  "python.defaultInterpreterPath": "/home/vije1711/Projects/2.1 Main Software/.venv/bin/python3.12",
+  "python.terminal.activateEnvironment": true
 }
