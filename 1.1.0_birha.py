@@ -18045,3 +18045,495 @@ def run_axioms_regression_suite(
         verbosity=verbosity,
         buffer=buffer,
     )
+
+
+# === Axioms UI Entry: Dashboard & Buttons (additive only) ===
+
+_AXIOMS_UI_LOGGER = logging.getLogger(__name__)
+_AXIOMS_BUTTON_TEXT = "Axioms (beta)"
+_AXIOMS_DASHBOARD_TITLE = "Axiom Dashboard (beta)"
+_AXIOMS_READER_TITLE = "Axiom Reader Mode (Phase-2)"
+
+
+class AxiomDashboard(tk.Toplevel):
+    """Lightweight launcher window that routes to the additive Axiom experiences."""
+
+    def __init__(
+        self,
+        master: tk.Misc | None = None,
+        app: Optional["GrammarApp"] = None,
+    ) -> None:
+        super().__init__(master=master)
+        self.withdraw()
+        self.title(_AXIOMS_DASHBOARD_TITLE)
+        self.transient(master)
+        self.resizable(True, True)
+        self.configure(bg="light gray")
+        self.app_context: Optional["GrammarApp"] = app or getattr(master, "app", None)
+        self.protocol("WM_DELETE_WINDOW", self.close)
+
+        self._install_window_manager()
+        self._ensure_styles()
+        self._build_ui()
+
+        self.deiconify()
+        self.lift()
+        try:
+            self.focus_set()
+        except Exception:
+            pass
+
+    def _install_window_manager(self) -> None:
+        try:
+            mgr = WindowManager(self)
+            setattr(self, "_wmgr", mgr)
+
+            def _apply() -> None:
+                try:
+                    mgr.enable_safe_maximize(0)
+                except Exception:
+                    pass
+
+            try:
+                self.after_idle(_apply)
+            except Exception:
+                _apply()
+        except Exception:
+            pass
+
+    def _ensure_styles(self) -> None:
+        try:
+            style = ttk.Style(self)
+            style.configure(
+                "AxiomEntry.TButton",
+                font=("Arial", 14, "bold"),
+                padding=(24, 16),
+            )
+        except Exception:
+            pass
+
+    def _build_ui(self) -> None:
+        container = ttk.Frame(self, padding=24)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(
+            container,
+            text="Launch an Axiom workflow",
+            font=("Arial", 18, "bold"),
+        ).pack(pady=(0, 18))
+
+        button_frame = ttk.Frame(container)
+        button_frame.pack(fill=tk.X, expand=False)
+
+        ttk.Button(
+            button_frame,
+            text="Axiom via Verse Analysis",
+            style="AxiomEntry.TButton",
+            command=self._open_workbench,
+        ).pack(fill=tk.X, pady=10)
+
+        ttk.Button(
+            button_frame,
+            text="Axiom via SGGS Reading Mode",
+            style="AxiomEntry.TButton",
+            command=self._open_reader_scaffold,
+        ).pack(fill=tk.X, pady=10)
+
+        ttk.Label(
+            container,
+            text=(
+                "Phase-2 reader mode is scaffolded here for planning. "
+                "Selections remain disabled until the flow is finalized."
+            ),
+            foreground="#555555",
+            wraplength=540,
+            justify=tk.LEFT,
+        ).pack(fill=tk.X, pady=(18, 0))
+
+        ttk.Button(
+            container,
+            text="Close",
+            command=self.close,
+        ).pack(anchor="e", pady=(24, 0))
+
+    def _resolve_app(self) -> Optional["GrammarApp"]:
+        app = getattr(self, "app_context", None)
+        if isinstance(app, GrammarApp):
+            return app
+
+        master = getattr(self, "master", None)
+        if isinstance(master, GrammarApp):
+            return master
+
+        if isinstance(master, tk.Misc):
+            candidate = getattr(master, "app", None)
+            if isinstance(candidate, GrammarApp):
+                return candidate
+
+        global_app = globals().get("app")
+        if isinstance(global_app, GrammarApp):
+            return global_app
+
+        return None
+
+    def _open_workbench(self) -> None:
+        app = self._resolve_app()
+        if app is None:
+            messagebox.showinfo(
+                "Axiom Workbench",
+                (
+                    "Axiom Workbench is not available yet in this session. "
+                    "Once Task T3 artifacts are loaded, this button will launch them."
+                ),
+                parent=self,
+            )
+            return
+
+        try:
+            open_axioms_workbench_from_dashboard(app)
+        except Exception:
+            _AXIOMS_UI_LOGGER.exception("AxiomDashboard: failed to open Axiom Workbench.")
+            messagebox.showerror(
+                "Axiom Workbench",
+                "Unable to launch the Axiom Workbench. Please check logs for details.",
+                parent=self,
+            )
+
+    def _open_reader_scaffold(self) -> None:
+        try:
+            scaffold = AxiomReaderScaffold(self)
+            try:
+                scaffold.grab_set()
+            except Exception:
+                pass
+        except Exception:
+            _AXIOMS_UI_LOGGER.exception("AxiomDashboard: failed to open reader scaffold.")
+            messagebox.showinfo(
+                "Axiom Reader Mode",
+                "Reader scaffold could not be displayed in this environment.",
+                parent=self,
+            )
+
+    def close(self) -> None:
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+
+class AxiomReaderScaffold(tk.Toplevel):
+    """Phase-2 placeholder window for the SGGS reading experience."""
+
+    def __init__(self, master: tk.Misc | None = None) -> None:
+        super().__init__(master=master)
+        self.withdraw()
+        self.title(_AXIOMS_READER_TITLE)
+        self.transient(master)
+        self.resizable(True, True)
+        self.configure(bg="light gray")
+        self.protocol("WM_DELETE_WINDOW", self.close)
+
+        self._install_window_manager()
+        self._build_ui()
+
+        self.deiconify()
+        self.lift()
+        try:
+            self.focus_set()
+        except Exception:
+            pass
+
+    def _install_window_manager(self) -> None:
+        try:
+            mgr = WindowManager(self)
+            setattr(self, "_wmgr", mgr)
+
+            def _apply() -> None:
+                try:
+                    mgr.enable_safe_maximize(0)
+                except Exception:
+                    pass
+
+            try:
+                self.after_idle(_apply)
+            except Exception:
+                _apply()
+        except Exception:
+            pass
+
+    def _build_ui(self) -> None:
+        wrapper = ttk.Frame(self, padding=24)
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(
+            wrapper,
+            text="SGGS Reading Mode — Phase-2 Scaffold",
+            font=("Arial", 18, "bold"),
+        ).pack(pady=(0, 16))
+
+        ttk.Label(
+            wrapper,
+            text="Browse pages and verses (placeholder data for planning).",
+            foreground="#555555",
+        ).pack(pady=(0, 12))
+
+        list_frame = ttk.Frame(wrapper)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        list_frame.rowconfigure(0, weight=1)
+        list_frame.columnconfigure(0, weight=1)
+
+        listbox = tk.Listbox(list_frame, height=8)
+        listbox.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=listbox.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        listbox.configure(yscrollcommand=scrollbar.set)
+
+        placeholders = [
+            "Page 1 • Verse 1 — Placeholder pankti",
+            "Page 12 • Verse 3 — Placeholder pankti",
+            "Page 37 • Verse 2 — Placeholder pankti",
+            "Page 68 • Verse 5 — Placeholder pankti",
+            "Page 104 • Verse 1 — Placeholder pankti",
+        ]
+        for item in placeholders:
+            listbox.insert(tk.END, item)
+
+        ttk.Label(
+            wrapper,
+            text="Selection is disabled until the reader flow graduates to Phase-2.",
+            foreground="#555555",
+            wraplength=540,
+            justify=tk.LEFT,
+        ).pack(fill=tk.X, pady=(16, 8))
+
+        footer = ttk.Frame(wrapper)
+        footer.pack(fill=tk.X)
+        ttk.Button(
+            footer,
+            text="Select for Axiom",
+            state=tk.DISABLED,
+        ).pack(side=tk.RIGHT)
+        ttk.Button(
+            footer,
+            text="Close",
+            command=self.close,
+        ).pack(side=tk.RIGHT, padx=(0, 8))
+
+    def close(self) -> None:
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+
+def open_axiom_dashboard(parent: Optional[Union[tk.Misc, "GrammarApp"]] = None) -> None:
+    """Create and display the additive Axiom dashboard window."""
+    master: Optional[tk.Misc]
+    app: Optional["GrammarApp"]
+
+    if isinstance(parent, GrammarApp):
+        app = parent
+        master = getattr(parent, "root", None)
+    else:
+        app = getattr(parent, "app", None) if parent is not None else None
+        master = parent if isinstance(parent, tk.Misc) else None
+
+    if master is None:
+        master = tk._default_root
+
+    if master is None:
+        _AXIOMS_UI_LOGGER.info("open_axiom_dashboard: Tk root not available; skipping dashboard launch.")
+        return
+
+    if not isinstance(app, GrammarApp):
+        global_app = globals().get("app")
+        if isinstance(global_app, GrammarApp):
+            app = global_app
+
+    window = AxiomDashboard(master=master, app=app)
+    window.lift()
+    try:
+        window.focus_set()
+    except Exception:
+        pass
+
+
+def inject_axioms_button(dashboard_title: str = "Welcome to Gurbani Software Dashboard") -> None:
+    """Inject an 'Axioms (beta)' button into the dashboard without modifying its builder."""
+    root = tk._default_root
+    if root is None:
+        _AXIOMS_UI_LOGGER.info("inject_axioms_button: default Tk root not initialized yet.")
+        return
+
+    target = _locate_dashboard_window(root, dashboard_title)
+    if target is None:
+        _AXIOMS_UI_LOGGER.info("inject_axioms_button: dashboard window '%s' not found.", dashboard_title)
+        return
+
+    if _widget_with_text_exists(target, _AXIOMS_BUTTON_TEXT):
+        return
+
+    container = _locate_primary_button_frame(target)
+    button_parent = container
+    pack_kwargs = {"fill": tk.X, "pady": 10}
+
+    if container is None:
+        button_parent = tk.Frame(target, bg="light gray")
+        button_parent.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=12)
+        pack_kwargs["pady"] = 8
+
+    try:
+        btn = ttk.Button(
+            button_parent,
+            text=_AXIOMS_BUTTON_TEXT,
+            command=lambda win=target: open_axiom_dashboard(parent=win),
+        )
+        btn.pack(**pack_kwargs)
+    except Exception:
+        _AXIOMS_UI_LOGGER.exception("inject_axioms_button: unable to create dashboard button.")
+
+
+def schedule_axioms_inject(delay_ms: int = 300) -> None:
+    """Schedule a delayed dashboard injection once the Tk loop has rendered the main window."""
+    root = tk._default_root
+    if root is None:
+        _AXIOMS_UI_LOGGER.info("schedule_axioms_inject: default Tk root not initialized yet.")
+        return
+
+    try:
+        delay = max(0, int(delay_ms))
+    except Exception:
+        delay = 300
+
+    try:
+        root.after(delay, inject_axioms_button)
+    except Exception:
+        inject_axioms_button()
+
+
+def _locate_dashboard_window(root: tk.Misc, dashboard_title: str) -> Optional[tk.Misc]:
+    """Return the dashboard window that matches the requested title, with label fallback."""
+    candidates = _collect_toplevels(root)
+    for win in candidates:
+        try:
+            if win.wm_title() == dashboard_title:
+                return win
+        except Exception:
+            continue
+
+    # Fallback: locate by header label text when the window title differs.
+    label_match = dashboard_title.strip()
+    for win in candidates:
+        for widget in getattr(win, "winfo_children", lambda: [])():
+            try:
+                if isinstance(widget, tk.Label) and widget.cget("text") == label_match:
+                    return win
+            except Exception:
+                continue
+    return None
+
+
+def _collect_toplevels(root: tk.Misc) -> List[tk.Misc]:
+    """Collect unique Tk/Toplevel windows reachable from the default root."""
+    seen: set = set()
+    result: List[tk.Misc] = []
+
+    def _add(win: tk.Misc) -> None:
+        try:
+            ident = int(win.winfo_id()) if hasattr(win, "winfo_id") else id(win)
+        except Exception:
+            ident = id(win)
+        if ident in seen:
+            return
+        seen.add(ident)
+        result.append(win)
+
+    try:
+        top = root.winfo_toplevel()
+        _add(top)
+    except Exception:
+        _add(root)
+
+    stack = list(getattr(root, "children", {}).values())
+    while stack:
+        widget = stack.pop()
+        if isinstance(widget, tk.Toplevel):
+            _add(widget)
+        stack.extend(getattr(widget, "children", {}).values())
+    return result
+
+
+def _locate_primary_button_frame(window: tk.Misc) -> Optional[tk.Frame]:
+    """Locate the dashboard frame that holds the primary navigation buttons."""
+    target_labels = {
+        "Verse Analysis Dashboard",
+        "Grammar DB Update",
+    }
+    try:
+        for child in window.winfo_children():
+            if isinstance(child, tk.Frame):
+                labels = set()
+                for widget in child.winfo_children():
+                    try:
+                        if isinstance(widget, (tk.Button, ttk.Button)):
+                            labels.add(str(widget.cget("text")))
+                    except Exception:
+                        continue
+                if target_labels & labels:
+                    return child
+    except Exception:
+        pass
+    return None
+
+
+def _widget_with_text_exists(parent: tk.Misc, text: str) -> bool:
+    """Return True when a child widget already exposes the requested text."""
+    try:
+        for child in parent.winfo_children():
+            try:
+                if hasattr(child, "cget") and str(child.cget("text")) == text:
+                    return True
+            except Exception:
+                pass
+            if _widget_with_text_exists(child, text):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _enable_axioms_dashboard_auto_injection() -> None:
+    """Wrap GrammarApp.show_dashboard so the injector runs after each render."""
+    target = getattr(GrammarApp, "show_dashboard", None)
+    if not callable(target):
+        _AXIOMS_UI_LOGGER.info("auto-inject: GrammarApp.show_dashboard unavailable; skipping patch.")
+        return
+    if getattr(target, "_axioms_inject_wrapped", False):
+        return
+
+    try:
+        from functools import wraps as _wraps
+    except Exception:
+        _wraps = None
+
+    original = target
+
+    def _patched(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        try:
+            schedule_axioms_inject()
+        except Exception:
+            _AXIOMS_UI_LOGGER.exception("auto-inject: failed scheduling axioms button.")
+        return result
+
+    if _wraps is not None:
+        _patched = _wraps(original)(_patched)  # type: ignore[assignment]
+
+    setattr(_patched, "_axioms_inject_wrapped", True)
+    setattr(GrammarApp, "show_dashboard", _patched)
+
+
+try:
+    _enable_axioms_dashboard_auto_injection()
+except Exception:
+    _AXIOMS_UI_LOGGER.exception("Failed to enable automatic axioms dashboard injection.")

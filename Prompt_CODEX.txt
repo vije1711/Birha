@@ -1,89 +1,79 @@
-Non-negotiable constraint
-Do not alter any existing functions in 1.1.0_birha.py. Treat them as read-only reference.
-You may only add new functions, dataclasses, constants, and unit tests.
-No renames, no signature changes, no in-place edits, no deleted lines in existing code.
+# Full prompt for Codex CLI — Add Axiom Dashboard entrypoint (additive-only)
 
----
+**Goal**
+Add a single button to the “Welcome to Gurbani Software Dashboard” window that launches a new **Axiom Dashboard**. Inside the Axiom Dashboard, show two buttons:
 
-# Full Prompt (Thorough) – Task 13
+1. **Axiom via Verse Analysis** (opens the existing/added Axiom Workbench flow)
+2. **Axiom via SGGS Reading Mode** (opens the scaffolded reader flow)
 
-**Context**
-You are enhancing *Birha v1.1.0* (Tkinter app). The sources of truth are **@Prompt_CODEX.txt** and **@0.1.7.3 Axioms_framework Engineering Contract — Birha V1.1.docx**. Implement **Task 13 only**: Final Integration & Regression Guardrails, ensuring that the Axioms/Framework feature coexists cleanly with the existing Literal Translation and Grammar flows, without regressions. 
+This feature must be additive and must not wire Axioms into other app flows (Literal Translation, Grammar, ABW, etc.). It’s just a new entrypoint and a separate dashboard.
 
----
+**Non-negotiable constraints**
 
-**Non-negotiables**
-
-* Do **not** alter any existing functions, constants, or strings in `1.1.0_birha.py`. Treat them as read-only reference.
+* Do **not** alter any existing functions, constants, or strings in `1.1.0_birha.py`. Treat them as read-only.
 * No renames, refactors, in-place edits, or deletions.
-* Add all new code only under this header:
-  `# === Axioms T13: Final Integration & Regression Guardrails (additive only) ===`
-* Canonical headers and string constants must remain untouched.
+* Add all new code **only** under a new header:
 
----
+```
+# === Axioms UI Entry: Dashboard & Buttons (additive only) ===
+```
 
-**Deliverables**
+* If UI injection into the existing Dashboard requires a hook, implement a **non-intrusive injector** (see below) that locates the Dashboard window by title and appends a button at runtime. Do **not** edit the Dashboard builder function.
 
-1. **Smoke Tests & Guardrails**
+**Deliverables (additive code only)**
 
-   * Create smoke tests covering coexistence with existing Literal Translation and Grammar flows.
-   * Ensure that when saving verses, **existing save behavior remains unchanged** unless the user explicitly interacts with Axioms features.
-   * Verify that Grammar assessments, Literal translations, and Verse data persistence are unaffected by Axioms flows.
+1. `class AxiomDashboard(tk.Toplevel)`:
 
-2. **UI Integration**
+   * Title: `Axiom Dashboard (beta)`
+   * Two large buttons:
 
-   * Ensure launching the Axioms workbench from the dashboard or post-save panel does not alter any state until the user confirms “Save/Finalize Axioms.”
-   * Add non-blocking hooks so the “Finalize Axioms” panel launches after Literal Translation/Grammar save, but remains optional.
-   * Verify that Axioms dialogs close gracefully without side-effects.
+     * “Axiom via Verse Analysis” → calls a small adapter that opens the existing/added Axiom Workbench shell (Task T3 artifacts if present; otherwise a no-op stub with a messagebox).
+     * “Axiom via SGGS Reading Mode” → opens a scaffold Toplevel with a placeholder list (page/verse) and a disabled “Select for Axiom” button (clearly marked as Phase-2 scaffold).
+   * Safe maximize support via the existing `WindowManager` pattern (don’t modify it; just use it if available).
 
-3. **Stress & Edge Cases**
+2. `def open_axiom_dashboard(parent=None) -> None`:
 
-   * Validate that large verses (>300 characters) and multi-verse selections behave consistently, without errors or regressions.
-   * Confirm that Axioms features handle edge cases like missing Framework?/Explicit? flags gracefully.
-   * Ensure reanalysis triggers still work correctly if translation revisions advance.
+   * Creates and shows `AxiomDashboard`.
+   * If `parent` is None, use `tk._default_root` defensively.
 
-4. **Regression Checklist**
+3. **Dashboard button injector (zero edits to existing code):**
 
-   * Literal Translation saves produce identical data before/after Axioms code.
-   * Grammar saves and highlights are unaffected.
-   * No schema drift in existing CSV/Excel outputs.
-   * ABW driver behavior remains consistent with pre-Axioms functionality.
+   * `def inject_axioms_button(dashboard_title:str="Welcome to Gurbani Software Dashboard") -> None`
+   * Finds the top-level window whose title matches `dashboard_title` (case-sensitive).
+   * Appends a new `ttk.Button` labeled `Axioms (beta)` to the dashboard’s primary button container.
+   * If the container cannot be found, place the button at the bottom of the main window using a small frame.
+   * Button command: `open_axiom_dashboard(parent=that_window)`
+   * Be defensive: if the button already exists, do nothing.
+   * Provide `def schedule_axioms_inject(delay_ms:int=300): root.after(delay_ms, inject_axioms_button)` so callers can schedule injection after the dashboard renders.
 
----
+4. **No coupling to other flows:**
+
+   * Do not auto-launch the Axiom Dashboard from literal/grammar save flows.
+   * No changes to existing save logic, scanners, or checkboxes.
 
 **Acceptance Criteria**
 
-* Existing save behaviors (Literal/Grammar) are preserved exactly.
-* Launching Axioms workbench has no side-effects until user finalizes.
-* Large verse and multi-verse selections process correctly.
-* Reanalysis queue continues to function as before.
-* End-to-end flow works: Verse → Finalize Literal/Grammar → Launch Axioms → Save/Finalize → Export → Re-import → Re-run tests.
-* All unit and smoke tests pass.
+* Launch the app normally; after the main dashboard appears, call `schedule_axioms_inject()` (from a tiny test harness or manual REPL) and verify a **new “Axioms (beta)”** button shows up on the “Welcome to Gurbani Software Dashboard” window without any regressions.
+* Clicking **Axioms (beta)** opens **Axiom Dashboard (beta)** with two buttons:
 
----
+  * “Axiom via Verse Analysis” → opens the Axiom Workbench shell (or shows a friendly stub dialog if not yet implemented).
+  * “Axiom via SGGS Reading Mode” → opens the reader scaffold window (non-destructive, clearly labeled as Phase-2).
+* No existing labels/strings change; no existing buttons move or disappear.
+* If the injector can’t find the dashboard, it fails gracefully (logs or `print`) without throwing.
 
-**Tests**
-File: `tests/axioms/test_task13_integration.py`
+**Testing notes**
 
-* `test_literal_translation_unchanged()` → saving translation behaves identically pre/post Axioms.
-* `test_grammar_flow_unchanged()` → grammar assessments unaffected.
-* `test_axioms_workbench_launch_no_side_effects()` → opening/closing without saving leaves state untouched.
-* `test_large_verse_and_multiverse_selection()` → edge cases work consistently.
-* `test_axioms_save_with_translation_revision()` → reanalysis triggers when revisions advance.
+* Headless safety: wrap any `tk.Tk()` creation in tests with a DISPLAY check; skip tests if headless.
+* Manual smoke:
 
----
+  1. Start the app.
+  2. In a Python console, run `schedule_axioms_inject()`; confirm the new button appears.
+  3. Click through both sub-buttons; confirm new windows appear and close cleanly.
 
-**PR Workflow**
+**File to change**
 
-* Branch: `feature/axioms-T13-final-integration`
-* Commit: `feat(axioms): T13 add final integration & regression guardrails`
-* PR Title: `Axioms T13 — Final Integration & Regression Guardrails`
-* PR Body Checklist:
+* `1.1.0_birha.py` — **additive code only** under:
 
-  * [ ] Additive only, no edits to existing functions/constants
-  * [ ] Existing Literal/Grammar flows unchanged
-  * [ ] Axioms workbench optional, no side-effects
-  * [ ] Edge cases validated (large/multi-verse)
-  * [ ] All smoke tests and unit tests green
-
----
+```
+# === Axioms UI Entry: Dashboard & Buttons (additive only) ===
+```
