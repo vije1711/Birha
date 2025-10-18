@@ -14989,6 +14989,253 @@ class GrammarApp:
         return total_match_count, max_match_percentage
 
 
+# === Axioms T0: Axioms Entry Point (additive only) ===
+
+
+def _axioms_t0_locate_button_frame(app):
+    try:
+        root = getattr(app, "root", None)
+        if root is None:
+            return None
+        for child in root.winfo_children():
+            if isinstance(child, tk.Frame):
+                try:
+                    for grand in child.winfo_children():
+                        if isinstance(grand, tk.Button):
+                            text = grand.cget("text")
+                            if text in (
+                                "Verse Analysis Dashboard",
+                                "Grammar DB Update",
+                                "Upcoming Feature: Grammar Correction",
+                            ):
+                                return child
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return None
+
+
+def _axioms_t0_find_button(frame):
+    try:
+        for widget in frame.winfo_children():
+            if isinstance(widget, tk.Button) and widget.cget("text") == "Axioms (beta)":
+                return widget
+    except Exception:
+        pass
+    return None
+
+
+def _axioms_t0_launch(app):
+    parent = getattr(app, "root", None)
+    axioms_cls = globals().get("AxiomsDashboard")
+    if axioms_cls is None:
+        try:
+            messagebox.showinfo(
+                "Axioms (beta)",
+                "Axioms module will be available in the next build.",
+                parent=parent,
+            )
+        except Exception:
+            pass
+        return
+
+    try:
+        existing = getattr(app, "_axioms_window", None)
+        if existing is not None and int(existing.winfo_exists()):
+            try:
+                existing.deiconify()
+            except Exception:
+                pass
+            try:
+                existing.lift()
+            except Exception:
+                pass
+            try:
+                existing.focus_force()
+            except Exception:
+                pass
+            return
+    except Exception:
+        setattr(app, "_axioms_window", None)
+
+    def _on_close():
+        setattr(app, "_axioms_window", None)
+
+    try:
+        new_window = axioms_cls(master=app, on_close=_on_close)
+        setattr(app, "_axioms_window", new_window)
+        try:
+            new_window.lift()
+        except Exception:
+            pass
+        try:
+            new_window.focus_force()
+        except Exception:
+            pass
+    except Exception:
+        setattr(app, "_axioms_window", None)
+        try:
+            messagebox.showinfo(
+                "Axioms (beta)",
+                "Axioms module will be available in the next build.",
+                parent=parent,
+            )
+        except Exception:
+            pass
+
+
+def _axioms_t0_attach_button(app):
+    frame = _axioms_t0_locate_button_frame(app)
+    if frame is None:
+        return
+    if _axioms_t0_find_button(frame):
+        return
+    insert_before = None
+    try:
+        for widget in frame.winfo_children():
+            if isinstance(widget, tk.Button) and widget.cget("text") == "Upcoming Feature: Grammar Correction":
+                insert_before = widget
+                break
+    except Exception:
+        insert_before = None
+
+    btn = tk.Button(
+        frame,
+        text="Axioms (beta)",
+        font=('Arial', 14, 'bold'),
+        bg='dark cyan',
+        fg='white',
+        padx=20,
+        pady=10,
+        command=lambda: _axioms_t0_launch(app),
+    )
+    pack_kwargs = {"pady": 10}
+    if insert_before is not None:
+        pack_kwargs["before"] = insert_before
+    try:
+        btn.pack(**pack_kwargs)
+    except Exception:
+        try:
+            btn.pack(pady=10)
+        except Exception:
+            pass
+
+
+def _axioms_t0_install():
+    original_show_dashboard = getattr(GrammarApp, "show_dashboard", None)
+    if original_show_dashboard is None:
+        return
+    if getattr(original_show_dashboard, "_axioms_t0_wrapped", False):
+        return
+
+    def _wrapped(self, *args, **kwargs):
+        result = original_show_dashboard(self, *args, **kwargs)
+        try:
+            _axioms_t0_attach_button(self)
+        except Exception:
+            pass
+        return result
+
+    _wrapped._axioms_t0_wrapped = True
+    GrammarApp.show_dashboard = _wrapped  # type: ignore[method-assign]
+
+
+_axioms_t0_install()
+
+
+# === Axioms T1: Axioms Dashboard Shell (additive only) ===
+
+
+class AxiomsDashboard(tk.Toplevel):
+    """Beta shell window providing navigation placeholders for the Axioms flows."""
+
+    _BUTTON_SPECS = (
+        ("Axiom via Verse Analysis", "Verse Analysis pathway placeholder engaged."),
+        ("Axiom via SGGS Reading Mode", "SGGS Reading Mode pathway placeholder engaged."),
+    )
+
+    def __init__(self, master=None, *, on_close=None):
+        parent = master
+        self._app_owner = None
+        if parent is not None and not isinstance(parent, tk.Misc):
+            candidate = getattr(parent, "root", None)
+            if isinstance(candidate, tk.Misc):
+                self._app_owner = parent
+                parent = candidate
+            else:
+                parent = None
+        super().__init__(parent)
+        self.title("Axioms Dashboard (beta)")
+        self.configure(bg="light gray")
+        self._on_close = on_close
+        if parent is not None:
+            try:
+                self.transient(parent)
+            except Exception:
+                pass
+
+        self.resizable(True, True)
+
+        self._wmgr = None
+        try:
+            self._wmgr = WindowManager(self)
+            try:
+                self._wmgr.enable_safe_maximize(0)
+            except Exception:
+                pass
+            try:
+                self._wmgr.maximize()
+            except Exception:
+                pass
+        except Exception:
+            self._wmgr = None
+
+        self.protocol("WM_DELETE_WINDOW", self._handle_close)
+        try:
+            self.bind("<Escape>", lambda _e: self._handle_close(), add="+")
+        except Exception:
+            pass
+
+        self._build_layout()
+
+    def _build_layout(self):
+        container = tk.Frame(self, bg="light gray", padx=40, pady=40)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        button_holder = tk.Frame(container, bg="light gray")
+        button_holder.pack(expand=True)
+
+        for label, confirmation in self._BUTTON_SPECS:
+            btn = tk.Button(
+                button_holder,
+                text=label,
+                font=("Arial", 16, "bold"),
+                bg="dark cyan",
+                fg="white",
+                padx=28,
+                pady=18,
+                command=lambda msg=confirmation, title=label: self._show_placeholder(title, msg)
+            )
+            btn.pack(pady=18, ipadx=6, ipady=4, fill=tk.X, expand=True)
+
+    def _show_placeholder(self, title, message):
+        try:
+            messagebox.showinfo(title, message, parent=self)
+        except Exception:
+            pass
+
+    def _handle_close(self):
+        try:
+            if callable(self._on_close):
+                self._on_close()
+        finally:
+            try:
+                self.destroy()
+            except Exception:
+                pass
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
