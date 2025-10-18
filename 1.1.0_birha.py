@@ -15236,6 +15236,544 @@ class AxiomsDashboard(tk.Toplevel):
                 pass
 
 
+# === Axioms T2: Verse Input Flow (additive only) ===
+
+
+class AxiomsVerseInputFlow(tk.Frame):
+    """Verse input + review flow embedded inside the Axioms dashboard."""
+
+    MOCK_SUGGESTIONS = [
+        "Guru Nanak Dev Ji — Japji Sahib Pauri 1",
+        "Guru Arjan Dev Ji — Sukhmani Sahib Astpadi 5",
+        "Bhai Gurdas Ji — Vaaran Vaar 1 Pauri 12",
+        "Guru Ram Das Ji — Lavan 3",
+        "Guru Gobind Singh Ji — Chaupai Sahib Salok",
+        "Guru Amar Das Ji — Anand Sahib Pauri 21",
+        "Guru Tegh Bahadur Ji — Salok Mahalla 9 Salok 32",
+        "Guru Angad Dev Ji — Asa Di Vaar Pauri 4",
+        "Guru Har Rai Ji — Recorded Sakhi: Humility of the Saint",
+        "Guru Har Krishan Ji — Hukamnama on Compassion",
+    ]
+
+    def __init__(self, master, dashboard, *, on_back, on_cancel):
+        super().__init__(master, bg="light gray")
+        self.dashboard = dashboard
+        self.on_back = on_back
+        self.on_cancel = on_cancel
+
+        self.verse_var = tk.StringVar()
+        self.include_consecutive = tk.BooleanVar(value=False)
+        self.consecutive_count = tk.StringVar(value="1")
+
+        self._active_view = None
+        self._build_input_view()
+        self._build_review_view()
+
+    # ---------------------------
+    # Construction helpers
+    # ---------------------------
+    def _build_input_view(self):
+        self.input_frame = tk.Frame(self, bg="light gray")
+
+        header = tk.Label(
+            self.input_frame,
+            text="Verse Analysis: Select Verse",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        verse_section = tk.Frame(self.input_frame, bg="light gray")
+        verse_section.pack(fill=tk.X)
+        tk.Label(
+            verse_section,
+            text="Enter verse (single verse)",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        verse_entry = tk.Entry(
+            verse_section,
+            textvariable=self.verse_var,
+            font=("Arial", 12),
+            width=70,
+        )
+        verse_entry.pack(fill=tk.X, pady=(4, 12))
+        try:
+            verse_entry.focus_set()
+        except Exception:
+            pass
+
+        controls = tk.Frame(self.input_frame, bg="light gray")
+        controls.pack(fill=tk.X)
+        tk.Button(
+            controls,
+            text="Find Related",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._load_mock_suggestions,
+        ).pack(side=tk.LEFT, pady=(0, 8))
+
+        suggestions_frame = tk.Frame(self.input_frame, bg="light gray")
+        suggestions_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 12))
+
+        tk.Label(
+            suggestions_frame,
+            text="Related verse suggestions (select any):",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w", pady=(0, 6))
+
+        list_holder = tk.Frame(suggestions_frame, bg="light gray")
+        list_holder.pack(fill=tk.BOTH, expand=True)
+
+        self.suggestion_list = tk.Listbox(
+            list_holder,
+            selectmode=tk.MULTIPLE,
+            activestyle="dotbox",
+            height=10,
+            font=("Arial", 12),
+        )
+        self.suggestion_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scroll = tk.Scrollbar(list_holder, command=self.suggestion_list.yview)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.suggestion_list.config(yscrollcommand=scroll.set)
+
+        consecutive_frame = tk.Frame(self.input_frame, bg="light gray")
+        consecutive_frame.pack(fill=tk.X, pady=(8, 12))
+
+        check = tk.Checkbutton(
+            consecutive_frame,
+            text="Include consecutive verses?",
+            variable=self.include_consecutive,
+            onvalue=True,
+            offvalue=False,
+            bg="light gray",
+            font=("Arial", 12),
+            command=self._toggle_consecutive_inputs,
+        )
+        check.pack(side=tk.LEFT)
+
+        count_holder = tk.Frame(consecutive_frame, bg="light gray")
+        count_holder.pack(side=tk.LEFT, padx=(16, 0))
+        tk.Label(
+            count_holder,
+            text="Count:",
+            font=("Arial", 12),
+            bg="light gray",
+        ).pack(side=tk.LEFT)
+        self.consecutive_spin = tk.Spinbox(
+            count_holder,
+            from_=1,
+            to=10,
+            width=5,
+            textvariable=self.consecutive_count,
+            state="disabled",
+            font=("Arial", 12),
+        )
+        self.consecutive_spin.pack(side=tk.LEFT, padx=(6, 0))
+
+        button_bar = tk.Frame(self.input_frame, bg="light gray")
+        button_bar.pack(fill=tk.X, pady=(20, 0))
+
+        tk.Button(
+            button_bar,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._handle_back_to_dashboard,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            button_bar,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="red",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self.on_cancel,
+        ).pack(side=tk.RIGHT)
+
+        self.next_button = tk.Button(
+            button_bar,
+            text="Next",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=16,
+            pady=6,
+            state=tk.DISABLED,
+            command=self._go_to_review,
+        )
+        self.next_button.pack(side=tk.RIGHT, padx=(0, 10))
+
+        self.verse_var.trace_add("write", lambda *_: self._update_next_state())
+
+    def _build_review_view(self):
+        self.review_frame = tk.Frame(self, bg="light gray")
+
+        header = tk.Label(
+            self.review_frame,
+            text="Review Selection",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        body = tk.Frame(self.review_frame, bg="light gray")
+        body.pack(fill=tk.BOTH, expand=True)
+
+        self.review_verse_var = tk.StringVar()
+        tk.Label(
+            body,
+            text="Primary verse:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        tk.Label(
+            body,
+            textvariable=self.review_verse_var,
+            font=("Arial", 12),
+            bg="light gray",
+            wraplength=720,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 12))
+
+        self.review_suggestions_var = tk.StringVar()
+        tk.Label(
+            body,
+            text="Selected related verses:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        tk.Label(
+            body,
+            textvariable=self.review_suggestions_var,
+            font=("Arial", 12),
+            bg="light gray",
+            justify="left",
+            wraplength=720,
+        ).pack(anchor="w", pady=(0, 12))
+
+        self.review_consecutive_var = tk.StringVar()
+        tk.Label(
+            body,
+            text="Consecutive verses:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        tk.Label(
+            body,
+            textvariable=self.review_consecutive_var,
+            font=("Arial", 12),
+            bg="light gray",
+        ).pack(anchor="w")
+
+        button_bar = tk.Frame(self.review_frame, bg="light gray")
+        button_bar.pack(fill=tk.X, pady=(20, 0))
+
+        tk.Button(
+            button_bar,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._return_to_input,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            button_bar,
+            text="Continue",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._placeholder_continue,
+        ).pack(side=tk.RIGHT)
+
+    # ---------------------------
+    # Public surface
+    # ---------------------------
+    def reset(self):
+        self.verse_var.set("")
+        self.suggestion_list.delete(0, tk.END)
+        self.include_consecutive.set(False)
+        self.consecutive_count.set("1")
+        self._toggle_consecutive_inputs()
+        self._update_next_state()
+        self._display(self.input_frame)
+
+    # ---------------------------
+    # Internal helpers
+    # ---------------------------
+    def _display(self, frame):
+        if self._active_view is frame:
+            return
+        if self._active_view is not None:
+            try:
+                self._active_view.pack_forget()
+            except Exception:
+                pass
+        frame.pack(fill=tk.BOTH, expand=True)
+        self._active_view = frame
+
+    def _load_mock_suggestions(self):
+        verse = self.verse_var.get().strip()
+        if not verse:
+            try:
+                messagebox.showinfo(
+                    "Axiom via Verse Analysis",
+                    "Enter a verse first so we can suggest related passages.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+        self.suggestion_list.delete(0, tk.END)
+        for suggestion in self.MOCK_SUGGESTIONS:
+            self.suggestion_list.insert(tk.END, suggestion)
+
+    def _toggle_consecutive_inputs(self):
+        state = "normal" if self.include_consecutive.get() else "disabled"
+        try:
+            self.consecutive_spin.configure(state=state)
+        except Exception:
+            pass
+        if state == "disabled":
+            self.consecutive_count.set("1")
+
+    def _update_next_state(self):
+        verse_present = bool(self.verse_var.get().strip())
+        try:
+            self.next_button.configure(state=tk.NORMAL if verse_present else tk.DISABLED)
+        except Exception:
+            pass
+
+    def _handle_back_to_dashboard(self):
+        self.reset()
+        try:
+            self.on_back()
+        except Exception:
+            pass
+
+    def _go_to_review(self):
+        verse = self.verse_var.get().strip()
+        if not verse:
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Please enter a verse before continuing.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        include_consecutive = bool(self.include_consecutive.get())
+        consecutive_count = 0
+        if include_consecutive:
+            try:
+                consecutive_count = int(self.consecutive_count.get())
+            except Exception:
+                consecutive_count = 0
+            if consecutive_count <= 0:
+                try:
+                    messagebox.showwarning(
+                        "Axiom via Verse Analysis",
+                        "Enter how many consecutive verses to include (use 1 or more).",
+                        parent=self,
+                    )
+                except Exception:
+                    pass
+                return
+
+        selections = self.suggestion_list.curselection()
+        selected_suggestions = [
+            self.suggestion_list.get(idx) for idx in selections
+        ]
+
+        suggestions_text = "\n".join(
+            f"• {item}" for item in selected_suggestions
+        ) if selected_suggestions else "No suggestions selected."
+
+        consecutive_text = (
+            f"Including {consecutive_count} consecutive verse(s)."
+            if include_consecutive
+            else "Not including consecutive verses."
+        )
+
+        self.review_verse_var.set(verse)
+        self.review_suggestions_var.set(suggestions_text)
+        self.review_consecutive_var.set(consecutive_text)
+        self._display(self.review_frame)
+
+    def _return_to_input(self):
+        self._display(self.input_frame)
+
+    def _placeholder_continue(self):
+        try:
+            messagebox.showinfo(
+                "Axiom via Verse Analysis",
+                "Review complete. Further steps will be available in the next build.",
+                parent=self,
+            )
+        except Exception:
+            pass
+
+
+def _axioms_t2_identify_regions(dashboard):
+    container = getattr(dashboard, "_axioms_t2_container", None)
+    button_holder = getattr(dashboard, "_axioms_t2_button_holder", None)
+    verse_button = getattr(dashboard, "_axioms_t2_verse_button", None)
+    if container and button_holder and verse_button:
+        return container, button_holder, verse_button
+
+    container = None
+    button_holder = None
+    verse_button = None
+
+    try:
+        for child in dashboard.winfo_children():
+            if not isinstance(child, tk.Frame):
+                continue
+            candidate_holder = None
+            candidate_button = None
+            for grand in child.winfo_children():
+                if isinstance(grand, tk.Frame):
+                    for widget in grand.winfo_children():
+                        if isinstance(widget, tk.Button) and widget.cget("text") == "Axiom via Verse Analysis":
+                            candidate_holder = grand
+                            candidate_button = widget
+                            break
+                    if candidate_holder:
+                        break
+            if candidate_holder and candidate_button:
+                container = child
+                button_holder = candidate_holder
+                verse_button = candidate_button
+                break
+    except Exception:
+        container = button_holder = verse_button = None
+
+    if container and button_holder and verse_button:
+        setattr(dashboard, "_axioms_t2_container", container)
+        setattr(dashboard, "_axioms_t2_button_holder", button_holder)
+        setattr(dashboard, "_axioms_t2_verse_button", verse_button)
+    return container, button_holder, verse_button
+
+
+def _axioms_t2_show_home(dashboard):
+    button_holder = getattr(dashboard, "_axioms_t2_button_holder", None)
+    pack_info = getattr(dashboard, "_axioms_t2_button_pack", None)
+    flow = getattr(dashboard, "_axioms_t2_flow", None)
+    if flow is not None:
+        try:
+            flow.pack_forget()
+        except Exception:
+            pass
+    if button_holder is not None:
+        try:
+            if pack_info:
+                button_holder.pack(**pack_info)
+            else:
+                button_holder.pack(expand=True)
+        except Exception:
+            pass
+
+
+def _axioms_t2_launch_flow(dashboard):
+    container, button_holder, verse_button = _axioms_t2_identify_regions(dashboard)
+    if container is None or button_holder is None or verse_button is None:
+        try:
+            messagebox.showinfo(
+                "Axiom via Verse Analysis",
+                "Verse input flow is not available right now.",
+                parent=dashboard,
+            )
+        except Exception:
+            pass
+        return
+
+    flow = getattr(dashboard, "_axioms_t2_flow", None)
+    if flow is None:
+        flow = AxiomsVerseInputFlow(
+            container,
+            dashboard,
+            on_back=lambda: _axioms_t2_show_home(dashboard),
+            on_cancel=lambda: dashboard._handle_close(),
+        )
+        setattr(dashboard, "_axioms_t2_flow", flow)
+    try:
+        if getattr(dashboard, "_axioms_t2_button_pack", None) is None:
+            setattr(dashboard, "_axioms_t2_button_pack", button_holder.pack_info())
+    except Exception:
+        setattr(dashboard, "_axioms_t2_button_pack", None)
+
+    try:
+        button_holder.pack_forget()
+    except Exception:
+        pass
+
+    try:
+        flow.reset()
+        flow.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
+    except Exception:
+        pass
+
+
+def _axioms_t2_wire_dashboard(dashboard):
+    if getattr(dashboard, "_axioms_t2_ready", False):
+        return
+    container, button_holder, verse_button = _axioms_t2_identify_regions(dashboard)
+    if container is None or button_holder is None or verse_button is None:
+        return
+
+    setattr(dashboard, "_axioms_t2_ready", True)
+    try:
+        verse_button.configure(command=lambda: _axioms_t2_launch_flow(dashboard))
+    except Exception:
+        pass
+
+
+def _axioms_t2_install():
+    dashboard_cls = globals().get("AxiomsDashboard")
+    if dashboard_cls is None:
+        return
+    if getattr(dashboard_cls, "_axioms_t2_installed", False):
+        return
+
+    original_build_layout = getattr(dashboard_cls, "_build_layout", None)
+    if original_build_layout is None:
+        return
+
+    def _wrapped_build_layout(self):
+        original_build_layout(self)
+        try:
+            _axioms_t2_wire_dashboard(self)
+        except Exception:
+            pass
+
+    dashboard_cls._build_layout = _wrapped_build_layout  # type: ignore[method-assign]
+    setattr(dashboard_cls, "_axioms_t2_installed", True)
+
+
+_axioms_t2_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
