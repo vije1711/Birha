@@ -1,30 +1,52 @@
 ▌ Study @0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx
-   and implement **Task T0 — Axioms Entry Point (Button Injection)** in 1.1.0_birha.py.
+   and implement **Task T2 — Verse Input Flow** in `1.1.0_birha.py`.
 
 ▌ Objective:
-   Introduce a new button labeled **“Axioms (beta)”** on the *Welcome to Gurbani Software Dashboard*.
-   When clicked, it should open a new `AxiomsDashboard` window (to be implemented in Task T1).
-   The goal is only to integrate this entry point — no backend or logic wiring yet.
+   Under the Axioms Dashboard (beta), make the **“Axiom via Verse Analysis”** button
+   open a new pane that lets the user:
+   1) enter a single verse (phase-1 scope),
+   2) fetch and display **10 related verse suggestions** (mock data),
+   3) choose whether to **include consecutive verses**,
+   4) proceed to a simple **Review** placeholder screen.
 
-▌ Implementation details:
-   • Reuse the same Tkinter/ttk style and layout conventions as other dashboard buttons.  
-   • Position the button logically with other feature buttons (e.g., below “Literal Analysis” or similar group).  
-   • On click, create a new instance of `AxiomsDashboard(master=self)` and bring it to the foreground.  
-   • Ensure the button integrates seamlessly into existing layout containers (e.g., within the main Frame or Grid).  
-   • Do **not** block or replace any existing event loops; the window must open non-modally.  
-   • Graceful handling: if the class `AxiomsDashboard` is not found, show a simple info popup stating  
-     “Axioms module will be available in the next build.”
+▌ Implementation details (UI-first, no backend wiring):
+   • Add new code only under:
+       # === Axioms T2: Verse Input Flow (additive only) ===
+   • Create a dedicated `Frame` (or small view class) for the Verse Input Flow with:
+       - A labeled Entry/Text field for “Enter verse (single verse)”.
+       - A “Find Related” button → loads **10 mock suggestions** (hardcoded list or
+         small local fixture in memory) into a Listbox with multi-select enabled.
+       - A control for **Include consecutive verses?**
+         (checkbox + disabled-by-default Spinbox for count, enabled when checked).
+       - Buttons: **Next** (go to Review), **Back** (return to dashboard shell),
+         **Cancel** (close the pane/window safely).
+   • Review screen (placeholder):
+       - Lists the chosen verse, the selected suggestions, and consecutive-verse choice.
+       - Has **Back** and **Continue** (Continue does nothing yet except a messagebox).
+   • Validation:
+       - Disable “Next” until at least one verse (the main input) is present.
+       - If “Include consecutive” is checked but count is empty/zero, show a friendly warning.
+   • Navigation:
+       - Wire the existing “Axiom via Verse Analysis” button to swap the AxiomsDashboard
+         content to this new view (do not open a new Toplevel).
+   • Styling:
+       - Reuse Tk/ttk patterns consistent with the app (fonts/padding similar to T1 buttons).
 
 ▌ Mandates:
-   • Do **not** alter existing functions, constants, or strings outside the additive block.  
-   • No renames, refactors, or deletions.  
-   • Add new code only under the header:
-        # === Axioms T0: Axioms Entry Point (additive only) ===
-   • Treat 1.1.0_birha_pre_Axiom.py as reference-only (read-only).  
-   • Work on a new branch dedicated to Task T0.
+   • Do **not** alter any existing functions, constants, or strings.
+   • No renames, refactors, in-place edits, or deletions.
+   • Treat `1.1.0_birha_pre_Axiom.py` as read-only reference.
+   • Work on a **new branch** dedicated to Task T2.
 
 ▌ Acceptance criteria:
-   • “Axioms (beta)” button is visible on the Welcome Dashboard.  
-   • Clicking it opens a placeholder window (or message) without errors.  
-   • No layout shifts or regressions occur in other dashboard components.  
-   • Application compiles successfully via `python -m py_compile 1.1.0_birha.py`.
+   • Clicking **“Axiom via Verse Analysis”** shows the Verse Input pane inside the
+     Axioms Dashboard (no new window).
+   • “Find Related” populates a list of **10 mock** verse suggestions.
+   • “Include consecutive verses?” toggle enables/disables an adjacent count control.
+   • **Next** advances to a Review placeholder summarizing inputs; **Back** returns.
+   • **Cancel** exits the flow cleanly without affecting other dashboards.
+   • `python -m py_compile 1.1.0_birha.py` passes, and no regressions occur in existing UI.
+
+▌ Notes:
+   • Mock data is acceptable for T2 (no Excel/CSV reads yet).
+   • Keep all strings additive (do not modify canonical headers/labels elsewhere).
