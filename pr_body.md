@@ -1,9 +1,7 @@
-Description
+## Summary
+- embed the `AxiomsVerseInputFlow` frame so the “Axiom via Verse Analysis” button swaps the dashboard buttons for an in-pane verse-input workflow with mock suggestions and consecutive-verse controls (1.1.0_birha.py:15242)
+- keep a single reusable flow instance, restore the button deck on Back/Cancel, and enforce verse/consecutive validation before revealing the review placeholder (1.1.0_birha.py:15679)
+- surface a review summary (primary verse, selected suggestions, consecutive choice) and gate “Continue” behind the mandated placeholder message (1.1.0_birha.py:15525)
 
-- Injects a new Axioms (beta) button onto the welcome dashboard via an additive wrapper around GrammarApp.show_dashboard, positioning it before the disabled “Upcoming Feature” tile and reusing existing styling. (1.1.0_birha.py:14995)
-- Hooks the button to open the additive AxiomsDashboard shell when available, reusing any existing instance and falling back to the required “next build” info popup if the class is missing. (1.1.0_birha.py:15029)
-- Introduces the AxiomsDashboard beta window itself as an additive tk.Toplevel, leveraging WindowManager, offering the two placeholder navigation buttons, and ensuring clean teardown via an on_close callback. (1.1.0_birha.py:15150)
-
-Testing
-
+## Testing
 - python -m py_compile 1.1.0_birha.py
