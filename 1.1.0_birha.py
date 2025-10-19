@@ -16490,6 +16490,181 @@ def _axioms_t4_install():
 _axioms_t4_install()
 
 
+# === Axioms T5: Local Draft Save/Load (JSON Mock) ===
+
+
+def _axioms_t5_get_draft_path() -> str:
+    try:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+    except Exception:
+        base_dir = os.getcwd()
+    return os.path.join(base_dir, "axioms_drafts.json")
+
+
+def _axioms_t5_normalize_draft(entry: dict) -> dict:
+    if not isinstance(entry, dict):
+        return {}
+    return {
+        "created_at": str(entry.get("created_at") or ""),
+        "verse": str(entry.get("verse") or ""),
+        "related_summ": str(entry.get("related_summ") or ""),
+        "consecutive_summ": str(entry.get("consecutive_summ") or ""),
+        "translation_mode": str(entry.get("translation_mode") or ""),
+        "own_text": str(entry.get("own_text") or ""),
+        "prompt_text": str(entry.get("prompt_text") or ""),
+    }
+
+
+def _axioms_t5_load_drafts() -> list[dict]:
+    path = _axioms_t5_get_draft_path()
+    try:
+        if not os.path.exists(path):
+            return []
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, list):
+            return []
+        return [_axioms_t5_normalize_draft(entry) for entry in data if isinstance(entry, dict)]
+    except Exception:
+        return []
+
+
+def _axioms_t5_save_drafts(drafts: list[dict]) -> bool:
+    try:
+        path = _axioms_t5_get_draft_path()
+        prepared = [_axioms_t5_normalize_draft(entry) for entry in (drafts or []) if isinstance(entry, dict)]
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(prepared, fh, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def _axioms_t5_dashboard_init_patch():
+    dashboard_cls = globals().get("AxiomsDashboard")
+    if dashboard_cls is None:
+        return
+    if getattr(dashboard_cls, "_axioms_t5_dashboard_patched", False):
+        return
+
+    original_init = getattr(dashboard_cls, "__init__", None)
+    original_handle_close = getattr(dashboard_cls, "_handle_close", None)
+
+    def _patched_init(self, *args, **kwargs):
+        if original_init:
+            original_init(self, *args, **kwargs)
+        try:
+            drafts = _axioms_t5_load_drafts()
+        except Exception:
+            drafts = []
+        setattr(self, "_axioms_drafts", drafts)
+
+    def _patched_handle_close(self, *args, **kwargs):
+        try:
+            if hasattr(self, "save_all_axiom_drafts"):
+                self.save_all_axiom_drafts()
+            else:
+                _axioms_t5_save_drafts(getattr(self, "_axioms_drafts", []))
+        except Exception:
+            pass
+        if original_handle_close:
+            return original_handle_close(self, *args, **kwargs)
+
+    def _save_all_axiom_drafts(self):
+        drafts = getattr(self, "_axioms_drafts", None)
+        if not isinstance(drafts, list):
+            drafts = []
+        _axioms_t5_save_drafts(drafts)
+
+    dashboard_cls.__init__ = _patched_init  # type: ignore[method-assign]
+    dashboard_cls._handle_close = _patched_handle_close  # type: ignore[method-assign]
+    dashboard_cls.save_all_axiom_drafts = _save_all_axiom_drafts  # type: ignore[attr-defined]
+
+    setattr(dashboard_cls, "_axioms_t5_dashboard_patched", True)
+
+
+def _axioms_t5_override_save_draft():
+    builder_cls = globals().get("AxiomsPromptBuilderView")
+    if builder_cls is None:
+        return
+    if getattr(builder_cls, "_axioms_t5_save_override", False):
+        return
+
+    def _save_draft(self):
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        draft = {
+            "created_at": timestamp,
+            "verse": self.verse_summary_var.get(),
+            "related_summ": self.related_summary_var.get(),
+            "consecutive_summ": self.consecutive_summary_var.get(),
+            "translation_mode": self.translation_mode,
+            "own_text": self.own_translation_text,
+            "prompt_text": self.prompt_cache or self.prompt_display.get("1.0", "end-1c"),
+        }
+        dashboard = getattr(self, "dashboard", None)
+        if dashboard is None:
+            dashboard = getattr(self.flow, "dashboard", None)
+
+        success = False
+        try:
+            if dashboard is not None:
+                drafts = getattr(dashboard, "_axioms_drafts", None)
+                if not isinstance(drafts, list):
+                    drafts = []
+                drafts.append(draft)
+                setattr(dashboard, "_axioms_drafts", drafts)
+                success = True
+            else:
+                drafts = getattr(self, "_axioms_fallback_drafts", None)
+                if not isinstance(drafts, list):
+                    drafts = []
+                drafts.append(draft)
+                setattr(self, "_axioms_fallback_drafts", drafts)
+                success = True
+        except Exception:
+            success = False
+
+        wrote = False
+        if success and dashboard is not None:
+            try:
+                wrote = _axioms_t5_save_drafts(getattr(dashboard, "_axioms_drafts", []))
+            except Exception:
+                wrote = False
+
+        if success:
+            try:
+                if wrote:
+                    messagebox.showinfo(
+                        "Draft Saved",
+                        "Draft saved to axioms_drafts.json.",
+                        parent=self,
+                    )
+                else:
+                    messagebox.showwarning(
+                        "Draft Saved (Partial)",
+                        "Draft kept in memory, but saving to disk failed.",
+                        parent=self,
+                    )
+            except Exception:
+                pass
+        else:
+            try:
+                messagebox.showwarning(
+                    "Draft Save Failed",
+                    "Unable to store draft right now.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+
+    builder_cls._save_draft = _save_draft  # type: ignore[method-assign]
+    setattr(builder_cls, "_axioms_t5_save_override", True)
+
+
+_axioms_t5_dashboard_init_patch()
+_axioms_t5_override_save_draft()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
