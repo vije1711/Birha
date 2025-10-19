@@ -15969,11 +15969,28 @@ class AxiomsTranslationChoiceView(tk.Frame):
 
     def _reset_selection(self):
         self.choice_var.set("")
-        try:
-            self.own_text.configure(state=tk.DISABLED)
-        except Exception:
-            pass
-        self.own_text.delete("1.0", tk.END)
+        text_widget = getattr(self, "own_text", None)
+        if text_widget is not None:
+            prior_state = None
+            try:
+                prior_state = text_widget.cget("state")
+            except Exception:
+                prior_state = None
+            try:
+                if prior_state != tk.NORMAL:
+                    text_widget.configure(state=tk.NORMAL)
+                text_widget.delete("1.0", tk.END)
+            except Exception:
+                pass
+            finally:
+                restore_state = prior_state if prior_state else tk.DISABLED
+                try:
+                    text_widget.configure(state=restore_state)
+                except Exception:
+                    try:
+                        text_widget.configure(state=tk.DISABLED)
+                    except Exception:
+                        pass
         self._update_proceed_state()
 
     def _on_choice_changed(self):
