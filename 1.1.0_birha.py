@@ -15774,6 +15774,329 @@ def _axioms_t2_install():
 _axioms_t2_install()
 
 
+# === Axioms T3: Translation Choice Screen (additive only) ===
+
+
+class AxiomsTranslationChoiceView(tk.Frame):
+    """Translation method selector shown after the verse review screen."""
+
+    _DARPAN_SAMPLE = (
+        "Mock Darpan translation preview:\n"
+        "“Contemplate the Lord whose virtues illuminate every heart. "
+        "Within this verse, divine wisdom settles like soothing rain.”"
+    )
+
+    def __init__(self, flow):
+        super().__init__(flow, bg="light gray")
+        self.flow = flow
+        self.choice_var = tk.StringVar(value="")
+        self.verse_label_var = tk.StringVar()
+        self.suggestions_var = tk.StringVar()
+        self.consecutive_var = tk.StringVar()
+
+        self._build_layout()
+
+    # ---------------------------
+    # Layout and state helpers
+    # ---------------------------
+    def _build_layout(self):
+        header = tk.Label(
+            self,
+            text="Translation Choice",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        summary = tk.Frame(self, bg="light gray")
+        summary.pack(fill=tk.X, pady=(0, 16))
+
+        tk.Label(
+            summary,
+            text="Primary verse:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        tk.Label(
+            summary,
+            textvariable=self.verse_label_var,
+            font=("Arial", 12),
+            wraplength=760,
+            justify="left",
+            bg="light gray",
+        ).pack(anchor="w", pady=(0, 8))
+
+        tk.Label(
+            summary,
+            text="Related verses:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        tk.Label(
+            summary,
+            textvariable=self.suggestions_var,
+            font=("Arial", 12),
+            wraplength=760,
+            justify="left",
+            bg="light gray",
+        ).pack(anchor="w", pady=(0, 8))
+
+        tk.Label(
+            summary,
+            text="Consecutive verses:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w")
+        tk.Label(
+            summary,
+            textvariable=self.consecutive_var,
+            font=("Arial", 12),
+            bg="light gray",
+        ).pack(anchor="w")
+
+        options = tk.Frame(self, bg="light gray")
+        options.pack(fill=tk.BOTH, expand=True, pady=(8, 16))
+
+        self._build_darpan_option(options)
+        self._build_custom_option(options)
+
+        button_bar = tk.Frame(self, bg="light gray")
+        button_bar.pack(fill=tk.X, pady=(12, 0))
+
+        tk.Button(
+            button_bar,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._return_to_review,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            button_bar,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="red",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._cancel_flow,
+        ).pack(side=tk.RIGHT)
+
+        self.proceed_button = tk.Button(
+            button_bar,
+            text="Proceed",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=16,
+            pady=6,
+            state=tk.DISABLED,
+            command=self._proceed_choice,
+        )
+        self.proceed_button.pack(side=tk.RIGHT, padx=(0, 10))
+
+    def _build_darpan_option(self, parent):
+        frame = tk.Frame(parent, bg="light gray", pady=6)
+        frame.pack(fill=tk.X, pady=(0, 12))
+
+        tk.Radiobutton(
+            frame,
+            text="Use predefined Darpan translation",
+            variable=self.choice_var,
+            value="darpan",
+            bg="light gray",
+            font=("Arial", 12, "bold"),
+            command=self._on_choice_changed,
+        ).pack(anchor="w")
+
+        text_holder = tk.Frame(frame, bg="light gray")
+        text_holder.pack(fill=tk.X, pady=(6, 0))
+
+        self.darpan_text = tk.Text(
+            text_holder,
+            height=8,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            background="#f0f0f0",
+            foreground="#202020",
+        )
+        self.darpan_text.pack(fill=tk.BOTH, expand=True)
+        self.darpan_text.insert("1.0", self._DARPAN_SAMPLE)
+        self.darpan_text.configure(state=tk.DISABLED)
+
+    def _build_custom_option(self, parent):
+        frame = tk.Frame(parent, bg="light gray", pady=6)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        tk.Radiobutton(
+            frame,
+            text="Perform own literal translation",
+            variable=self.choice_var,
+            value="own",
+            bg="light gray",
+            font=("Arial", 12, "bold"),
+            command=self._on_choice_changed,
+        ).pack(anchor="w")
+
+        text_holder = tk.Frame(frame, bg="light gray")
+        text_holder.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
+
+        self.own_text = tk.Text(
+            text_holder,
+            height=8,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            background="white",
+            foreground="#202020",
+            state=tk.DISABLED,
+        )
+        self.own_text.pack(fill=tk.BOTH, expand=True)
+        self.own_text.bind("<<Modified>>", self._on_own_modified)
+
+    # ---------------------------
+    # Flow controls
+    # ---------------------------
+    def prepare(self, verse, suggestions, consecutive):
+        self.verse_label_var.set(verse or "No verse provided.")
+        self.suggestions_var.set(suggestions or "No related verses selected.")
+        self.consecutive_var.set(consecutive or "")
+        self._reset_selection()
+
+    def _reset_selection(self):
+        self.choice_var.set("")
+        text_widget = getattr(self, "own_text", None)
+        if text_widget is not None:
+            prior_state = None
+            try:
+                prior_state = text_widget.cget("state")
+            except Exception:
+                prior_state = None
+            try:
+                if prior_state != tk.NORMAL:
+                    text_widget.configure(state=tk.NORMAL)
+                text_widget.delete("1.0", tk.END)
+            except Exception:
+                pass
+            finally:
+                restore_state = prior_state if prior_state else tk.DISABLED
+                try:
+                    text_widget.configure(state=restore_state)
+                except Exception:
+                    try:
+                        text_widget.configure(state=tk.DISABLED)
+                    except Exception:
+                        pass
+        self._update_proceed_state()
+
+    def _on_choice_changed(self):
+        choice = self.choice_var.get()
+        if choice == "own":
+            try:
+                self.own_text.configure(state=tk.NORMAL)
+                self.own_text.focus_set()
+            except Exception:
+                pass
+        else:
+            try:
+                self.own_text.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+        self._update_proceed_state()
+
+    def _on_own_modified(self, _event):
+        try:
+            self.own_text.edit_modified(False)
+        except Exception:
+            pass
+        self._update_proceed_state()
+
+    def _update_proceed_state(self):
+        choice = self.choice_var.get()
+        enable = False
+        if choice == "darpan":
+            enable = True
+        elif choice == "own":
+            content = self._get_own_translation().strip()
+            enable = bool(content)
+        state = tk.NORMAL if enable else tk.DISABLED
+        try:
+            self.proceed_button.configure(state=state)
+        except Exception:
+            pass
+
+    def _get_own_translation(self):
+        try:
+            return self.own_text.get("1.0", tk.END)
+        except Exception:
+            return ""
+
+    def _return_to_review(self):
+        try:
+            self.flow._display(self.flow.review_frame)
+        except Exception:
+            pass
+
+    def _cancel_flow(self):
+        try:
+            self.flow.on_cancel()
+        except Exception:
+            pass
+
+    def _proceed_choice(self):
+        try:
+            messagebox.showinfo(
+                "Axiom via Verse Analysis",
+                "Translation choice recorded — next step coming soon.",
+                parent=self,
+            )
+        except Exception:
+            pass
+
+
+def _axioms_t3_patch_continue(flow, verse_summary, suggestions_summary, consecutive_summary):
+    view = getattr(flow, "_axioms_t3_translation_view", None)
+    if view is None:
+        view = AxiomsTranslationChoiceView(flow)
+        setattr(flow, "_axioms_t3_translation_view", view)
+    view.prepare(verse_summary, suggestions_summary, consecutive_summary)
+    try:
+        flow._display(view)
+    except Exception:
+        pass
+
+
+def _axioms_t3_install():
+    flow_cls = globals().get("AxiomsVerseInputFlow")
+    if flow_cls is None:
+        return
+    if getattr(flow_cls, "_axioms_t3_installed", False):
+        return
+
+    original_continue = getattr(flow_cls, "_placeholder_continue", None)
+    if original_continue is None:
+        return
+
+    def _wrapped_continue(self):
+        try:
+            verse = self.review_verse_var.get() if hasattr(self, "review_verse_var") else ""
+            suggestions = self.review_suggestions_var.get() if hasattr(self, "review_suggestions_var") else ""
+            consecutive = self.review_consecutive_var.get() if hasattr(self, "review_consecutive_var") else ""
+            _axioms_t3_patch_continue(self, verse, suggestions, consecutive)
+        except Exception:
+            original_continue(self)
+
+    flow_cls._placeholder_continue = _wrapped_continue  # type: ignore[method-assign]
+    setattr(flow_cls, "_axioms_t3_installed", True)
+
+
+_axioms_t3_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
