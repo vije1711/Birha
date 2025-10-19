@@ -16097,6 +16097,399 @@ def _axioms_t3_install():
 _axioms_t3_install()
 
 
+# === Axioms T4: Prompt Builder Preview (additive only) ===
+
+
+class AxiomsPromptBuilderView(tk.Frame):
+    """Prompt preview composer with copy/save actions."""
+
+    def __init__(self, flow):
+        super().__init__(flow, bg="light gray")
+        self.flow = flow
+        self.dashboard = getattr(flow, "dashboard", None)
+
+        self.verse_summary_var = tk.StringVar()
+        self.related_summary_var = tk.StringVar()
+        self.consecutive_summary_var = tk.StringVar()
+        self.translation_mode_var = tk.StringVar()
+
+        self.translation_mode = "darpan"
+        self.own_translation_text = ""
+        self.darpan_preview_text = ""
+        self.prompt_cache = ""
+
+        self._build_layout()
+
+    # ---------------------------
+    # Layout construction
+    # ---------------------------
+    def _build_layout(self):
+        header = tk.Label(
+            self,
+            text="Prompt Builder (Preview)",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        summary_frame = tk.Frame(self, bg="light gray")
+        summary_frame.pack(fill=tk.X, pady=(0, 16))
+
+        def _add_summary(label_text, var):
+            tk.Label(
+                summary_frame,
+                text=label_text,
+                font=("Arial", 12, "bold"),
+                bg="light gray",
+            ).pack(anchor="w")
+            tk.Label(
+                summary_frame,
+                textvariable=var,
+                font=("Arial", 12),
+                wraplength=760,
+                justify="left",
+                bg="light gray",
+            ).pack(anchor="w", pady=(0, 8))
+
+        _add_summary("Primary verse:", self.verse_summary_var)
+        _add_summary("Related verses:", self.related_summary_var)
+        _add_summary("Consecutive verses:", self.consecutive_summary_var)
+        _add_summary("Translation mode:", self.translation_mode_var)
+
+        prompt_holder = tk.Frame(self, bg="light gray")
+        prompt_holder.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
+
+        toolbar = tk.Frame(prompt_holder, bg="light gray")
+        toolbar.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Button(
+            toolbar,
+            text="Regenerate",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=12,
+            pady=4,
+            command=self._regenerate_prompt,
+        ).pack(side=tk.LEFT)
+
+        self.prompt_display = tk.Text(
+            prompt_holder,
+            height=16,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            bg="#f5f5f5",
+            fg="#202020",
+            state=tk.DISABLED,
+        )
+        self.prompt_display.pack(fill=tk.BOTH, expand=True)
+
+        action_bar = tk.Frame(self, bg="light gray")
+        action_bar.pack(fill=tk.X, pady=(12, 0))
+
+        tk.Button(
+            action_bar,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._go_back,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            action_bar,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="red",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._cancel_flow,
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            action_bar,
+            text="Copy Prompt",
+            font=("Arial", 12, "bold"),
+            bg="#1f6f8b",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._copy_prompt,
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+        tk.Button(
+            action_bar,
+            text="Save Draft",
+            font=("Arial", 12, "bold"),
+            bg="#2e8b57",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._save_draft,
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+    # ---------------------------
+    # Public interface
+    # ---------------------------
+    def prepare(
+        self,
+        flow,
+        verse,
+        related_summary,
+        consecutive_summary,
+        translation_mode,
+        own_text,
+        darpan_preview_text,
+    ):
+        self.flow = flow
+        self.dashboard = getattr(flow, "dashboard", self.dashboard)
+
+        self.verse_summary_var.set(verse or "No verse provided.")
+        self.related_summary_var.set(related_summary or "None")
+        self.consecutive_summary_var.set(consecutive_summary or "")
+
+        self.translation_mode = translation_mode or "darpan"
+        self.own_translation_text = own_text or ""
+        self.darpan_preview_text = darpan_preview_text or ""
+
+        if self.translation_mode == "own":
+            self.translation_mode_var.set("Own literal translation")
+        else:
+            self.translation_mode = "darpan"
+            self.translation_mode_var.set("Darpan (predefined)")
+
+        self._regenerate_prompt()
+
+    # ---------------------------
+    # Actions
+    # ---------------------------
+    def _regenerate_prompt(self):
+        try:
+            primary = self.verse_summary_var.get().strip()
+            related = self.related_summary_var.get().strip() or "None"
+            consecutive = self.consecutive_summary_var.get().strip() or "Not including consecutive verses."
+
+            if self.translation_mode == "own":
+                translation_text = self.own_translation_text.strip() or "No translation provided."
+                translation_source = "Own literal analysis"
+            else:
+                translation_text = self.darpan_preview_text.strip() or "No translation available."
+                translation_source = "Darpan (predefined)"
+
+            prompt = "\n".join([
+                "Title: Derive a SGGS Axiom from the provided verse(s)",
+                "",
+                "Primary verse:",
+                primary,
+                "",
+                "Related verses (if any):",
+                related,
+                "",
+                "Consecutive verses:",
+                consecutive,
+                "",
+                "Translation source:",
+                translation_source,
+                "",
+                "Translation text:",
+                translation_text,
+                "",
+                "Task:",
+                "Using only the translation text above, identify a single precise Axiom (short, declarative), and explain briefly (2–4 sentences) how the verse supports this Axiom. Avoid paraphrasing the verse; focus on the core principle.",
+                "",
+                "Output format:",
+                "AXIOM: <one-line axiom>",
+                "RATIONALE: <2–4 sentences>",
+                "",
+                "Notes:",
+                "- If multiple principles are present, pick the primary one most strongly supported by the verse.",
+                "- Keep neutral tone; avoid sectarian claims or historical speculation.",
+            ])
+            self.prompt_cache = prompt
+            self._set_prompt_text(prompt)
+        except Exception:
+            pass
+
+    def _set_prompt_text(self, text):
+        try:
+            self.prompt_display.configure(state=tk.NORMAL)
+            self.prompt_display.delete("1.0", tk.END)
+            self.prompt_display.insert("1.0", text)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.prompt_display.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+
+    def _copy_prompt(self):
+        prompt = self.prompt_cache or ""
+        if not prompt:
+            prompt = self.prompt_display.get("1.0", "end-1c")
+        try:
+            pyperclip.copy(prompt)
+            messagebox.showinfo(
+                "Prompt Builder",
+                "Prompt copied to clipboard.",
+                parent=self,
+            )
+        except Exception:
+            try:
+                self.prompt_display.configure(state=tk.NORMAL)
+                self.prompt_display.tag_add("sel", "1.0", "end")
+                self.prompt_display.focus_set()
+                self.prompt_display.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+            try:
+                messagebox.showinfo(
+                    "Prompt Builder",
+                    "Clipboard access unavailable. Prompt highlighted — press Ctrl+C to copy.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+
+    def _save_draft(self):
+        draft = {
+            "created_at": datetime.now(),
+            "verse": self.verse_summary_var.get(),
+            "related_summ": self.related_summary_var.get(),
+            "consecutive_summ": self.consecutive_summary_var.get(),
+            "translation_mode": self.translation_mode,
+            "own_text": self.own_translation_text,
+            "prompt_text": self.prompt_cache or self.prompt_display.get("1.0", "end-1c"),
+        }
+        try:
+            dashboard = self.dashboard
+            if dashboard is None:
+                dashboard = getattr(self.flow, "dashboard", None)
+            if dashboard is not None:
+                drafts = getattr(dashboard, "_axioms_drafts", None)
+                if drafts is None:
+                    drafts = []
+                    setattr(dashboard, "_axioms_drafts", drafts)
+                drafts.append(draft)
+            messagebox.showinfo(
+                "Draft Saved",
+                "Draft stored for this session. Full persistence arrives in Task T5.",
+                parent=self,
+            )
+        except Exception:
+            try:
+                messagebox.showwarning(
+                    "Draft Save Failed",
+                    "Unable to store draft right now.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+
+    def _go_back(self):
+        try:
+            view = getattr(self.flow, "_axioms_t3_translation_view", None)
+            if view is not None:
+                self.flow._display(view)
+        except Exception:
+            pass
+
+    def _cancel_flow(self):
+        try:
+            self.flow.on_cancel()
+        except Exception:
+            pass
+
+
+def _axioms_t4_extract_darpan_text(view):
+    sample = getattr(view, "_DARPAN_SAMPLE", "")
+    text_widget = getattr(view, "darpan_text", None)
+    if isinstance(text_widget, tk.Text):
+        try:
+            prior = text_widget.cget("state")
+        except Exception:
+            prior = None
+        try:
+            if prior != tk.NORMAL:
+                text_widget.configure(state=tk.NORMAL)
+            content = text_widget.get("1.0", "end-1c").strip()
+            if content:
+                return content
+        except Exception:
+            pass
+        finally:
+            try:
+                restore = prior if prior else tk.DISABLED
+                text_widget.configure(state=restore)
+            except Exception:
+                try:
+                    text_widget.configure(state=tk.DISABLED)
+                except Exception:
+                    pass
+    return sample
+
+
+def _axioms_t4_install():
+    view_cls = globals().get("AxiomsTranslationChoiceView")
+    if view_cls is None:
+        return
+    if getattr(view_cls, "_axioms_t4_installed", False):
+        return
+
+    original_proceed = getattr(view_cls, "_proceed_choice", None)
+    if original_proceed is None:
+        return
+
+    def _wrapped_proceed(self):
+        flow = getattr(self, "flow", None)
+        if flow is None:
+            return original_proceed(self)
+
+        try:
+            verse = ""
+            suggestions = "None"
+            consecutive = ""
+            if hasattr(flow, "review_verse_var"):
+                verse = flow.review_verse_var.get()
+            if hasattr(flow, "review_suggestions_var"):
+                suggestions = flow.review_suggestions_var.get() or "None"
+            if hasattr(flow, "review_consecutive_var"):
+                consecutive = flow.review_consecutive_var.get()
+
+            translation_mode = self.choice_var.get() or "darpan"
+            own_text = self._get_own_translation().strip() if translation_mode == "own" else ""
+            darpan_text = _axioms_t4_extract_darpan_text(self)
+
+            builder = getattr(flow, "_axioms_t4_builder_view", None)
+            if builder is None:
+                builder = AxiomsPromptBuilderView(flow)
+                setattr(flow, "_axioms_t4_builder_view", builder)
+
+            builder.prepare(
+                flow,
+                verse,
+                suggestions,
+                consecutive,
+                translation_mode,
+                own_text,
+                darpan_text,
+            )
+            flow._display(builder)
+        except Exception:
+            original_proceed(self)
+
+    view_cls._proceed_choice = _wrapped_proceed  # type: ignore[method-assign]
+    setattr(view_cls, "_axioms_t4_installed", True)
+
+
+_axioms_t4_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
