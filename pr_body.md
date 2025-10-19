@@ -1,29 +1,46 @@
 ## Summary
-Implements **Task T4 — Prompt Builder Preview** (UI-first). After Translation Choice (T3), a new view composes a structured, copyable prompt based on the selected verse(s) and the user’s translation mode (Darpan vs Own). Drafts can be saved in memory for the session.
+Implements **Task T5 — Local Draft Save / Load (JSON Mock)** as per  
+**“0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx.”**
+
+This enhancement extends the **Axioms Prompt Builder View** (T4) to provide real local persistence for user-saved drafts, allowing them to survive application restarts.  
+Drafts are written to and reloaded from a lightweight JSON file named **`axioms_drafts.json`** located in the same directory as `1.1.0_birha.py`.
+
+---
 
 ## Scope & Behavior
-- Adds `AxiomsPromptBuilderView` with sections: primary verse, related verses, consecutive setting, translation mode, and read-only prompt preview.
-- Actions: **Regenerate**, **Copy Prompt** (pyperclip with fallback), **Save Draft** (in-memory), **Back**, **Cancel**.
-- Wires T3’s Proceed to open Prompt Builder, carrying verse summaries and translation content.
-- No persistence or store writes (T5 will handle persistence).
+- Introduces `_axioms_t5_get_draft_path()`, `_axioms_t5_load_drafts()`, and `_axioms_t5_save_drafts(drafts)` for safe JSON persistence.
+- Integrates with `AxiomsDashboard` to:
+  - Load drafts on startup (`self._axioms_drafts = _load_drafts()`).
+  - Auto-save on window close through `WM_DELETE_WINDOW`.
+- Enhances `AxiomsPromptBuilderView._save_draft()` to immediately persist every new draft to disk.
+- Drafts reload silently on next launch (no UI listing yet).
+
+---
 
 ## How to Verify
-1. Follow the Verse Analysis flow through Review → Translation Choice.
-2. Choose Darpan or Own; Proceed to Prompt Builder.
-3. Confirm prompt content matches choices; Copy Prompt & Save Draft work.
-4. Back returns to T3; Cancel exits dashboard.
+1. Launch app → navigate to **Axioms → Verse Analysis → Prompt Builder**.  
+2. Click **Save Draft**.  
+   - Confirm `axioms_drafts.json` appears in the project folder.  
+3. Close the Axioms Dashboard and restart the program.  
+   - Verify previously saved draft entries are present in memory (`dashboard._axioms_drafts`).  
+4. Repeat saves to ensure multiple drafts accumulate and JSON updates without corruption.  
+5. Delete or corrupt the file intentionally → app should recreate it gracefully.
+
+---
 
 ## Implementation Notes
-- All code under `# === Axioms T4: Prompt Builder Preview (additive only) ===`.
-- Additive wrapper replaces T3 `_proceed_choice` safely.
-- Session drafts stored at `dashboard._axioms_drafts`.
-- `python -m py_compile 1.1.0_birha.py` passes.
-
-## Risks & Mitigations
-- `pyperclip` may be absent → guarded import with highlight fallback.
-- GUI needs DISPLAY in CI → headless-safe tests land in T12.
-
-## Compliance
-- Additive-only; no changes to pre-Axiom code/strings.
-- `1.1.0_birha_pre_Axiom.py` remains read-only reference.
+- All code is placed under  
+  `# === Axioms T5: Local Draft Save / Load (JSON Mock) ===`.  
+- Additive-only: no edits to pre-Axiom functions or constants.  
+- Data format:
+  ```json
+  {
+    "created_at": "2025-10-19T07:45:00",
+    "verse": "...",
+    "related_summ": "...",
+    "consecutive_summ": "2",
+    "translation_mode": "own|darpan",
+    "own_text": "...",
+    "prompt_text": "..."
+  }
 
