@@ -1,38 +1,64 @@
-Nice drop. The stub does what we asked: opens a scrollable SGGS list, Back/Cancel behave, and selecting a verse routes you back into the Verse Input flow with the field prefilled. A few small, high-impact fixes to tighten it up:
+Nice—T7 is in good shape. It does exactly what we wanted: opens a scrollable stub, Back/Cancel behave, and “Select Verse” pre-fills T2 and enables Next. A few tighten-ups and polish notes:
 
-1. Cast the Listbox index to int
-   Tkinter returns string indices; you’re using `selection[0]` directly. That’ll trip comparisons and indexing in some spots (we’ve been burnt by this before).
+* **Index casting fixed** ✅ (`int(selection[0])`).
+* **Next-state update** after routing ✅ (`_update_next_state()` call).
+* **Home/back** now uses `_axioms_t2_show_home()` ✅—cleaner than manual pack juggling.
 
-```python
-selection = self.listbox.curselection()
-if not selection:
-    ...
-idx = int(selection[0])            # <-- cast
-verse = self.listbox.get(idx)
-```
+### Small improvements (safe, additive)
 
-2. Make “Next” enable immediately after routing
-   Right now we set the verse and show the input frame, but the **Next** button may still be disabled until the user types. Nudge the flow to recalc:
+1. **Double-click selection (quality-of-life):** bind `<Double-Button-1>` to `_select_verse` so users can just double-click a line.
 
-```python
-flow.verse_var.set(verse)
-flow._display(flow.input_frame)
-try:
-    flow._update_next_state()      # T2 helper already present
-except Exception:
-    pass
-```
+   ```python
+   try:
+       self.listbox.bind("<Double-Button-1>", lambda _e: self._select_verse())
+   except Exception:
+       pass
+   ```
 
-(Optionally `verse_entry.focus_set()` if you expose the widget, but not required.)
+2. **Focus handoff:** after packing the reader, give it focus so arrow keys scroll immediately:
 
-3. Simplify the home re-pack logic
-   You’re doing `pack_forget()` then `pack()` twice in `_select_verse`. One is enough—keep the `pack_forget()` where you hide the reader, and re-pack the button holder once using the cached `pack_info` like you already do in `_go_back`.
+   ```python
+   try:
+       reader.focus_set()
+   except Exception:
+       pass
+   ```
 
-4. Idempotent wiring is good; guard reader creation once
-   You already cache `_axioms_t7_reader_view`. Keep that as is—prevents multiple readers on repeated clicks.
+   And when routing back to T2:
 
-5. Error handling is very forgiving—good for UI—but log if you can
-   If you have a lightweight logger in the file, consider logging inside those `except Exception:` blocks so we don’t swallow actionable errors during dev. If not, fine for now.
+   ```python
+   try:
+       flow.verse_var.set(verse)
+       flow._display(flow.input_frame)
+       flow._update_next_state()
+       flow.focus_set()  # optional if flow has focusable child
+   except Exception:
+       pass
+   ```
 
-6. Header/placement looks clean
-   All code is under `# === Axioms T7: SGGS Reading Mode (stub, additive only) ===` and wraps T1/T2 constructs without editing them. ✅
+3. **Idempotent visibility:** in `_launch_reader()` you’re calling `flow.pack_forget()` which is fine; consider also `reader.pack_forget()` in `_go_back()` (you already do) and before packing it in `_launch_reader()` (defensive, avoids duplicate pack in weird states):
+
+   ```python
+   try:
+       reader.pack_forget()
+   except Exception:
+       pass
+   ```
+
+4. **Keyboard accessibility:** add Return/Enter to trigger “Select Verse”.
+
+   ```python
+   try:
+       self.listbox.bind("<Return>", lambda _e: self._select_verse())
+   except Exception:
+       pass
+   ```
+
+5. **Install guard is present** ✅; keep it. If you later re-run the dashboard layout, `_axioms_t7_installed` prevents double wrapping.
+
+### Quick acceptance checklist (you can tick right now)
+
+* Dashboard → **Axiom via SGGS Reading Mode** opens reader.
+* Double-click or Select Verse → returns to T2 with verse filled and **Next** enabled.
+* **Back** restores the two-button landing view; **Cancel** closes the window.
+* `python -m py_compile 1.1.0_birha.py` passes.

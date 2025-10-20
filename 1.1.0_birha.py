@@ -16988,6 +16988,11 @@ class AxiomsSGGSReaderView(tk.Frame):
 
         for verse in self.MOCK_VERSES:
             self.listbox.insert(tk.END, verse)
+        try:
+            self.listbox.bind("<Double-Button-1>", lambda _e: self._select_verse())
+            self.listbox.bind("<Return>", lambda _e: self._select_verse())
+        except Exception:
+            pass
 
         button_bar = tk.Frame(self, bg="light gray")
         button_bar.pack(fill=tk.X, pady=(12, 0))
@@ -17066,6 +17071,10 @@ class AxiomsSGGSReaderView(tk.Frame):
                 flow._display(flow.input_frame)
                 try:
                     flow._update_next_state()
+                except Exception:
+                    pass
+                try:
+                    flow.focus_set()
                 except Exception:
                     pass
             except Exception:
@@ -17155,7 +17164,15 @@ def _patch_sggs_button(dashboard):
         except Exception:
             pass
         try:
+            reader.pack_forget()
+        except Exception:
+            pass
+        try:
             reader.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
+        except Exception:
+            pass
+        try:
+            reader.focus_set()
         except Exception:
             pass
 
