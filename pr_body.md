@@ -1,46 +1,63 @@
-## Summary
-Implements **Task T5 — Local Draft Save / Load (JSON Mock)** as per  
-**“0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx.”**
+---
 
-This enhancement extends the **Axioms Prompt Builder View** (T4) to provide real local persistence for user-saved drafts, allowing them to survive application restarts.  
-Drafts are written to and reloaded from a lightweight JSON file named **`axioms_drafts.json`** located in the same directory as `1.1.0_birha.py`.
+## **Summary**
+
+Implements **Task T6 — Finalize Axiom (Mock) Flow**, extending the Axioms Framework UI sequence.
+After the **Prompt Builder (T4)** stage, users can now review and finalize their generated Axioms through a dedicated editable interface. This step maintains a consistent look and behavior with earlier flows (T2–T5) while introducing editable form fields for the final Axiom and its rationale.
 
 ---
 
-## Scope & Behavior
-- Introduces `_axioms_t5_get_draft_path()`, `_axioms_t5_load_drafts()`, and `_axioms_t5_save_drafts(drafts)` for safe JSON persistence.
-- Integrates with `AxiomsDashboard` to:
-  - Load drafts on startup (`self._axioms_drafts = _load_drafts()`).
-  - Auto-save on window close through `WM_DELETE_WINDOW`.
-- Enhances `AxiomsPromptBuilderView._save_draft()` to immediately persist every new draft to disk.
-- Drafts reload silently on next launch (no UI listing yet).
+## **Scope & Behavior**
+
+* Adds **`AxiomsFinalizeAxiomView`**, the final mock screen in the Axioms Verse Analysis pathway.
+* Provides structured editable fields:
+
+  * **AXIOM** → Single-line input field for user entry.
+  * **RATIONALE** → Multi-line text box for explanation.
+* Includes action buttons:
+
+  * **Back** → Returns to the Prompt Builder (T4) without losing prior state.
+  * **Cancel** → Exits the Axioms Dashboard safely.
+  * **Save Axiom (Mock)** → Displays a placeholder confirmation message (“Draft axiom recorded — persistence arrives in T7”).
+* Integrates seamlessly with the T4 flow so that **Proceed** or **Save Draft** can lead to this screen.
+* Preserves session continuity across all Axioms tasks (T0–T6).
 
 ---
 
-## How to Verify
-1. Launch app → navigate to **Axioms → Verse Analysis → Prompt Builder**.  
-2. Click **Save Draft**.  
-   - Confirm `axioms_drafts.json` appears in the project folder.  
-3. Close the Axioms Dashboard and restart the program.  
-   - Verify previously saved draft entries are present in memory (`dashboard._axioms_drafts`).  
-4. Repeat saves to ensure multiple drafts accumulate and JSON updates without corruption.  
-5. Delete or corrupt the file intentionally → app should recreate it gracefully.
+## **How to Verify**
+
+1. Launch the app → Open **Axioms (beta)** → Select **Axiom via Verse Analysis**.
+2. Proceed through Verse Input (T2) → Review → Translation Choice (T3) → Prompt Builder (T4).
+3. From Prompt Builder, choose **Save Draft** or **Proceed** → New **Finalize Axiom (Mock)** screen opens.
+4. Enter Axiom text and rationale → Click **Save Axiom** → Mock confirmation dialog appears.
+5. **Back** returns to Prompt Builder with no data loss. **Cancel** exits dashboard gracefully.
+6. Verify syntax integrity with `python -m py_compile 1.1.0_birha.py`.
 
 ---
 
-## Implementation Notes
-- All code is placed under  
-  `# === Axioms T5: Local Draft Save / Load (JSON Mock) ===`.  
-- Additive-only: no edits to pre-Axiom functions or constants.  
-- Data format:
-  ```json
-  {
-    "created_at": "2025-10-19T07:45:00",
-    "verse": "...",
-    "related_summ": "...",
-    "consecutive_summ": "2",
-    "translation_mode": "own|darpan",
-    "own_text": "...",
-    "prompt_text": "..."
-  }
+## **Implementation Notes**
 
+* All new code under:
+  `# === Axioms T6: Finalize Axiom (Mock) Flow (additive only) ===`
+* Fully additive approach; no existing functions, constants, or strings modified.
+* Maintains UI styling (light gray theme, dark cyan buttons, bold labels).
+* Serves as a functional placeholder pending persistent storage in **Task 7**.
+
+---
+
+## **Risks & Mitigations**
+
+* *Risk:* State misalignment between T4 → T6 transitions.
+  *Mitigation:* All navigation uses view replacement (`_display()`) within the same flow class.
+* *Risk:* User may close dashboard mid-step.
+  *Mitigation:* Safe teardown via existing `on_cancel` handler inherited from previous flows.
+
+---
+
+## **Compliance**
+
+* Follows **0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx**.
+* Complies with the additive-only rule: `1.1.0_birha_pre_Axiom.py` remains unaltered and read-only.
+* Verified to compile without dependency or refactor impacts.
+
+---
