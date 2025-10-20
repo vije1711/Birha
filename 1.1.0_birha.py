@@ -16665,6 +16665,230 @@ _axioms_t5_dashboard_init_patch()
 _axioms_t5_override_save_draft()
 
 
+# === Axioms T6: Finalize Axiom (Mock) Flow (additive only) ===
+
+
+class AxiomsFinalizeAxiomView(tk.Frame):
+    """Finalization screen to mock-create or link an axiom."""
+
+    def __init__(self, flow):
+        super().__init__(flow, bg="light gray")
+        self.flow = flow
+        self.dashboard = getattr(flow, "dashboard", None)
+
+        self.prompt_text = ""
+
+        self._build_layout()
+
+    def _build_layout(self):
+        header = tk.Label(
+            self,
+            text="Finalize Axiom (Mock)",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        info = tk.Label(
+            self,
+            text="Review the generated prompt below and draft your Axiom and rationale.",
+            font=("Arial", 12),
+            bg="light gray",
+        )
+        info.pack(anchor="w", padx=4)
+
+        prompt_frame = tk.LabelFrame(
+            self,
+            text="Prompt Preview",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+            fg="black",
+        )
+        prompt_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(12, 12))
+
+        self.prompt_display = tk.Text(
+            prompt_frame,
+            height=10,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            bg="#f5f5f5",
+            fg="#202020",
+            state=tk.DISABLED,
+        )
+        self.prompt_display.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+
+        form = tk.Frame(self, bg="light gray")
+        form.pack(fill=tk.BOTH, expand=True, padx=4)
+
+        tk.Label(
+            form,
+            text="AXIOM",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w", pady=(0, 4))
+        self.axiom_entry = tk.Entry(form, font=("Arial", 12))
+        self.axiom_entry.pack(fill=tk.X, pady=(0, 12))
+
+        tk.Label(
+            form,
+            text="RATIONALE",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w", pady=(0, 4))
+        self.rationale_text = tk.Text(
+            form,
+            height=6,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            bg="white",
+            fg="#202020",
+        )
+        self.rationale_text.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
+
+        buttons = tk.Frame(self, bg="light gray")
+        buttons.pack(fill=tk.X, pady=(12, 0))
+
+        tk.Button(
+            buttons,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._go_back,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            buttons,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="red",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._cancel_flow,
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            buttons,
+            text="Link to Existing Axiom",
+            font=("Arial", 12, "bold"),
+            bg="#1f6f8b",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=lambda: self._mock_save("Linked draft axiom to existing entry — functionality coming soon."),
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+        tk.Button(
+            buttons,
+            text="Save Axiom",
+            font=("Arial", 12, "bold"),
+            bg="#2e8b57",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=lambda: self._mock_save("Draft axiom recorded — persistence arrives in Task T7."),
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+    def prepare(self, prompt_text: str):
+        self.prompt_text = prompt_text or ""
+        try:
+            self.prompt_display.configure(state=tk.NORMAL)
+            self.prompt_display.delete("1.0", tk.END)
+            self.prompt_display.insert("1.0", self.prompt_text)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.prompt_display.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+
+        try:
+            self.axiom_entry.delete(0, tk.END)
+        except Exception:
+            pass
+        try:
+            self.rationale_text.delete("1.0", tk.END)
+        except Exception:
+            pass
+
+    def _go_back(self):
+        try:
+            builder = getattr(self.flow, "_axioms_t4_builder_view", None)
+            if builder is not None:
+                self.flow._display(builder)
+        except Exception:
+            pass
+
+    def _cancel_flow(self):
+        try:
+            self.flow.on_cancel()
+        except Exception:
+            pass
+
+    def _mock_save(self, message: str):
+        try:
+            messagebox.showinfo(
+                "Axiom Finalization",
+                message,
+                parent=self,
+            )
+        except Exception:
+            pass
+
+
+def _axioms_t6_install():
+    builder_cls = globals().get("AxiomsPromptBuilderView")
+    if builder_cls is None:
+        return
+    if getattr(builder_cls, "_axioms_t6_installed", False):
+        return
+
+    original_copy = getattr(builder_cls, "_copy_prompt", None)
+    original_regen = getattr(builder_cls, "_regenerate_prompt", None)
+
+    def _ensure_finalize_view(flow):
+        view = getattr(flow, "_axioms_t6_finalize_view", None)
+        if view is None:
+            view = AxiomsFinalizeAxiomView(flow)
+            setattr(flow, "_axioms_t6_finalize_view", view)
+        return view
+
+    def _show_finalize(self):
+        flow = getattr(self, "flow", None)
+        if flow is None:
+            return
+        view = _ensure_finalize_view(flow)
+        prompt = self.prompt_cache or self.prompt_display.get("1.0", "end-1c")
+        view.prepare(prompt)
+        try:
+            flow._display(view)
+        except Exception:
+            pass
+
+    def _copy_and_finalize(self):
+        if original_copy:
+            original_copy(self)
+        _show_finalize(self)
+
+    def _regenerate_and_finalize(self):
+        if original_regen:
+            original_regen(self)
+        _show_finalize(self)
+
+    builder_cls._copy_prompt = _copy_and_finalize  # type: ignore[method-assign]
+    builder_cls._regenerate_prompt = _regenerate_and_finalize  # type: ignore[method-assign]
+    setattr(builder_cls, "_axioms_t6_installed", True)
+
+
+_axioms_t6_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)

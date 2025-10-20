@@ -1,0 +1,11 @@
+[
+  {
+    "created_at": "2025-10-20T06:47:35",
+    "verse": "1212",
+    "related_summ": "• Bhai Gurdas Ji — Vaaran Vaar 1 Pauri 12",
+    "consecutive_summ": "Not including consecutive verses.",
+    "translation_mode": "darpan",
+    "own_text": "",
+    "prompt_text": "Title: Derive a SGGS Axiom from the provided verse(s)\n\nPrimary verse:\n1212\n\nRelated verses (if any):\n• Bhai Gurdas Ji — Vaaran Vaar 1 Pauri 12\n\nConsecutive verses:\nNot including consecutive verses.\n\nTranslation source:\nDarpan (predefined)\n\nTranslation text:\nMock Darpan translation preview:\n“Contemplate the Lord whose virtues illuminate every heart. Within this verse, divine wisdom settles like soothing rain.”\n\nTask:\nUsing only the translation text above, identify a single precise Axiom (short, declarative), and explain briefly (2–4 sentences) how the verse supports this Axiom. Avoid paraphrasing the verse; focus on the core principle.\n\nOutput format:\nAXIOM: <one-line axiom>\nRATIONALE: <2–4 sentences>\n\nNotes:\n- If multiple principles are present, pick the primary one most strongly supported by the verse.\n- Keep neutral tone; avoid sectarian claims or historical speculation."
+  }
+]
