@@ -16851,6 +16851,7 @@ def _axioms_t6_install():
 
     original_copy = getattr(builder_cls, "_copy_prompt", None)
     original_regen = getattr(builder_cls, "_regenerate_prompt", None)
+    original_save = getattr(builder_cls, "_save_draft", None)
 
     def _ensure_finalize_view(flow):
         view = getattr(flow, "_axioms_t6_finalize_view", None)
@@ -16881,8 +16882,14 @@ def _axioms_t6_install():
             original_regen(self)
         _show_finalize(self)
 
+    def _save_and_finalize(self):
+        if original_save:
+            original_save(self)
+        _show_finalize(self)
+
     builder_cls._copy_prompt = _copy_and_finalize  # type: ignore[method-assign]
     builder_cls._regenerate_prompt = _regenerate_and_finalize  # type: ignore[method-assign]
+    builder_cls._save_draft = _save_and_finalize  # type: ignore[method-assign]
     setattr(builder_cls, "_axioms_t6_installed", True)
 
 
