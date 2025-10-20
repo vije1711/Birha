@@ -16919,6 +16919,256 @@ def _axioms_t6_install():
 _axioms_t6_install()
 
 
+# === Axioms T7: SGGS Reading Mode (stub, additive only) ===
+
+
+class AxiomsSGGSReaderView(tk.Frame):
+    """Stubbed SGGS reading pane that routes into the verse input flow."""
+
+    MOCK_VERSES = [
+        "Ang 1: Ik Onkar Satnam Karta Purakh ...",
+        "Ang 12: Hukam Rajaee Chalna Nanak Likhiya Naal ...",
+        "Ang 53: So Dar Keiha So Ghar Keiha ...",
+        "Ang 91: Suniai Siddh Peer Sur Naath ...",
+        "Ang 128: Asa Di Vaar Pauri 18 ...",
+        "Ang 142: Raag Gauri Sukhmani Mahalla 5 ...",
+        "Ang 250: Raag Sorath Mahalla 1 ...",
+        "Ang 312: Raag Todi Mahalla 1 ...",
+        "Ang 467: Dhanasari Mahalla 5 ...",
+        "Ang 669: Raag Ramkali Mahalla 3 ...",
+        "Ang 795: Raag Sorath Mahalla 5 ...",
+        "Ang 917: Raag Maru Mahalla 1 ...",
+        "Ang 1052: Raag Basant Mahalla 5 ...",
+        "Ang 1203: Raag Sarang Mahalla 5 ...",
+        "Ang 1256: Raag Malhar Mahalla 5 ...",
+    ]
+
+    def __init__(self, container, dashboard, flow):
+        super().__init__(container, bg="light gray")
+        self.dashboard = dashboard
+        self.flow = flow
+        self.container = container
+
+        self._build_layout()
+
+    def _build_layout(self):
+        header = tk.Label(
+            self,
+            text="SGGS Reading Mode (Stub)",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X, pady=(0, 16))
+
+        instructions = tk.Label(
+            self,
+            text="Browse the mock SGGS verses below. Select one to begin the Axiom flow.",
+            font=("Arial", 12),
+            bg="light gray",
+        )
+        instructions.pack(anchor="w", padx=6)
+
+        list_frame = tk.Frame(self, bg="light gray")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 12))
+
+        self.listbox = tk.Listbox(
+            list_frame,
+            font=("Arial", 12),
+            activestyle="dotbox",
+            height=12,
+            selectmode=tk.SINGLE,
+        )
+        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(list_frame, command=self.listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.listbox.configure(yscrollcommand=scrollbar.set)
+
+        for verse in self.MOCK_VERSES:
+            self.listbox.insert(tk.END, verse)
+
+        button_bar = tk.Frame(self, bg="light gray")
+        button_bar.pack(fill=tk.X, pady=(12, 0))
+
+        tk.Button(
+            button_bar,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._go_back,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            button_bar,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="red",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._cancel,
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            button_bar,
+            text="Select Verse",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._select_verse,
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+    def _go_back(self):
+        try:
+            button_holder = getattr(self.dashboard, "_axioms_t2_button_holder", None)
+            pack_info = getattr(self.dashboard, "_axioms_t2_button_pack", None)
+            if button_holder is not None:
+                if pack_info:
+                    button_holder.pack(**pack_info)
+                else:
+                    button_holder.pack(expand=True)
+            self.pack_forget()
+        except Exception:
+            pass
+
+    def _cancel(self):
+        try:
+            self.dashboard._handle_close()
+        except Exception:
+            pass
+
+    def _select_verse(self):
+        try:
+            selection = self.listbox.curselection()
+            if not selection:
+                messagebox.showinfo(
+                    "SGGS Reading Mode",
+                    "Select a verse to continue.",
+                    parent=self,
+                )
+                return
+            verse = self.listbox.get(selection[0])
+            flow = self.flow
+            if flow is None:
+                messagebox.showwarning(
+                    "SGGS Reading Mode",
+                    "Verse flow unavailable. Try launching verse analysis first.",
+                    parent=self,
+                )
+                return
+            try:
+                flow.verse_var.set(verse)
+                flow._display(flow.input_frame)
+            except Exception:
+                pass
+
+            try:
+                self.pack_forget()
+            except Exception:
+                pass
+
+            try:
+                button_holder = getattr(self.dashboard, "_axioms_t2_button_holder", None)
+                pack_info = getattr(self.dashboard, "_axioms_t2_button_pack", None)
+                if button_holder is not None:
+                    button_holder.pack_forget()
+                    if pack_info:
+                        button_holder.pack(**pack_info)
+                    else:
+                        button_holder.pack(expand=True)
+            except Exception:
+                pass
+        except Exception:
+            try:
+                messagebox.showwarning(
+                    "SGGS Reading Mode",
+                    "Unable to route selected verse.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+
+
+def _axioms_t7_install():
+    dashboard_cls = globals().get("AxiomsDashboard")
+    if dashboard_cls is None:
+        return
+
+    original_build_layout = getattr(dashboard_cls, "_build_layout", None)
+    if original_build_layout is None:
+        return
+    if getattr(dashboard_cls, "_axioms_t7_installed", False):
+        return
+
+    def _wrapped_build_layout(self):
+        original_build_layout(self)
+        try:
+            _patch_sggs_button(self)
+        except Exception:
+            pass
+
+    dashboard_cls._build_layout = _wrapped_build_layout  # type: ignore[method-assign]
+    setattr(dashboard_cls, "_axioms_t7_installed", True)
+
+
+def _patch_sggs_button(dashboard):
+    container, button_holder, verse_button = _axioms_t2_identify_regions(dashboard)
+    if container is None or button_holder is None:
+        return
+
+    target_button = None
+    try:
+        for widget in button_holder.winfo_children():
+            if isinstance(widget, tk.Button) and widget.cget("text") == "Axiom via SGGS Reading Mode":
+                target_button = widget
+                break
+    except Exception:
+        target_button = None
+
+    if target_button is None:
+        return
+
+    flow = getattr(dashboard, "_axioms_t2_flow", None)
+    if flow is None:
+        flow = AxiomsVerseInputFlow(
+            container,
+            dashboard,
+            on_back=lambda: _axioms_t2_show_home(dashboard),
+            on_cancel=lambda: dashboard._handle_close(),
+        )
+        setattr(dashboard, "_axioms_t2_flow", flow)
+
+    reader = getattr(dashboard, "_axioms_t7_reader_view", None)
+    if reader is None:
+        reader = AxiomsSGGSReaderView(container, dashboard, flow)
+        setattr(dashboard, "_axioms_t7_reader_view", reader)
+
+    def _launch_reader():
+        try:
+            button_holder.pack_forget()
+        except Exception:
+            pass
+        try:
+            reader.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
+        except Exception:
+            pass
+
+    try:
+        target_button.configure(command=_launch_reader)
+    except Exception:
+        pass
+
+
+_axioms_t7_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
