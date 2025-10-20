@@ -17075,14 +17075,7 @@ class AxiomsSGGSReaderView(tk.Frame):
                 pass
 
             try:
-                button_holder = getattr(self.dashboard, "_axioms_t2_button_holder", None)
-                pack_info = getattr(self.dashboard, "_axioms_t2_button_pack", None)
-                if button_holder is not None:
-                    button_holder.pack_forget()
-                    if pack_info:
-                        button_holder.pack(**pack_info)
-                    else:
-                        button_holder.pack(expand=True)
+                flow.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
             except Exception:
                 pass
         except Exception:
@@ -17153,6 +17146,10 @@ def _patch_sggs_button(dashboard):
     def _launch_reader():
         try:
             button_holder.pack_forget()
+        except Exception:
+            pass
+        try:
+            flow.pack_forget()
         except Exception:
             pass
         try:
