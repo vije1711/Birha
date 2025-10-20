@@ -16849,9 +16849,10 @@ def _axioms_t6_install():
     if getattr(builder_cls, "_axioms_t6_installed", False):
         return
 
-    original_copy = getattr(builder_cls, "_copy_prompt", None)
-    original_regen = getattr(builder_cls, "_regenerate_prompt", None)
     original_save = getattr(builder_cls, "_save_draft", None)
+    original_build_layout = getattr(builder_cls, "_build_layout", None)
+    if original_save is None or original_build_layout is None:
+        return
 
     def _ensure_finalize_view(flow):
         view = getattr(flow, "_axioms_t6_finalize_view", None)
@@ -16872,24 +16873,46 @@ def _axioms_t6_install():
         except Exception:
             pass
 
-    def _copy_and_finalize(self):
-        if original_copy:
-            original_copy(self)
-        _show_finalize(self)
-
-    def _regenerate_and_finalize(self):
-        if original_regen:
-            original_regen(self)
-        _show_finalize(self)
-
     def _save_and_finalize(self):
-        if original_save:
-            original_save(self)
+        original_save(self)
         _show_finalize(self)
 
-    builder_cls._copy_prompt = _copy_and_finalize  # type: ignore[method-assign]
-    builder_cls._regenerate_prompt = _regenerate_and_finalize  # type: ignore[method-assign]
+    def _patched_build_layout(self):
+        original_build_layout(self)
+        if getattr(self, "_axioms_t6_proceed_button", None):
+            return
+        action_bar = None
+        try:
+            for child in self.winfo_children():
+                if isinstance(child, tk.Frame):
+                    widgets = child.winfo_children()
+                    if any(isinstance(w, tk.Button) and w.cget("text") == "Save Draft" for w in widgets):
+                        action_bar = child
+                        break
+        except Exception:
+            action_bar = None
+
+        if action_bar is None:
+            return
+
+        try:
+            proceed_btn = tk.Button(
+                action_bar,
+                text="Proceed",
+                font=("Arial", 12, "bold"),
+                bg="#2e8b57",
+                fg="white",
+                padx=16,
+                pady=6,
+                command=lambda s=self: _show_finalize(s),
+            )
+            proceed_btn.pack(side=tk.RIGHT, padx=(0, 10))
+            self._axioms_t6_proceed_button = proceed_btn
+        except Exception:
+            pass
+
     builder_cls._save_draft = _save_and_finalize  # type: ignore[method-assign]
+    builder_cls._build_layout = _patched_build_layout  # type: ignore[method-assign]
     setattr(builder_cls, "_axioms_t6_installed", True)
 
 
