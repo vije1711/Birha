@@ -17027,13 +17027,10 @@ class AxiomsSGGSReaderView(tk.Frame):
 
     def _go_back(self):
         try:
-            button_holder = getattr(self.dashboard, "_axioms_t2_button_holder", None)
-            pack_info = getattr(self.dashboard, "_axioms_t2_button_pack", None)
-            if button_holder is not None:
-                if pack_info:
-                    button_holder.pack(**pack_info)
-                else:
-                    button_holder.pack(expand=True)
+            _axioms_t2_show_home(self.dashboard)
+        except Exception:
+            pass
+        try:
             self.pack_forget()
         except Exception:
             pass
@@ -17054,7 +17051,8 @@ class AxiomsSGGSReaderView(tk.Frame):
                     parent=self,
                 )
                 return
-            verse = self.listbox.get(selection[0])
+            idx = int(selection[0])
+            verse = self.listbox.get(idx)
             flow = self.flow
             if flow is None:
                 messagebox.showwarning(
@@ -17066,6 +17064,10 @@ class AxiomsSGGSReaderView(tk.Frame):
             try:
                 flow.verse_var.set(verse)
                 flow._display(flow.input_frame)
+                try:
+                    flow._update_next_state()
+                except Exception:
+                    pass
             except Exception:
                 pass
 
