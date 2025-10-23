@@ -17,11 +17,17 @@ import numpy as np
 import textwrap
 import webbrowser
 import platform
+import itertools
+from contextlib import contextmanager
 try:
     import ctypes
     from ctypes import wintypes
 except Exception:
     ctypes = None
+try:
+    import msvcrt  # type: ignore[attr-defined]
+except Exception:
+    msvcrt = None
 from datetime import datetime, timezone
 import subprocess
 import json
@@ -16780,7 +16786,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
             fg="white",
             padx=16,
             pady=6,
-            command=lambda: self._mock_save("Linked draft axiom to existing entry — functionality coming soon."),
+            command=self._link_existing_axiom,
         ).pack(side=tk.RIGHT, padx=(0, 10))
 
         tk.Button(
@@ -16791,7 +16797,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
             fg="white",
             padx=16,
             pady=6,
-            command=lambda: self._mock_save("Draft axiom recorded — persistence arrives in Task T7."),
+            command=self._create_axiom_entry,
         ).pack(side=tk.RIGHT, padx=(0, 10))
 
     def prepare(self, prompt_text: str):
@@ -16831,6 +16837,203 @@ class AxiomsFinalizeAxiomView(tk.Frame):
         except Exception:
             pass
 
+    def _create_axiom_entry(self):
+        snapshot = self._collect_snapshot()
+        self._run_async_store_task(self._persist_new_axiom_data, snapshot)
+        self._mock_save("Draft axiom recorded — persistence arrives in Task T7.")
+
+    def _link_existing_axiom(self):
+        snapshot = self._collect_snapshot()
+        self._run_async_store_task(self._persist_linked_axiom, snapshot)
+        self._mock_save("Linked draft axiom to existing entry — functionality coming soon.")
+
+    def _run_async_store_task(self, func, snapshot: dict[str, str]):
+        def _runner():
+            if not isinstance(snapshot, dict):
+                return
+            try:
+                func(snapshot)
+            except Exception as exc:
+                _AXIOMS_LOGGER.warning("Axioms store task failed: %s", exc, exc_info=False)
+
+        try:
+            threading.Thread(target=_runner, name="AxiomsStoreTask", daemon=True).start()
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Unable to launch background task: %s", exc, exc_info=False)
+            try:
+                func(snapshot)
+            except Exception as inner_exc:
+                _AXIOMS_LOGGER.warning("Synchronous fallback failed: %s", inner_exc, exc_info=False)
+
+    def _collect_snapshot(self) -> dict[str, str]:
+        snapshot: dict[str, str] = {
+            "short_axiom": "",
+            "rationale": "",
+            "prompt": (self.prompt_text or "").strip(),
+            "verse": "",
+            "related": "",
+            "consecutive": "",
+            "translation_mode": "",
+            "translation_source": "",
+            "translation_text": "",
+        }
+
+        try:
+            snapshot["short_axiom"] = self.axiom_entry.get().strip()
+        except Exception:
+            snapshot["short_axiom"] = ""
+
+        snapshot["rationale"] = self._read_rationale_text()
+
+        builder = getattr(self.flow, "_axioms_t4_builder_view", None)
+        if builder is not None:
+            try:
+                snapshot["verse"] = builder.verse_summary_var.get().strip()
+            except Exception:
+                snapshot["verse"] = snapshot["verse"] or ""
+            try:
+                snapshot["related"] = builder.related_summary_var.get().strip()
+            except Exception:
+                pass
+            try:
+                snapshot["consecutive"] = builder.consecutive_summary_var.get().strip()
+            except Exception:
+                pass
+            translation_mode = getattr(builder, "translation_mode", "darpan") or "darpan"
+            snapshot["translation_mode"] = translation_mode
+            if translation_mode == "own":
+                snapshot["translation_source"] = "Own literal analysis"
+                snapshot["translation_text"] = getattr(builder, "own_translation_text", "") or ""
+            else:
+                snapshot["translation_source"] = "Darpan (predefined)"
+                snapshot["translation_text"] = getattr(builder, "darpan_preview_text", "") or ""
+            prompt_cache = getattr(builder, "prompt_cache", "") or ""
+            if prompt_cache:
+                snapshot["prompt"] = prompt_cache.strip()
+        else:
+            flow = getattr(self, "flow", None)
+            if flow is not None:
+                try:
+                    snapshot["verse"] = flow.review_verse_var.get().strip()
+                except Exception:
+                    pass
+                try:
+                    snapshot["related"] = flow.review_suggestions_var.get().strip()
+                except Exception:
+                    pass
+                try:
+                    snapshot["consecutive"] = flow.review_consecutive_var.get().strip()
+                except Exception:
+                    pass
+
+        return snapshot
+
+    def _persist_new_axiom_data(self, snapshot: dict[str, str]):
+        short_axiom = snapshot.get("short_axiom", "") or "Untitled Axiom"
+        axiom_id = create_axiom(short_axiom, category="Primary", created_by="ui")
+
+        rationale = snapshot.get("rationale", "")
+        if rationale:
+            upsert_axiom_description(axiom_id, rationale, description_type="axiom")
+
+        prompt_text = snapshot.get("prompt", "")
+        if prompt_text:
+            upsert_axiom_description(axiom_id, prompt_text, description_type="verse_specific")
+
+        verse = snapshot.get("verse", "")
+        if verse:
+            link_contribution(
+                axiom_id,
+                verse=verse,
+                page=None,
+                translation_revision_seen=None,
+                link_type="primary",
+            )
+
+        if not rationale:
+            enqueue_work(
+                axiom_id,
+                "description",
+                self._truncate_reason(
+                    f"Populate rationale from prompt builder output ({snapshot.get('translation_source', '')})."
+                ),
+            )
+
+        enqueue_work(
+            axiom_id,
+            "keywords",
+            self._truncate_reason(
+                f"Seed keyword review for prompt captured via {snapshot.get('translation_source', 'prompt builder')}."
+            ),
+        )
+
+    def _persist_linked_axiom(self, snapshot: dict[str, str]):
+        identifier = snapshot.get("short_axiom", "")
+        if not identifier:
+            return
+        axiom_id = self._lookup_existing_axiom_id(identifier)
+        if not axiom_id:
+            _AXIOMS_LOGGER.info("No existing axiom matched user input '%s'.", identifier)
+            return
+
+        verse = snapshot.get("verse", "")
+        if verse:
+            link_contribution(
+                axiom_id,
+                verse=verse,
+                page=None,
+                translation_revision_seen=None,
+                link_type="supporting",
+            )
+
+        enqueue_work(
+            axiom_id,
+            "reanalysis",
+            self._truncate_reason("Supporting verse linked via prompt builder; review for integration."),
+        )
+
+    def _lookup_existing_axiom_id(self, identifier: str) -> str | None:
+        try:
+            spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Unable to load axioms store for lookup: %s", exc, exc_info=False)
+            return None
+
+        axioms_df = spec_frames.get("Axioms")
+        if axioms_df is None or axioms_df.empty:
+            return None
+
+        ident_norm = identifier.strip().lower()
+        if not ident_norm:
+            return None
+
+        try:
+            id_matches = axioms_df["axiom_id"].fillna("").astype(str).str.strip().str.lower() == ident_norm
+            if id_matches.any():
+                return str(axioms_df.loc[id_matches, "axiom_id"].iloc[0])
+        except Exception:
+            pass
+
+        try:
+            text_matches = axioms_df["short_axiom"].fillna("").astype(str).str.strip().str.lower() == ident_norm
+            if text_matches.any():
+                return str(axioms_df.loc[text_matches, "axiom_id"].iloc[0])
+        except Exception:
+            pass
+        return None
+
+    def _read_rationale_text(self) -> str:
+        try:
+            return self.rationale_text.get("1.0", tk.END).strip()
+        except Exception:
+            return ""
+
+    def _truncate_reason(self, text: str, limit: int = 240) -> str:
+        content = (text or "").strip()
+        if len(content) <= limit:
+            return content
+        return f"{content[:limit-3]}..."
+
     def _mock_save(self, message: str):
         try:
             messagebox.showinfo(
@@ -16838,8 +17041,9 @@ class AxiomsFinalizeAxiomView(tk.Frame):
                 message,
                 parent=self,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _AXIOMS_LOGGER.info("Axiom Finalization: %s", message)
+            _AXIOMS_LOGGER.debug("Messagebox unavailable: %s", exc, exc_info=False)
 
 
 def _axioms_t6_install():
@@ -17183,6 +17387,402 @@ def _patch_sggs_button(dashboard):
 
 
 _axioms_t7_install()
+
+
+# === Axioms T8: Store Adapter Integration (additive only) ===
+
+_AXIOMS_STORE_FILENAME = "1.3.0_axioms.xlsx"
+_AXIOMS_SPEC_SHEETS = {
+    "Axioms": [
+        "axiom_id",
+        "short_axiom",
+        "category",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "status",
+    ],
+    "AxiomDescriptions": [
+        "axiom_id",
+        "description_type",
+        "text",
+        "rev",
+        "updated_at",
+    ],
+    "AxiomContributions": [
+        "axiom_id",
+        "verse",
+        "verse_key_norm",
+        "page",
+        "translation_revision_seen",
+        "link_type",
+        "created_at",
+    ],
+    "AxiomKeywords": [
+        "axiom_id",
+        "literal_synonyms",
+        "literal_antonyms",
+        "spiritual_synonyms",
+        "spiritual_antonyms",
+        "updated_at",
+    ],
+    "AxiomWorkqueue": [
+        "work_id",
+        "axiom_id",
+        "task",
+        "reason",
+        "created_at",
+        "status",
+    ],
+}
+_AXIOMS_SPEC_ORDER = list(_AXIOMS_SPEC_SHEETS.keys())
+_AXIOMS_STORE_LOCK = threading.RLock()
+_AXIOMS_ID_COUNTER = itertools.count(1)
+_AXIOMS_WORK_COUNTER = itertools.count(1)
+_AXIOMS_LOGGER = logging.getLogger("birha.axioms.store")
+
+
+def _get_axioms_store_path() -> str:
+    try:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+    except Exception:
+        base_dir = os.getcwd()
+    return os.path.join(base_dir, _AXIOMS_STORE_FILENAME)
+
+
+def _axioms_t8_now() -> str:
+    try:
+        return datetime.now(timezone.utc).isoformat()
+    except Exception:
+        # Fallback to naive timestamp to avoid blocking writes
+        return datetime.utcnow().isoformat()
+
+
+def _axioms_t8_prepare_frame(sheet_name: str, frame: pd.DataFrame | None = None) -> pd.DataFrame:
+    columns = _AXIOMS_SPEC_SHEETS.get(sheet_name, [])
+    if frame is None:
+        return pd.DataFrame(columns=columns)
+    if not isinstance(frame, pd.DataFrame):
+        frame = pd.DataFrame(frame)
+    frame = frame.copy()
+    for col in columns:
+        if col not in frame.columns:
+            frame[col] = pd.NA
+    extras = [col for col in frame.columns if col not in columns]
+    if columns or extras:
+        frame = frame[[*columns, *extras]]
+    return frame
+
+
+def _axioms_t8_collect_sheet_order(path: str) -> list[str]:
+    try:
+        wb = load_workbook(path, read_only=True, data_only=True)
+        try:
+            order = list(wb.sheetnames)
+        finally:
+            wb.close()
+        return order
+    except Exception:
+        return []
+
+
+def _axioms_t8_read_frames(path: str) -> list[tuple[str, pd.DataFrame]]:
+    try:
+        all_frames = pd.read_excel(path, sheet_name=None)
+    except Exception as exc:
+        _AXIOMS_LOGGER.debug("Failed bulk read of %s: %s", path, exc, exc_info=False)
+        all_frames = {}
+    sheet_order = _axioms_t8_collect_sheet_order(path)
+    ordered: list[tuple[str, pd.DataFrame]] = []
+    if sheet_order:
+        for name in sheet_order:
+            if name in all_frames:
+                ordered.append((name, all_frames.pop(name)))
+            else:
+                ordered.append((name, pd.DataFrame()))
+    if all_frames:
+        # Append any sheets not captured by the workbook ordering
+        ordered.extend(list(all_frames.items()))
+    return ordered
+
+
+@contextmanager
+def _axioms_t8_windows_lock(path: str):
+    handle = None
+    lock_path = f"{path}.lock"
+    if os.name == "nt" and msvcrt is not None:
+        try:
+            handle = open(lock_path, "a+b")
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError:
+                handle.close()
+                handle = None
+        except Exception as exc:  # pragma: no cover - best effort
+            handle = None
+            _AXIOMS_LOGGER.debug("Windows lock unavailable for %s: %s", path, exc, exc_info=False)
+    try:
+        yield
+    finally:
+        if handle is not None:
+            try:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            except Exception:
+                pass
+            try:
+                handle.close()
+            except Exception:
+                pass
+            try:
+                os.remove(lock_path)
+            except Exception:
+                pass
+
+
+def _axioms_t8_write_workbook(path: str, spec_frames: dict[str, pd.DataFrame], other_sheets: list[tuple[str, pd.DataFrame]]):
+    directory = os.path.dirname(path)
+    if directory and not os.path.exists(directory):
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Unable to create directory for axioms store: %s", exc, exc_info=False)
+            raise
+
+    temp_dir = tempfile.mkdtemp(prefix="axioms_store_")
+    temp_path = os.path.join(temp_dir, "store.xlsx")
+    try:
+        with pd.ExcelWriter(temp_path, engine="openpyxl") as writer:
+            for sheet_name in _AXIOMS_SPEC_ORDER:
+                frame = _axioms_t8_prepare_frame(sheet_name, spec_frames.get(sheet_name))
+                frame.to_excel(writer, sheet_name=sheet_name, index=False)
+            for sheet_name, frame in other_sheets or []:
+                if sheet_name in _AXIOMS_SPEC_SHEETS:
+                    continue
+                if not isinstance(frame, pd.DataFrame):
+                    frame = pd.DataFrame(frame)
+                frame.copy().to_excel(writer, sheet_name=sheet_name, index=False)
+        os.replace(temp_path, path)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def ensure_axioms_store(path: str | None = None) -> str:
+    resolved = path or _get_axioms_store_path()
+    if os.path.exists(resolved):
+        return resolved
+    spec_frames = {sheet: _axioms_t8_prepare_frame(sheet) for sheet in _AXIOMS_SPEC_ORDER}
+    with _axioms_t8_windows_lock(resolved):
+        with _AXIOMS_STORE_LOCK:
+            if os.path.exists(resolved):
+                return resolved
+            _axioms_t8_write_workbook(resolved, spec_frames, [])
+    return resolved
+
+
+def load_axioms_store(path: str | None = None) -> tuple[dict[str, pd.DataFrame], list[tuple[str, pd.DataFrame]]]:
+    resolved = ensure_axioms_store(path)
+    ordered_frames = _axioms_t8_read_frames(resolved)
+
+    spec_frames: dict[str, pd.DataFrame] = {}
+    other_sheets: list[tuple[str, pd.DataFrame]] = []
+
+    for sheet_name, frame in ordered_frames:
+        if sheet_name in _AXIOMS_SPEC_SHEETS:
+            spec_frames[sheet_name] = _axioms_t8_prepare_frame(sheet_name, frame)
+        else:
+            other_sheets.append((sheet_name, frame.copy()))
+
+    for sheet_name in _AXIOMS_SPEC_ORDER:
+        if sheet_name not in spec_frames:
+            spec_frames[sheet_name] = _axioms_t8_prepare_frame(sheet_name)
+
+    return spec_frames, other_sheets
+
+
+def _save_axioms_store(path: str, spec_frames: dict[str, pd.DataFrame], other_sheets: list[tuple[str, pd.DataFrame]]):
+    resolved = path or _get_axioms_store_path()
+    with _axioms_t8_windows_lock(resolved):
+        with _AXIOMS_STORE_LOCK:
+            _axioms_t8_write_workbook(resolved, spec_frames, other_sheets)
+
+
+def _axioms_t8_generate_axiom_id(existing: set[str]) -> str:
+    base = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    for _ in range(1000):
+        suffix = next(_AXIOMS_ID_COUNTER)
+        candidate = f"AX{base}{suffix:02d}"
+        if candidate not in existing:
+            return candidate
+    raise RuntimeError("Unable to allocate axiom id")
+
+
+def _axioms_t8_generate_work_id(existing: set[str]) -> str:
+    base = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    for _ in range(1000):
+        suffix = next(_AXIOMS_WORK_COUNTER)
+        candidate = f"WQ{base}{suffix:02d}"
+        if candidate not in existing:
+            return candidate
+    raise RuntimeError("Unable to allocate workqueue id")
+
+
+def _normalize_verse_key(text: str | None) -> str:
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(text)).strip()
+    normalized = re.sub(r"\\s+", " ", normalized)
+    normalized = normalized.lower()
+    return normalized
+
+
+def create_axiom(short_axiom: str, category: str = "Primary", created_by: str = "ui") -> str:
+    path = _get_axioms_store_path()
+    ensure_axioms_store(path)
+    with _AXIOMS_STORE_LOCK:
+        spec_frames, other_sheets = load_axioms_store(path)
+        axioms_df = spec_frames.get("Axioms", pd.DataFrame())
+        existing_ids = set(str(val) for val in axioms_df.get("axiom_id", []) if pd.notna(val))
+        axiom_id = _axioms_t8_generate_axiom_id(existing_ids)
+        timestamp = _axioms_t8_now()
+        new_row = {
+            "axiom_id": axiom_id,
+            "short_axiom": short_axiom.strip(),
+            "category": category or "Primary",
+            "created_at": timestamp,
+            "updated_at": timestamp,
+            "created_by": created_by or "ui",
+            "status": "draft",
+        }
+        updated_df = pd.concat([axioms_df, pd.DataFrame([new_row])], ignore_index=True)
+        spec_frames["Axioms"] = _axioms_t8_prepare_frame("Axioms", updated_df)
+        _save_axioms_store(path, spec_frames, other_sheets)
+    return axiom_id
+
+
+def upsert_axiom_description(axiom_id: str, text: str, description_type: str = "axiom") -> None:
+    if not axiom_id:
+        return
+    path = _get_axioms_store_path()
+    ensure_axioms_store(path)
+    with _AXIOMS_STORE_LOCK:
+        spec_frames, other_sheets = load_axioms_store(path)
+        desc_df = spec_frames.get("AxiomDescriptions", pd.DataFrame())
+        if desc_df.empty:
+            desc_df = _axioms_t8_prepare_frame("AxiomDescriptions", desc_df)
+        key_mask = (
+            (desc_df["axiom_id"].astype(str) == str(axiom_id))
+            & (desc_df["description_type"].astype(str) == str(description_type))
+        )
+        timestamp = _axioms_t8_now()
+        if key_mask.any():
+            idx = desc_df.index[key_mask][0]
+            rev_value = desc_df.at[idx, "rev"]
+            try:
+                rev_int = int(rev_value) + 1
+            except Exception:
+                rev_int = 1
+            desc_df.at[idx, "text"] = text
+            desc_df.at[idx, "rev"] = rev_int
+            desc_df.at[idx, "updated_at"] = timestamp
+        else:
+            new_row = {
+                "axiom_id": axiom_id,
+                "description_type": description_type,
+                "text": text,
+                "rev": 1,
+                "updated_at": timestamp,
+            }
+            desc_df = pd.concat([desc_df, pd.DataFrame([new_row])], ignore_index=True)
+        spec_frames["AxiomDescriptions"] = _axioms_t8_prepare_frame("AxiomDescriptions", desc_df)
+        _save_axioms_store(path, spec_frames, other_sheets)
+
+
+def link_contribution(
+    axiom_id: str,
+    verse: str,
+    page: str | None = None,
+    translation_revision_seen: str | None = None,
+    link_type: str = "primary",
+) -> None:
+    if not axiom_id:
+        return
+    path = _get_axioms_store_path()
+    ensure_axioms_store(path)
+    with _AXIOMS_STORE_LOCK:
+        spec_frames, other_sheets = load_axioms_store(path)
+        contrib_df = spec_frames.get("AxiomContributions", pd.DataFrame())
+        new_row = {
+            "axiom_id": axiom_id,
+            "verse": verse,
+            "verse_key_norm": _normalize_verse_key(verse),
+            "page": page,
+            "translation_revision_seen": translation_revision_seen,
+            "link_type": link_type or "primary",
+            "created_at": _axioms_t8_now(),
+        }
+        contrib_df = pd.concat([contrib_df, pd.DataFrame([new_row])], ignore_index=True)
+        spec_frames["AxiomContributions"] = _axioms_t8_prepare_frame("AxiomContributions", contrib_df)
+        _save_axioms_store(path, spec_frames, other_sheets)
+
+
+def upsert_keywords(
+    axiom_id: str,
+    literal_synonyms: str | None = None,
+    literal_antonyms: str | None = None,
+    spiritual_synonyms: str | None = None,
+    spiritual_antonyms: str | None = None,
+) -> None:
+    if not axiom_id:
+        return
+    path = _get_axioms_store_path()
+    ensure_axioms_store(path)
+    with _AXIOMS_STORE_LOCK:
+        spec_frames, other_sheets = load_axioms_store(path)
+        keywords_df = spec_frames.get("AxiomKeywords", pd.DataFrame())
+        if keywords_df.empty:
+            keywords_df = _axioms_t8_prepare_frame("AxiomKeywords", keywords_df)
+        key_mask = keywords_df["axiom_id"].astype(str) == str(axiom_id)
+        timestamp = _axioms_t8_now()
+        payload = {
+            "literal_synonyms": literal_synonyms,
+            "literal_antonyms": literal_antonyms,
+            "spiritual_synonyms": spiritual_synonyms,
+            "spiritual_antonyms": spiritual_antonyms,
+            "updated_at": timestamp,
+        }
+        if key_mask.any():
+            idx = keywords_df.index[key_mask][0]
+            for column, value in payload.items():
+                keywords_df.at[idx, column] = value
+        else:
+            new_row = {"axiom_id": axiom_id, **payload}
+            keywords_df = pd.concat([keywords_df, pd.DataFrame([new_row])], ignore_index=True)
+        spec_frames["AxiomKeywords"] = _axioms_t8_prepare_frame("AxiomKeywords", keywords_df)
+        _save_axioms_store(path, spec_frames, other_sheets)
+
+
+def enqueue_work(axiom_id: str, task: str, reason: str, status: str = "pending") -> None:
+    if not axiom_id:
+        return
+    path = _get_axioms_store_path()
+    ensure_axioms_store(path)
+    with _AXIOMS_STORE_LOCK:
+        spec_frames, other_sheets = load_axioms_store(path)
+        work_df = spec_frames.get("AxiomWorkqueue", pd.DataFrame())
+        existing_ids = set(str(val) for val in work_df.get("work_id", []) if pd.notna(val))
+        work_id = _axioms_t8_generate_work_id(existing_ids)
+        new_row = {
+            "work_id": work_id,
+            "axiom_id": axiom_id,
+            "task": task,
+            "reason": reason,
+            "created_at": _axioms_t8_now(),
+            "status": status or "pending",
+        }
+        work_df = pd.concat([work_df, pd.DataFrame([new_row])], ignore_index=True)
+        spec_frames["AxiomWorkqueue"] = _axioms_t8_prepare_frame("AxiomWorkqueue", work_df)
+        _save_axioms_store(path, spec_frames, other_sheets)
 
 
 if __name__ == "__main__":
