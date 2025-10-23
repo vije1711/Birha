@@ -19,6 +19,7 @@ import webbrowser
 import platform
 import itertools
 from contextlib import contextmanager
+import atexit
 try:
     import ctypes
     from ctypes import wintypes
@@ -16855,11 +16856,17 @@ class AxiomsFinalizeAxiomView(tk.Frame):
                 func(snapshot)
             except Exception as exc:
                 _AXIOMS_LOGGER.warning("Axioms store task failed: %s", exc, exc_info=False)
+            finally:
+                _axioms_t8_forget_thread(threading.current_thread())
 
+        worker: threading.Thread | None = None
         try:
-            threading.Thread(target=_runner, name="AxiomsStoreTask", daemon=True).start()
+            worker = threading.Thread(target=_runner, name="AxiomsStoreTask")
+            _axioms_t8_register_thread(worker)
+            worker.start()
         except Exception as exc:
             _AXIOMS_LOGGER.warning("Unable to launch background task: %s", exc, exc_info=False)
+            _axioms_t8_forget_thread(worker)
             try:
                 func(snapshot)
             except Exception as inner_exc:
@@ -17440,6 +17447,32 @@ _AXIOMS_STORE_LOCK = threading.RLock()
 _AXIOMS_ID_COUNTER = itertools.count(1)
 _AXIOMS_WORK_COUNTER = itertools.count(1)
 _AXIOMS_LOGGER = logging.getLogger("birha.axioms.store")
+_AXIOMS_ACTIVE_THREADS: set[threading.Thread] = set()
+
+
+def _axioms_t8_register_thread(thread: threading.Thread | None) -> None:
+    if thread is None:
+        return
+    _AXIOMS_ACTIVE_THREADS.add(thread)
+
+
+def _axioms_t8_forget_thread(thread: threading.Thread | None) -> None:
+    if thread is None:
+        return
+    _AXIOMS_ACTIVE_THREADS.discard(thread)
+
+
+def _axioms_t8_wait_for_threads(timeout: float = 5.0) -> None:
+    for worker in list(_AXIOMS_ACTIVE_THREADS):
+        try:
+            worker.join(timeout=timeout)
+        except Exception as exc:
+            _AXIOMS_LOGGER.debug("Axioms store thread join failed: %s", exc, exc_info=False)
+        finally:
+            _axioms_t8_forget_thread(worker)
+
+
+atexit.register(_axioms_t8_wait_for_threads)
 
 
 def _get_axioms_store_path() -> str:
