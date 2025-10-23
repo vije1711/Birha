@@ -17615,7 +17615,8 @@ def ensure_axioms_store(path: str | None = None) -> str:
 
 def load_axioms_store(path: str | None = None) -> tuple[dict[str, pd.DataFrame], list[tuple[str, pd.DataFrame]]]:
     resolved = ensure_axioms_store(path)
-    ordered_frames = _axioms_t8_read_frames(resolved)
+    with _AXIOMS_STORE_LOCK:
+        ordered_frames = _axioms_t8_read_frames(resolved)
 
     spec_frames: dict[str, pd.DataFrame] = {}
     other_sheets: list[tuple[str, pd.DataFrame]] = []
