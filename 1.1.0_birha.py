@@ -17596,8 +17596,16 @@ def _axioms_t8_write_workbook(path: str, spec_frames: dict[str, pd.DataFrame], o
             _AXIOMS_LOGGER.warning("Unable to create directory for axioms store: %s", exc, exc_info=False)
             raise
 
-    temp_dir = tempfile.mkdtemp(prefix="axioms_store_")
-    temp_path = os.path.join(temp_dir, "store.xlsx")
+    temp_dir = directory or "."
+    temp_file = tempfile.NamedTemporaryFile(
+        mode="wb",
+        suffix=".xlsx",
+        prefix="store_tmp_",
+        dir=temp_dir,
+        delete=False,
+    )
+    temp_path = temp_file.name
+    temp_file.close()
     try:
         with pd.ExcelWriter(temp_path, engine="openpyxl") as writer:
             for sheet_name in _AXIOMS_SPEC_ORDER:
@@ -17610,8 +17618,19 @@ def _axioms_t8_write_workbook(path: str, spec_frames: dict[str, pd.DataFrame], o
                     frame = pd.DataFrame(frame)
                 frame.copy().to_excel(writer, sheet_name=sheet_name, index=False)
         os.replace(temp_path, path)
+    except Exception:
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+        raise
     finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        try:
+            os.remove(temp_path)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
 
 
 def ensure_axioms_store(path: str | None = None) -> str:
