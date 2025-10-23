@@ -20,6 +20,7 @@ import platform
 import itertools
 from contextlib import contextmanager
 import atexit
+import time
 try:
     import ctypes
     from ctypes import wintypes
@@ -17448,6 +17449,8 @@ _AXIOMS_ID_COUNTER = itertools.count(1)
 _AXIOMS_WORK_COUNTER = itertools.count(1)
 _AXIOMS_LOGGER = logging.getLogger("birha.axioms.store")
 _AXIOMS_ACTIVE_THREADS: set[threading.Thread] = set()
+_AXIOMS_LOCK_ATTEMPTS = 25
+_AXIOMS_LOCK_SLEEP = 0.2
 
 
 def _axioms_t8_register_thread(thread: threading.Thread | None) -> None:
@@ -17543,30 +17546,41 @@ def _axioms_t8_read_frames(path: str) -> list[tuple[str, pd.DataFrame]]:
 def _axioms_t8_windows_lock(path: str):
     handle = None
     lock_path = f"{path}.lock"
+    owned_lock = False
     if os.name == "nt" and msvcrt is not None:
         try:
             handle = open(lock_path, "a+b")
-            try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError:
-                handle.close()
-                handle = None
+            for attempt in range(_AXIOMS_LOCK_ATTEMPTS):
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    owned_lock = True
+                    break
+                except OSError as exc:
+                    if attempt + 1 == _AXIOMS_LOCK_ATTEMPTS:
+                        raise TimeoutError(f"Timed out acquiring Windows lock for {path}") from exc
+                    time.sleep(_AXIOMS_LOCK_SLEEP)
         except Exception as exc:  # pragma: no cover - best effort
-            handle = None
-            _AXIOMS_LOGGER.debug("Windows lock unavailable for %s: %s", path, exc, exc_info=False)
+            if handle is not None:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
+            raise
     try:
         yield
     finally:
-        if handle is not None:
+        if owned_lock and handle is not None:
             try:
                 handle.seek(0)
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             except Exception:
                 pass
+        if handle is not None:
             try:
                 handle.close()
             except Exception:
                 pass
+        if owned_lock:
             try:
                 os.remove(lock_path)
             except Exception:
