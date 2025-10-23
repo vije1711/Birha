@@ -17605,10 +17605,10 @@ def ensure_axioms_store(path: str | None = None) -> str:
     if os.path.exists(resolved):
         return resolved
     spec_frames = {sheet: _axioms_t8_prepare_frame(sheet) for sheet in _AXIOMS_SPEC_ORDER}
-    with _axioms_t8_windows_lock(resolved):
-        with _AXIOMS_STORE_LOCK:
-            if os.path.exists(resolved):
-                return resolved
+    with _AXIOMS_STORE_LOCK:
+        if os.path.exists(resolved):
+            return resolved
+        with _axioms_t8_windows_lock(resolved):
             _axioms_t8_write_workbook(resolved, spec_frames, [])
     return resolved
 
@@ -17616,7 +17616,8 @@ def ensure_axioms_store(path: str | None = None) -> str:
 def load_axioms_store(path: str | None = None) -> tuple[dict[str, pd.DataFrame], list[tuple[str, pd.DataFrame]]]:
     resolved = ensure_axioms_store(path)
     with _AXIOMS_STORE_LOCK:
-        ordered_frames = _axioms_t8_read_frames(resolved)
+        with _axioms_t8_windows_lock(resolved):
+            ordered_frames = _axioms_t8_read_frames(resolved)
 
     spec_frames: dict[str, pd.DataFrame] = {}
     other_sheets: list[tuple[str, pd.DataFrame]] = []
@@ -17637,8 +17638,7 @@ def load_axioms_store(path: str | None = None) -> tuple[dict[str, pd.DataFrame],
 def _save_axioms_store(path: str, spec_frames: dict[str, pd.DataFrame], other_sheets: list[tuple[str, pd.DataFrame]]):
     resolved = path or _get_axioms_store_path()
     with _axioms_t8_windows_lock(resolved):
-        with _AXIOMS_STORE_LOCK:
-            _axioms_t8_write_workbook(resolved, spec_frames, other_sheets)
+        _axioms_t8_write_workbook(resolved, spec_frames, other_sheets)
 
 
 def _axioms_t8_generate_axiom_id(existing: set[str]) -> str:
