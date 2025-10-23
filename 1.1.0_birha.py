@@ -17651,7 +17651,12 @@ def load_axioms_store(path: str | None = None) -> tuple[dict[str, pd.DataFrame],
     with _AXIOMS_STORE_LOCK:
         with _axioms_t8_windows_lock(resolved):
             ordered_frames = _axioms_t8_read_frames(resolved)
+            return _axioms_t8_split_frames(ordered_frames)
 
+
+def _axioms_t8_split_frames(
+    ordered_frames: list[tuple[str, pd.DataFrame]]
+) -> tuple[dict[str, pd.DataFrame], list[tuple[str, pd.DataFrame]]]:
     spec_frames: dict[str, pd.DataFrame] = {}
     other_sheets: list[tuple[str, pd.DataFrame]] = []
 
@@ -17666,6 +17671,20 @@ def load_axioms_store(path: str | None = None) -> tuple[dict[str, pd.DataFrame],
             spec_frames[sheet_name] = _axioms_t8_prepare_frame(sheet_name)
 
     return spec_frames, other_sheets
+
+
+def _axioms_t8_mutate_store(
+    mutator,
+    path: str | None = None,
+):
+    resolved = ensure_axioms_store(path)
+    with _AXIOMS_STORE_LOCK:
+        with _axioms_t8_windows_lock(resolved):
+            ordered_frames = _axioms_t8_read_frames(resolved)
+            spec_frames, other_sheets = _axioms_t8_split_frames(ordered_frames)
+            result = mutator(spec_frames, other_sheets)
+            _axioms_t8_write_workbook(resolved, spec_frames, other_sheets)
+            return result
 
 
 def _save_axioms_store(path: str, spec_frames: dict[str, pd.DataFrame], other_sheets: list[tuple[str, pd.DataFrame]]):
@@ -17704,16 +17723,13 @@ def _normalize_verse_key(text: str | None) -> str:
 
 
 def create_axiom(short_axiom: str, category: str = "Primary", created_by: str = "ui") -> str:
-    path = _get_axioms_store_path()
-    ensure_axioms_store(path)
-    with _AXIOMS_STORE_LOCK:
-        spec_frames, other_sheets = load_axioms_store(path)
+    def _mutator(spec_frames, other_sheets):
         axioms_df = spec_frames.get("Axioms", pd.DataFrame())
         existing_ids = set(str(val) for val in axioms_df.get("axiom_id", []) if pd.notna(val))
-        axiom_id = _axioms_t8_generate_axiom_id(existing_ids)
+        axiom_id_local = _axioms_t8_generate_axiom_id(existing_ids)
         timestamp = _axioms_t8_now()
         new_row = {
-            "axiom_id": axiom_id,
+            "axiom_id": axiom_id_local,
             "short_axiom": short_axiom.strip(),
             "category": category or "Primary",
             "created_at": timestamp,
@@ -17723,17 +17739,18 @@ def create_axiom(short_axiom: str, category: str = "Primary", created_by: str = 
         }
         updated_df = pd.concat([axioms_df, pd.DataFrame([new_row])], ignore_index=True)
         spec_frames["Axioms"] = _axioms_t8_prepare_frame("Axioms", updated_df)
-        _save_axioms_store(path, spec_frames, other_sheets)
-    return axiom_id
+        return axiom_id_local
+
+    path = _get_axioms_store_path()
+    return _axioms_t8_mutate_store(_mutator, path=path)
 
 
 def upsert_axiom_description(axiom_id: str, text: str, description_type: str = "axiom") -> None:
     if not axiom_id:
         return
     path = _get_axioms_store_path()
-    ensure_axioms_store(path)
-    with _AXIOMS_STORE_LOCK:
-        spec_frames, other_sheets = load_axioms_store(path)
+
+    def _mutator(spec_frames, other_sheets):
         desc_df = spec_frames.get("AxiomDescriptions", pd.DataFrame())
         if desc_df.empty:
             desc_df = _axioms_t8_prepare_frame("AxiomDescriptions", desc_df)
@@ -17762,7 +17779,9 @@ def upsert_axiom_description(axiom_id: str, text: str, description_type: str = "
             }
             desc_df = pd.concat([desc_df, pd.DataFrame([new_row])], ignore_index=True)
         spec_frames["AxiomDescriptions"] = _axioms_t8_prepare_frame("AxiomDescriptions", desc_df)
-        _save_axioms_store(path, spec_frames, other_sheets)
+        return None
+
+    _axioms_t8_mutate_store(_mutator, path=path)
 
 
 def link_contribution(
@@ -17775,9 +17794,8 @@ def link_contribution(
     if not axiom_id:
         return
     path = _get_axioms_store_path()
-    ensure_axioms_store(path)
-    with _AXIOMS_STORE_LOCK:
-        spec_frames, other_sheets = load_axioms_store(path)
+
+    def _mutator(spec_frames, other_sheets):
         contrib_df = spec_frames.get("AxiomContributions", pd.DataFrame())
         new_row = {
             "axiom_id": axiom_id,
@@ -17790,7 +17808,9 @@ def link_contribution(
         }
         contrib_df = pd.concat([contrib_df, pd.DataFrame([new_row])], ignore_index=True)
         spec_frames["AxiomContributions"] = _axioms_t8_prepare_frame("AxiomContributions", contrib_df)
-        _save_axioms_store(path, spec_frames, other_sheets)
+        return None
+
+    _axioms_t8_mutate_store(_mutator, path=path)
 
 
 def upsert_keywords(
@@ -17803,9 +17823,8 @@ def upsert_keywords(
     if not axiom_id:
         return
     path = _get_axioms_store_path()
-    ensure_axioms_store(path)
-    with _AXIOMS_STORE_LOCK:
-        spec_frames, other_sheets = load_axioms_store(path)
+
+    def _mutator(spec_frames, other_sheets):
         keywords_df = spec_frames.get("AxiomKeywords", pd.DataFrame())
         if keywords_df.empty:
             keywords_df = _axioms_t8_prepare_frame("AxiomKeywords", keywords_df)
@@ -17826,16 +17845,17 @@ def upsert_keywords(
             new_row = {"axiom_id": axiom_id, **payload}
             keywords_df = pd.concat([keywords_df, pd.DataFrame([new_row])], ignore_index=True)
         spec_frames["AxiomKeywords"] = _axioms_t8_prepare_frame("AxiomKeywords", keywords_df)
-        _save_axioms_store(path, spec_frames, other_sheets)
+        return None
+
+    _axioms_t8_mutate_store(_mutator, path=path)
 
 
 def enqueue_work(axiom_id: str, task: str, reason: str, status: str = "pending") -> None:
     if not axiom_id:
         return
     path = _get_axioms_store_path()
-    ensure_axioms_store(path)
-    with _AXIOMS_STORE_LOCK:
-        spec_frames, other_sheets = load_axioms_store(path)
+
+    def _mutator(spec_frames, other_sheets):
         work_df = spec_frames.get("AxiomWorkqueue", pd.DataFrame())
         existing_ids = set(str(val) for val in work_df.get("work_id", []) if pd.notna(val))
         work_id = _axioms_t8_generate_work_id(existing_ids)
@@ -17849,7 +17869,9 @@ def enqueue_work(axiom_id: str, task: str, reason: str, status: str = "pending")
         }
         work_df = pd.concat([work_df, pd.DataFrame([new_row])], ignore_index=True)
         spec_frames["AxiomWorkqueue"] = _axioms_t8_prepare_frame("AxiomWorkqueue", work_df)
-        _save_axioms_store(path, spec_frames, other_sheets)
+        return None
+
+    _axioms_t8_mutate_store(_mutator, path=path)
 
 
 if __name__ == "__main__":
