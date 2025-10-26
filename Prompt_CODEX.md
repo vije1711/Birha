@@ -1,121 +1,80 @@
 
 ---
-## Task T9 — Keyword Manager (additive-only)
 
-**Goal:** Implement a UI + logic layer to manage Axiom keywords in four categories:
+## Task T10 — Reanalysis & Revision Sync (additive only)
 
-* **Literal Synonyms**
-* **Literal Antonyms**
-* **Spiritual Synonyms**
-* **Spiritual Antonyms**
+**Goal:** Detect verses whose translation/assessment revision has changed since last seen and queue them for reanalysis. Parent verses must always trigger reanalysis when any supporting verse updates.
 
-This must follow the Axioms contract and be fully **additive-only** inside `1.1.0_birha.py` under a header exactly like:
+**Read these files explicitly (no `@` shorthand inside this .md):**
 
+* `./0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx`
+  (See Phase II Task **T10 — Reanalysis & Revision Sync**: compare stored revision numbers against `1.2.1 assessment_data.xlsx`; queue outdated verses; parent verses trigger reanalysis.)
+* `./1.1.0_birha.py` (current source to extend additively)
+
+**Create a new branch (do not work on `main`):**
+`task/t10-reanalysis-revision-sync`
+
+**Additive-only code block header to use:**
+
+```python
+# === Axioms T10: Reanalysis & Revision Sync (additive only) ===
 ```
-# === Axioms T9: Keyword Manager (additive only) ===
-```
 
-### Read These Files Explicitly (no symbolic `@`):
+### Requirements
 
-* Study this spec file from disk:
-  `./0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx`
-* Review the current codebase file:
-  `./1.1.0_birha.py`
-* (Optional context) The working prompt:
-  `./Prompt_CODEX.md`
+1. **Revision snapshot loader**
 
-> Note: Codex, **do not** rely on `@filename` shorthand within this Markdown. You must open the exact paths given above from the workspace.
+   * Add a small, pure helper that reads `./1.2.1 assessment_data.xlsx` (assume sheet and columns named in a defensive way; normalize headers).
+   * Extract a mapping: `{ verse_key_norm -> translation_revision }`.
+   * Keep it resilient (missing file → empty mapping; tolerate tz/NaN/whitespace).
 
-### Branching & PR hygiene (must do)
+2. **Axioms store sync points**
 
-1. Create and switch to a new branch:
-   `git switch -c task/t9-keyword-manager`
-2. Only modify `1.1.0_birha.py` additively (no edits to pre-Axiom frozen areas).
-3. Commit with conventional message:
-   `[Axioms T9] Keyword Manager — additive only; pre-Axiom untouched.`
-4. Open a PR targeting `main`.
+   * If not present already, ensure the Axioms store file exists: `./1.3.0_axioms.xlsx` with sheets:
 
-### Scope
+     * `Axioms`, `AxiomDescriptions`, `AxiomContributions`, `AxiomKeywords`, `AxiomWorkqueue`, and `Metadata` as per contract (add sheets if missing; never drop non-spec sheets).
+   * For verse-bearing sheets (e.g., `AxiomContributions` or wherever verse text lives), ensure these columns (add if missing):
 
-1. **UI Panel (Axioms Dashboard integration)**
+     * `verse`, `verse_key_norm`, `translation_revision_seen`, `last_checked_at`.
 
-   * Add a dedicated, navigable screen for “Keyword Manager” reachable from the Axioms dashboard/workflow after T6/T8 states.
-   * Show the four keyword categories with:
+3. **Diff & queue logic**
 
-     * List view (chips or rows) + add/remove/edit controls.
-     * Validation feedback (inline) and a **density meter** (see rules below).
-     * “Regenerate from Description” button (uses current Axiom description to seed/update keywords; non-destructive merge with review dialog).
-   * Non-blocking toasts/alerts for success, warnings.
+   * Compare `translation_revision_seen` vs the latest revision from `assessment_data.xlsx`.
+   * For any mismatch (or if `translation_revision_seen` is empty), add/refresh an item in `AxiomWorkqueue`:
 
-2. **Data Model & Persistence (workbook adapter)**
+     * Columns: `verse`, `verse_key_norm`, `reason="revision_mismatch"`, `queued_at`, `status="pending"`.
+   * **Parent rule:** If a verse is marked as a parent (or appears as a parent in any association you maintain), queue it when any of its child/support verses update. If explicit parent/child columns don’t exist yet, infer conservatively from your current Axioms linkages; if none found, skip parent propagation with a TODO note.
 
-   * Persist to the **AxiomKeywords** sheet in `1.3.0_axioms.xlsx` per the contract. If the file/sheet doesn’t exist, create it additively.
-   * Columns (minimum):
-     `axiom_id, category, keyword, normalized_key, source, created_at, updated_at`
-   * Categories are one of: `literal_syn`, `literal_ant`, `spiritual_syn`, `spiritual_ant`.
-   * `normalized_key` must be case-insensitive, Unicode-NFC normalized, whitespace-collapsed; use it for dedupe.
-   * Provide helpers: `load_axiom_keywords(axiom_id)`, `save_axiom_keywords(axiom_id, records)` that NEVER touch non-spec sheets.
+4. **UI surface (dashboard)**
 
-3. **Validation & Normalization**
+   * Add a lightweight status chip/button to the Axioms Dashboard that:
 
-   * Trim whitespace; NFC normalize; lower/“casefold” for matches; collapse internal spaces.
-   * Disallow empty or purely punctuational entries.
-   * **Dedupe** within category by `normalized_key`.
-   * Optional rule: max 24 items per category (configurable constant).
-   * Warn if too many near-duplicates (Levenshtein or `rapidfuzz` ≥ 92 within category).
+     * Shows a count of “Reanalysis Required” items (pending in `AxiomWorkqueue`).
+     * Provides a “Refresh Revisions” action to rerun the sync.
+     * Provides a “View Queue” action that lists pending items (verse snippet + reason) and allows no-op close for now (processing lands in later tasks).
 
-4. **Density Control**
+5. **Persistence & safety**
 
-   * Compute **density** = (#keywords in category) / (total keywords for axiom). Display per category:
+   * Reuse your existing Excel helpers (atomic temp write, preserve non-spec sheets, keep_vba where applicable).
+   * Never modify `1.1.0_birha_pre_Axiom.py`. All work is additive to `1.1.0_birha.py`.
 
-     * Green (≤ 35%), Amber (35–55%), Red (> 55%).
-   * Show a compact bar + percentage. If any category exceeds the red threshold, show a non-blocking warning.
+6. **Acceptance criteria**
 
-5. **Auto-update on Description Change**
-
-   * If an Axiom’s **description** (from T8/T11 flows) changes, offer:
-     “Re-generate suggestions from description?”
-
-     * If accepted: compute suggested inflow (do not overwrite). Show diff dialog with Accept/Reject per keyword.
-
-6. **Regeneration Heuristics (simple & local)**
-
-   * Use current Axiom description text to propose candidates by:
-
-     * Tokenizing, removing stop-words (English + simple Punjabi list), stemming/normalize (lightweight), and collecting top-scored noun-like or salient tokens.
-     * Classify into the four categories **heuristically**:
-
-       * “Antonym” buckets seeded by simple opposite-lexeme table (tiny static list; additive).
-       * “Spiritual” vs “Literal” by presence in a tiny curated list of spiritual terms; otherwise default to Literal Synonyms.
-   * This remains a **local heuristic** (no network). Keep it small and transparent.
-
-7. **Additive-only Guardrails**
-
-   * Do not modify or rename any pre-Axiom code.
-   * New classes/functions must be prefixed clearly (e.g., `AxiomsKeywordManagerView`, `AxiomKeywordStoreAdapter`, etc.).
-   * UI wiring should wrap/extend, not replace, existing callbacks.
-
-### Acceptance Criteria
-
-* A “Keyword Manager” screen exists and is reachable from the Axioms dashboard/flows.
-* Users can add/edit/delete keywords across the four categories with inline validation and dedupe.
-* Data persists in `1.3.0_axioms.xlsx` → `AxiomKeywords` sheet (created if missing) without altering other sheets.
-* Density meter renders per category and shows warnings on red.
-* “Regenerate from Description” proposes non-destructive suggestions with a review/merge step.
-* Changing an Axiom description prompts to re-suggest keywords.
-* Code compiles: `python -m py_compile 1.1.0_birha.py`.
-
-### Implementation Hints
-
-* Follow the existing workbook helpers’ patterns (safe Excel read/write, overlay, atomic temp files).
-* Reuse/extend any normalization utilities already present (NFC, whitespace collapse).
-* Keep UI fonts/colors consistent with prior Axioms screens.
+   * Running “Refresh Revisions” updates `AxiomWorkqueue` based on `1.2.1 assessment_data.xlsx`.
+   * Dashboard visibly flags when any verse needs reanalysis (non-zero pending count).
+   * Parent verses are queued when any linked child/support verse changes (where linkage is available).
+   * `python -m py_compile 1.1.0_birha.py` passes.
 
 ### Deliverables
 
-* Code under:
-  `# === Axioms T9: Keyword Manager (additive only) ===`
-* Unit-lite check: a small internal test function you can call from UI to simulate suggestion/merge.
-* PR body file `pr_body.md` summarizing scope, verification steps, and risks.
+* New additive block under the specified header.
+* Updated Excel helpers (if needed) to safely read/write `1.3.0_axioms.xlsx`.
+* Minimal UI hooks (badge/count + two buttons) wired into the Axioms Dashboard.
+
+### Git & PR
+
+* Branch: `task/t10-reanalysis-revision-sync`
+* Commit message prefix: `[Axioms T10] Reanalysis & Revision Sync — additive only`
+* After push, open a PR into `main`.
 
 ---
