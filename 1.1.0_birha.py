@@ -19431,6 +19431,954 @@ def _axioms_t10_signal_badge_update(target):
 _axioms_t10_install_dashboard_badge()
 
 
+# === Axioms T11: Axiom Contribution & Linking (additive only) ===
+
+_AXIOMS_T11_TITLE_MATCH_THRESHOLD = 90
+_AXIOMS_T11_FUZZY_LIMIT = 12
+_AXIOMS_T11_TOAST_MS = 3600
+
+
+def _axioms_t11_normalize_title(text: str | None) -> str:
+    if not text:
+        return ""
+    cleaned = unicodedata.normalize("NFC", str(text))
+    cleaned = cleaned.strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.casefold()
+
+
+def _axioms_t11_guess_source(snapshot: dict[str, str]) -> str:
+    source = str(snapshot.get("translation_source") or "").strip().lower()
+    if "own" in source:
+        return "own"
+    if "darpan" in source:
+        return "darpan"
+    return "prompt_builder"
+
+
+def _axioms_t11_fetch_axiom_catalog() -> list[dict]:
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to load axioms catalog: %s", exc, exc_info=False)
+        return []
+
+    axioms_df = spec_frames.get("Axioms", pd.DataFrame())
+    axioms_df = _axioms_t8_prepare_frame("Axioms", axioms_df)
+    if axioms_df.empty:
+        return []
+
+    catalog: list[dict] = []
+    for _, row in axioms_df.iterrows():
+        axiom_id = str(row.get("axiom_id") or "").strip()
+        if not axiom_id:
+            continue
+        raw_title = row.get("title")
+        short_axiom = row.get("short_axiom")
+        title = str(raw_title or short_axiom or "").strip()
+        if not title:
+            continue
+        catalog.append(
+            {
+                "axiom_id": axiom_id,
+                "title": title,
+                "normalized_title": _axioms_t11_normalize_title(title),
+                "updated_at": str(row.get("updated_at") or ""),
+                "created_at": str(row.get("created_at") or ""),
+                "status": str(row.get("status") or ""),
+            }
+        )
+
+    def _sort_key(item: dict):
+        updated = item.get("updated_at") or ""
+        created = item.get("created_at") or ""
+        return (updated, created, item.get("title", ""))
+
+    catalog.sort(key=_sort_key, reverse=True)
+    return catalog
+
+
+def _axioms_t11_search_catalog(query: str, catalog: list[dict]) -> list[dict]:
+    if not catalog:
+        return []
+    if not query.strip():
+        return catalog[: _AXIOMS_T11_FUZZY_LIMIT]
+
+    try:
+        choices = {entry["title"]: entry for entry in catalog}
+        matches = process.extract(
+            query,
+            list(choices.keys()),
+            scorer=fuzz.WRatio,
+            limit=_AXIOMS_T11_FUZZY_LIMIT,
+        )
+        results: list[dict] = []
+        for title, score, _ in matches:
+            entry = choices.get(title)
+            if entry:
+                enriched = dict(entry)
+                enriched["score"] = score
+                results.append(enriched)
+        return results
+    except Exception as exc:
+        _AXIOMS_LOGGER.debug("Fuzzy search failed: %s", exc, exc_info=False)
+        return catalog[: _AXIOMS_T11_FUZZY_LIMIT]
+
+
+def _axioms_t11_update_axiom_metadata(axiom_id: str, title: str) -> None:
+    if not axiom_id or not title:
+        return
+
+    def _mutator(spec_frames, other_sheets):
+        axioms_df = _axioms_t8_prepare_frame("Axioms", spec_frames.get("Axioms", pd.DataFrame()))
+        if axioms_df.empty:
+            return None
+        mask = axioms_df["axiom_id"].astype(str) == str(axiom_id)
+        if not mask.any():
+            return None
+        idx = axioms_df.index[mask][0]
+        timestamp = _axioms_t8_now()
+        if "title" not in axioms_df.columns:
+            axioms_df["title"] = pd.NA
+        axioms_df.at[idx, "title"] = title
+        current_short = str(axioms_df.at[idx, "short_axiom"] or "").strip()
+        if not current_short:
+            axioms_df.at[idx, "short_axiom"] = title
+        axioms_df.at[idx, "updated_at"] = timestamp
+        if "status" in axioms_df.columns and not str(axioms_df.at[idx, "status"] or "").strip():
+            axioms_df.at[idx, "status"] = "draft"
+        spec_frames["Axioms"] = _axioms_t8_prepare_frame("Axioms", axioms_df)
+        return None
+
+    try:
+        _axioms_t8_mutate_store(_mutator, path=_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to update axiom metadata: %s", exc, exc_info=False)
+
+
+def _axioms_t11_upsert_description(
+    axiom_id: str,
+    description_text: str,
+    kind: str,
+    verse_key_norm: str | None = None,
+    author: str = "ui",
+) -> None:
+    if not axiom_id or not description_text:
+        return
+
+    normalized_kind = (kind or "").strip() or "axiom"
+    verse_norm = verse_key_norm or ""
+
+    def _mutator(spec_frames, other_sheets):
+        desc_df = _axioms_t8_prepare_frame("AxiomDescriptions", spec_frames.get("AxiomDescriptions", pd.DataFrame()))
+        if desc_df is None:
+            desc_df = pd.DataFrame(columns=_AXIOMS_SPEC_SHEETS.get("AxiomDescriptions", []))
+
+        for column in ("kind", "verse_key_norm", "description_text", "author", "created_at"):
+            if column not in desc_df.columns:
+                desc_df[column] = pd.NA
+
+        timestamp = _axioms_t8_now()
+        mask = desc_df["axiom_id"].astype(str) == str(axiom_id)
+        mask &= desc_df.get("kind", pd.Series(dtype=object)).astype(str) == normalized_kind
+        if normalized_kind == "verse":
+            mask &= desc_df.get("verse_key_norm", pd.Series(dtype=object)).astype(str) == verse_norm
+        else:
+            verse_series = desc_df.get("verse_key_norm", pd.Series(dtype=object))
+            if not verse_series.empty:
+                mask &= verse_series.astype(str).isin({"", "nan"}) | verse_series.isna()
+
+        if mask.any():
+            idx = desc_df.index[mask][0]
+            desc_df.at[idx, "kind"] = normalized_kind
+            if "description_type" in desc_df.columns:
+                desc_df.at[idx, "description_type"] = normalized_kind
+            if "text" in desc_df.columns:
+                desc_df.at[idx, "text"] = description_text
+            desc_df.at[idx, "description_text"] = description_text
+            desc_df.at[idx, "author"] = author
+            desc_df.at[idx, "updated_at"] = timestamp
+            if normalized_kind == "verse":
+                desc_df.at[idx, "verse_key_norm"] = verse_norm
+            else:
+                desc_df.at[idx, "verse_key_norm"] = pd.NA
+            if "rev" in desc_df.columns:
+                prev_rev = desc_df.at[idx, "rev"]
+                try:
+                    desc_df.at[idx, "rev"] = int(prev_rev) + 1
+                except Exception:
+                    desc_df.at[idx, "rev"] = 1
+            if "created_at" in desc_df.columns and pd.isna(desc_df.at[idx, "created_at"]):
+                desc_df.at[idx, "created_at"] = timestamp
+        else:
+            new_row = {
+                "axiom_id": axiom_id,
+                "kind": normalized_kind,
+                "description_type": normalized_kind,
+                "description_text": description_text,
+                "text": description_text,
+                "author": author,
+                "created_at": timestamp,
+                "updated_at": timestamp,
+                "rev": 1,
+                "verse_key_norm": verse_norm if normalized_kind == "verse" else pd.NA,
+            }
+            desc_df = pd.concat([desc_df, pd.DataFrame([new_row])], ignore_index=True)
+
+        spec_frames["AxiomDescriptions"] = _axioms_t8_prepare_frame("AxiomDescriptions", desc_df)
+        return None
+
+    try:
+        _axioms_t8_mutate_store(_mutator, path=_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to upsert axiom description: %s", exc, exc_info=False)
+
+
+def _axioms_t11_upsert_contribution(
+    axiom_id: str,
+    verse_text: str,
+    verse_key_norm: str,
+    source: str,
+    link_type: str,
+    translation_revision_seen: str | None = None,
+) -> None:
+    if not axiom_id or not verse_text or not verse_key_norm:
+        return
+
+    def _mutator(spec_frames, other_sheets):
+        contrib_df = _axioms_t8_prepare_frame("AxiomContributions", spec_frames.get("AxiomContributions", pd.DataFrame()))
+        if contrib_df is None:
+            contrib_df = pd.DataFrame(columns=_AXIOMS_SPEC_SHEETS.get("AxiomContributions", []))
+
+        for column in ("source", "link_created_at", "link_updated_at"):
+            if column not in contrib_df.columns:
+                contrib_df[column] = pd.NA
+
+        timestamp = _axioms_t8_now()
+        mask = (contrib_df["axiom_id"].astype(str) == str(axiom_id)) & (
+            contrib_df["verse_key_norm"].astype(str) == verse_key_norm
+        )
+
+        if mask.any():
+            idx = contrib_df.index[mask][0]
+            contrib_df.at[idx, "verse"] = verse_text
+            contrib_df.at[idx, "source"] = source
+            existing_type = str(contrib_df.at[idx, "link_type"] or "").strip()
+            incoming_type = (link_type or "").strip()
+            if not existing_type and incoming_type:
+                contrib_df.at[idx, "link_type"] = incoming_type
+            if translation_revision_seen:
+                contrib_df.at[idx, "translation_revision_seen"] = translation_revision_seen
+            contrib_df.at[idx, "link_updated_at"] = timestamp
+            if "created_at" in contrib_df.columns and pd.isna(contrib_df.at[idx, "created_at"]):
+                contrib_df.at[idx, "created_at"] = timestamp
+        else:
+            new_row = {
+                "axiom_id": axiom_id,
+                "verse": verse_text,
+                "verse_key_norm": verse_key_norm,
+                "page": pd.NA,
+                "translation_revision_seen": translation_revision_seen or pd.NA,
+                "link_type": link_type or "supporting",
+                "created_at": timestamp,
+                "source": source or pd.NA,
+                "link_created_at": timestamp,
+                "link_updated_at": timestamp,
+            }
+            contrib_df = pd.concat([contrib_df, pd.DataFrame([new_row])], ignore_index=True)
+
+        spec_frames["AxiomContributions"] = _axioms_t8_prepare_frame("AxiomContributions", contrib_df)
+        return None
+
+    try:
+        _axioms_t8_mutate_store(_mutator, path=_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to upsert axiom contribution: %s", exc, exc_info=False)
+
+
+def _axioms_t11_load_description(axiom_id: str, kind: str, verse_key_norm: str = "") -> str:
+    if not axiom_id:
+        return ""
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.debug("Unable to load axiom description: %s", exc, exc_info=False)
+        return ""
+
+    desc_df = _axioms_t8_prepare_frame("AxiomDescriptions", spec_frames.get("AxiomDescriptions", pd.DataFrame()))
+    if desc_df.empty:
+        return ""
+
+    mask = desc_df["axiom_id"].astype(str) == str(axiom_id)
+    if "kind" in desc_df.columns:
+        mask &= desc_df["kind"].astype(str) == kind
+    elif "description_type" in desc_df.columns:
+        mask &= desc_df["description_type"].astype(str) == kind
+    if kind == "verse":
+        if "verse_key_norm" in desc_df.columns:
+            mask &= desc_df["verse_key_norm"].astype(str) == verse_key_norm
+        else:
+            mask &= False
+
+    subset = desc_df.loc[mask]
+    if subset.empty:
+        return ""
+
+    try:
+        subset = subset.sort_values("updated_at", ascending=False, na_position="last")
+    except Exception:
+        subset = subset.iloc[::-1]
+    row = subset.iloc[0]
+    for field in ("description_text", "text"):
+        value = row.get(field)
+        if pd.notna(value):
+            return str(value)
+    return ""
+
+
+def _axioms_t11_get_assessment_revision(verse_key_norm: str) -> str:
+    if not verse_key_norm:
+        return ""
+    loader = globals().get("_axioms_t10_load_assessment_map")
+    if loader is None:
+        return ""
+    try:
+        mapping = loader()
+    except Exception:
+        return ""
+    return str(mapping.get(verse_key_norm) or "")
+
+
+def _axioms_t11_resolve_revision_warning(verse_key_norm: str) -> str:
+    if not verse_key_norm:
+        return ""
+    loader = globals().get("_axioms_t10_load_assessment_map")
+    normalizer = globals().get("_axioms_t10_normalize_revision")
+    if loader is None or normalizer is None:
+        return ""
+    try:
+        assessment_map = loader()
+    except Exception:
+        return ""
+    expected = assessment_map.get(verse_key_norm)
+    if not expected:
+        return ""
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception:
+        return ""
+    contrib_df = _axioms_t8_prepare_frame("AxiomContributions", spec_frames.get("AxiomContributions", pd.DataFrame()))
+    if contrib_df.empty:
+        return ""
+    mask = contrib_df["verse_key_norm"].astype(str) == verse_key_norm
+    subset = contrib_df.loc[mask]
+    if subset.empty:
+        return ""
+    for _, row in subset.iterrows():
+        seen = row.get("translation_revision_seen")
+        normalized_seen = normalizer(seen)
+        if normalized_seen and normalized_seen != expected:
+            return (
+                f"Stored translation revision {normalized_seen} differs from assessment ({expected}). "
+                "Linking will not queue reanalysis."
+            )
+    return ""
+
+
+def _axioms_t11_show_toast(widget: tk.Widget | None, message: str, duration: int = _AXIOMS_T11_TOAST_MS) -> None:
+    if widget is None or not message:
+        return
+    try:
+        toast = tk.Toplevel(widget)
+        toast.withdraw()
+        toast.wm_overrideredirect(True)
+        toast.configure(bg="#2e8b57")
+        label = tk.Label(
+            toast,
+            text=message,
+            font=("Arial", 11),
+            bg="#2e8b57",
+            fg="white",
+            padx=14,
+            pady=8,
+            wraplength=420,
+        )
+        label.pack()
+        toast.update_idletasks()
+        x = widget.winfo_rootx() + 40
+        y = widget.winfo_rooty() + 40
+        toast.geometry(f"+{x}+{y}")
+        toast.deiconify()
+        toast.after(max(1800, duration), toast.destroy)
+    except Exception as exc:
+        _AXIOMS_LOGGER.debug("Toast notification failed: %s", exc, exc_info=False)
+
+
+class AxiomsLinkToAxiomView(tk.Frame):
+    """UI for linking the active verse to a new or existing axiom."""
+
+    def __init__(self, flow, finalize_view, snapshot: dict[str, str], mode: str = "new"):
+        super().__init__(flow, bg="light gray")
+        self.flow = flow
+        self.finalize_view = finalize_view
+        self.dashboard = getattr(finalize_view, "dashboard", None)
+        self.snapshot = snapshot or {}
+        self.mode_var = tk.StringVar(value=mode if mode in {"new", "existing"} else "new")
+        self.catalog: list[dict] = []
+        self._results: list[dict] = []
+        self._saving = False
+        self._selected_axiom_id: str | None = None
+
+        self._build_layout()
+        self.refresh(snapshot, mode=mode)
+
+    def _build_layout(self):
+        header = tk.Label(
+            self,
+            text="Link Verse to Axiom",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=8,
+        )
+        header.pack(fill=tk.X)
+
+        self.verse_label = tk.Label(
+            self,
+            text="No verse selected.",
+            font=("Arial", 12),
+            bg="light gray",
+            wraplength=720,
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        self.verse_label.pack(fill=tk.X, padx=6, pady=(12, 0))
+
+        warning_frame = tk.Frame(self, bg="light gray")
+        warning_frame.pack(fill=tk.X, padx=6, pady=(4, 0))
+        self.revision_warning_var = tk.StringVar(value="")
+        self.revision_warning_label = tk.Label(
+            warning_frame,
+            textvariable=self.revision_warning_var,
+            font=("Arial", 11, "bold"),
+            bg="light gray",
+            fg="#b45f04",
+            wraplength=720,
+            justify=tk.LEFT,
+        )
+
+        mode_frame = tk.Frame(self, bg="light gray")
+        mode_frame.pack(fill=tk.X, padx=6, pady=(12, 6))
+        tk.Label(
+            mode_frame,
+            text="Linking Mode:",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(side=tk.LEFT)
+        tk.Radiobutton(
+            mode_frame,
+            text="Create New Axiom",
+            variable=self.mode_var,
+            value="new",
+            bg="light gray",
+            font=("Arial", 12),
+            command=self._update_mode,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+        tk.Radiobutton(
+            mode_frame,
+            text="Link to Existing",
+            variable=self.mode_var,
+            value="existing",
+            bg="light gray",
+            font=("Arial", 12),
+            command=self._update_mode,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+
+        self.new_frame = tk.LabelFrame(
+            self,
+            text="New Axiom Details",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+            fg="black",
+        )
+        self.new_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+
+        tk.Label(
+            self.new_frame,
+            text="Axiom Title",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w", padx=6, pady=(6, 2))
+        self.new_title_var = tk.StringVar()
+        self.new_title_entry = tk.Entry(self.new_frame, font=("Arial", 12), textvariable=self.new_title_var)
+        self.new_title_entry.pack(fill=tk.X, padx=6, pady=(0, 8))
+
+        tk.Label(
+            self.new_frame,
+            text="Axiom-level Description (optional)",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(anchor="w", padx=6, pady=(0, 2))
+        self.axiom_desc_text = tk.Text(
+            self.new_frame,
+            height=4,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            bg="white",
+        )
+        self.axiom_desc_text.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+
+        self.existing_frame = tk.LabelFrame(
+            self,
+            text="Existing Axiom",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+            fg="black",
+        )
+        self.existing_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+
+        search_row = tk.Frame(self.existing_frame, bg="light gray")
+        search_row.pack(fill=tk.X, padx=6, pady=(6, 2))
+        tk.Label(
+            search_row,
+            text="Search",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        ).pack(side=tk.LEFT)
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", lambda *_: self._refresh_results())
+        search_entry = tk.Entry(search_row, textvariable=self.search_var, font=("Arial", 12))
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
+
+        list_container = tk.Frame(self.existing_frame, bg="light gray")
+        list_container.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+        self.results_list = tk.Listbox(
+            list_container,
+            height=8,
+            activestyle="dotbox",
+            font=("Arial", 12),
+        )
+        self.results_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar = tk.Scrollbar(list_container, command=self.results_list.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.results_list.configure(yscrollcommand=scrollbar.set)
+        self.results_list.bind("<<ListboxSelect>>", self._on_select_existing)
+        self.results_list.bind("<Double-Button-1>", self._on_select_existing)
+
+        self.selected_label_var = tk.StringVar(value="No axiom selected.")
+        tk.Label(
+            self.existing_frame,
+            textvariable=self.selected_label_var,
+            font=("Arial", 11),
+            bg="light gray",
+            fg="#1f6f8b",
+            wraplength=720,
+            justify=tk.LEFT,
+        ).pack(fill=tk.X, padx=6, pady=(0, 6))
+
+        verse_frame = tk.LabelFrame(
+            self,
+            text="Verse-specific Description",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+            fg="black",
+        )
+        verse_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+        self.verse_desc_text = scrolledtext.ScrolledText(
+            verse_frame,
+            height=6,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            bg="white",
+        )
+        self.verse_desc_text.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+
+        button_row = tk.Frame(self, bg="light gray")
+        button_row.pack(fill=tk.X, padx=6, pady=(4, 6))
+        tk.Button(
+            button_row,
+            text="Back",
+            font=("Arial", 12, "bold"),
+            bg="#555555",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._go_back,
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            button_row,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="#b22222",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._cancel_flow,
+        ).pack(side=tk.RIGHT)
+        tk.Button(
+            button_row,
+            text="Save Link",
+            font=("Arial", 12, "bold"),
+            bg="#2e8b57",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._save_link,
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+        self.status_var = tk.StringVar(value="")
+        status_label = tk.Label(
+            self,
+            textvariable=self.status_var,
+            font=("Arial", 11),
+            bg="light gray",
+            fg="#202020",
+            anchor="w",
+            wraplength=720,
+        )
+        status_label.pack(fill=tk.X, padx=6, pady=(0, 6))
+
+    def refresh(self, snapshot: dict[str, str], mode: str = "new") -> None:
+        self.snapshot = snapshot or {}
+        if mode in {"new", "existing"}:
+            self.mode_var.set(mode)
+        verse_text = self.snapshot.get("verse") or ""
+        if not verse_text:
+            verse_text = "The selected verse could not be determined."
+        self.verse_label.configure(text=f"Verse Selected:\n{verse_text}")
+
+        verse_norm = _normalize_verse_key(self.snapshot.get("verse"))
+        warning = _axioms_t11_resolve_revision_warning(verse_norm)
+        if warning:
+            self.revision_warning_var.set(warning)
+            if not self.revision_warning_label.winfo_ismapped():
+                self.revision_warning_label.pack(anchor="w", padx=6, pady=(0, 6))
+        else:
+            self.revision_warning_var.set("")
+            try:
+                self.revision_warning_label.pack_forget()
+            except Exception:
+                pass
+
+        rationale = (self.snapshot.get("rationale") or "").strip()
+        if rationale:
+            self._replace_text(self.axiom_desc_text, rationale)
+        else:
+            self._replace_text(self.axiom_desc_text, "")
+
+        verse_prefill = rationale or (self.snapshot.get("prompt") or "")
+        self._replace_text(self.verse_desc_text, verse_prefill)
+
+        title_prefill = self.snapshot.get("short_axiom") or ""
+        if not title_prefill and hasattr(self.finalize_view, "axiom_entry"):
+            try:
+                title_prefill = self.finalize_view.axiom_entry.get().strip()
+            except Exception:
+                title_prefill = ""
+        self.new_title_var.set(title_prefill)
+
+        self.status_var.set("")
+        self.search_var.set("")
+        self._selected_axiom_id = getattr(self.finalize_view, "_last_axiom_id", None)
+        self.catalog = _axioms_t11_fetch_axiom_catalog()
+        self._refresh_results()
+        if self._selected_axiom_id:
+            self._prefill_existing_selection(self._selected_axiom_id, verse_norm=verse_norm)
+        self._update_mode()
+
+    def _replace_text(self, widget: tk.Text, value: str) -> None:
+        try:
+            widget.delete("1.0", tk.END)
+            if value:
+                widget.insert("1.0", value)
+        except Exception:
+            pass
+
+    def _refresh_results(self):
+        query = self.search_var.get()
+        self._results = _axioms_t11_search_catalog(query, self.catalog)
+        self.results_list.delete(0, tk.END)
+        for entry in self._results:
+            title = entry.get("title", "Untitled")
+            updated = entry.get("updated_at") or entry.get("created_at") or ""
+            score = entry.get("score")
+            suffix = f" • {updated}" if updated else ""
+            if score is not None:
+                suffix = f" • score {int(score)}{suffix}"
+            self.results_list.insert(tk.END, f"{title}{suffix}")
+        if not self._results:
+            self.selected_label_var.set("No matches found. Adjust your search or create a new axiom.")
+        else:
+            self.selected_label_var.set("Select an axiom from the list above.")
+
+    def _prefill_existing_selection(self, axiom_id: str, verse_norm: str) -> None:
+        for idx, entry in enumerate(self._results):
+            if entry.get("axiom_id") == axiom_id:
+                try:
+                    self.results_list.selection_clear(0, tk.END)
+                    self.results_list.selection_set(idx)
+                    self.results_list.activate(idx)
+                except Exception:
+                    pass
+                self._selected_axiom_id = axiom_id
+                self.selected_label_var.set(f"Selected axiom: {entry.get('title', axiom_id)}")
+                self._populate_existing_descriptions(axiom_id, verse_norm)
+                break
+
+    def _populate_existing_descriptions(self, axiom_id: str, verse_norm: str):
+        if not axiom_id:
+            return
+        global_desc = _axioms_t11_load_description(axiom_id, "axiom")
+        verse_desc = _axioms_t11_load_description(axiom_id, "verse", verse_norm)
+        if global_desc:
+            self._replace_text(self.axiom_desc_text, global_desc)
+        if verse_desc:
+            self._replace_text(self.verse_desc_text, verse_desc)
+
+    def _on_select_existing(self, _event=None):
+        try:
+            selection = self.results_list.curselection()
+        except Exception:
+            selection = ()
+        if not selection:
+            return
+        index = selection[0]
+        if index >= len(self._results):
+            return
+        entry = self._results[index]
+        self._selected_axiom_id = entry.get("axiom_id")
+        title = entry.get("title", self._selected_axiom_id)
+        self.selected_label_var.set(f"Selected axiom: {title}")
+        verse_norm = _normalize_verse_key(self.snapshot.get("verse"))
+        self._populate_existing_descriptions(self._selected_axiom_id, verse_norm)
+
+    def _update_mode(self):
+        mode = self.mode_var.get()
+        if mode == "existing":
+            try:
+                self.new_frame.pack_forget()
+            except Exception:
+                pass
+            self.existing_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+        else:
+            self.existing_frame.pack_forget()
+            self.new_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 8))
+
+    def _go_back(self):
+        try:
+            self.flow._display(self.finalize_view)
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Unable to return to finalize view: %s", exc, exc_info=False)
+
+    def _cancel_flow(self):
+        try:
+            self.flow.on_cancel()
+        except Exception:
+            pass
+
+    def _save_link(self):
+        if self._saving:
+            return
+        verse_text = self.snapshot.get("verse", "") or ""
+        verse_norm = _normalize_verse_key(verse_text)
+        if not verse_norm:
+            self.status_var.set("Unable to resolve the selected verse. Return and choose a verse again.")
+            return
+        verse_description = self.verse_desc_text.get("1.0", tk.END).strip()
+        if not verse_description:
+            self.status_var.set("Provide a verse-specific description before saving.")
+            return
+        mode = self.mode_var.get()
+        chosen_title = ""
+        axiom_id: str | None = None
+        is_new = False
+        catalog_map = {entry["axiom_id"]: entry for entry in self.catalog}
+
+        if mode == "existing":
+            axiom_id = self._resolve_existing_selection()
+            if not axiom_id:
+                self.status_var.set("Select an axiom to link against.")
+                return
+            chosen_title = catalog_map.get(axiom_id, {}).get("title", axiom_id)
+        else:
+            chosen_title = self.new_title_var.get().strip()
+            if not chosen_title:
+                self.status_var.set("Enter a title for the new axiom.")
+                return
+            normalized_title = _axioms_t11_normalize_title(chosen_title)
+            exact_match = next(
+                (entry for entry in self.catalog if entry.get("normalized_title") == normalized_title),
+                None,
+            )
+            if exact_match:
+                axiom_id = exact_match["axiom_id"]
+                chosen_title = exact_match["title"]
+            else:
+                close_match, score = self._find_close_match(chosen_title)
+                if close_match and score >= _AXIOMS_T11_TITLE_MATCH_THRESHOLD:
+                    try:
+                        use_existing = messagebox.askyesno(
+                            "Use Existing Axiom?",
+                            f"“{chosen_title}” is similar to existing axiom “{close_match['title']}”.\n"
+                            "Would you like to link to the existing axiom instead?",
+                            parent=self,
+                        )
+                    except Exception:
+                        use_existing = False
+                    if use_existing:
+                        axiom_id = close_match["axiom_id"]
+                        chosen_title = close_match["title"]
+                if not axiom_id:
+                    is_new = True
+                    axiom_id = create_axiom(chosen_title or "Untitled Axiom", category="Primary", created_by="ui")
+                    _axioms_t11_update_axiom_metadata(axiom_id, chosen_title)
+
+        if not axiom_id:
+            self.status_var.set("Unable to resolve target axiom.")
+            return
+
+        axiom_description = self.axiom_desc_text.get("1.0", tk.END).strip()
+        author = "ui"
+        source = _axioms_t11_guess_source(self.snapshot)
+        link_type = "primary" if is_new else "supporting"
+        translation_revision = _axioms_t11_get_assessment_revision(verse_norm)
+
+        self._saving = True
+        self.status_var.set("Saving link...")
+        try:
+            _axioms_t11_upsert_contribution(
+                axiom_id,
+                verse_text,
+                verse_norm,
+                source=source,
+                link_type=link_type,
+                translation_revision_seen=translation_revision or None,
+            )
+            _axioms_t11_upsert_description(
+                axiom_id,
+                verse_description,
+                kind="verse",
+                verse_key_norm=verse_norm,
+                author=author,
+            )
+            if axiom_description:
+                _axioms_t11_upsert_description(
+                    axiom_id,
+                    axiom_description,
+                    kind="axiom",
+                    author=author,
+                )
+            self._after_save_success(axiom_id, chosen_title)
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Failed to link verse to axiom: %s", exc, exc_info=False)
+            self.status_var.set("Unable to save link right now. Please try again.")
+        finally:
+            self._saving = False
+
+    def _resolve_existing_selection(self) -> str | None:
+        try:
+            selection = self.results_list.curselection()
+        except Exception:
+            selection = ()
+        if selection:
+            index = selection[0]
+            if 0 <= index < len(self._results):
+                return self._results[index].get("axiom_id")
+        query = self.search_var.get().strip()
+        if not query:
+            return self._selected_axiom_id
+        normalized_query = _axioms_t11_normalize_title(query)
+        for entry in self.catalog:
+            if entry.get("normalized_title") == normalized_query:
+                return entry.get("axiom_id")
+        close_match, score = self._find_close_match(query)
+        if close_match and score >= _AXIOMS_T11_TITLE_MATCH_THRESHOLD:
+            return close_match.get("axiom_id")
+        return self._selected_axiom_id
+
+    def _find_close_match(self, title: str) -> tuple[dict | None, int]:
+        if not title:
+            return None, 0
+        normalized = _axioms_t11_normalize_title(title)
+        best_entry = None
+        best_score = 0
+        for entry in self.catalog:
+            candidate_norm = entry.get("normalized_title") or _axioms_t11_normalize_title(entry.get("title"))
+            score = fuzz.ratio(normalized, candidate_norm)
+            if score > best_score:
+                best_entry = entry
+                best_score = score
+        return best_entry, best_score
+
+    def _after_save_success(self, axiom_id: str, title: str) -> None:
+        self.status_var.set("Link saved successfully.")
+        try:
+            _axioms_t11_show_toast(self, "Verse linked to axiom. Consider refreshing keywords.")
+        except Exception:
+            pass
+        if hasattr(self.finalize_view, "axiom_entry"):
+            try:
+                self.finalize_view.axiom_entry.delete(0, tk.END)
+                self.finalize_view.axiom_entry.insert(0, title)
+            except Exception:
+                pass
+        setattr(self.finalize_view, "_last_axiom_id", axiom_id)
+        setattr(self.finalize_view, "_last_axiom_description_ts", _axioms_t8_now())
+        dashboard = getattr(self.finalize_view, "dashboard", None)
+        _axioms_t10_signal_badge_update(dashboard)
+        try:
+            self.after(
+                200,
+                lambda: self.flow._display(self.finalize_view),
+            )
+        except Exception as exc:
+            _AXIOMS_LOGGER.debug("Unable to return to finalize view automatically: %s", exc, exc_info=False)
+
+
+def _axioms_t11_install():
+    finalize_cls = globals().get("AxiomsFinalizeAxiomView")
+    if finalize_cls is None or getattr(finalize_cls, "_axioms_t11_installed", False):
+        return
+
+    def _open_link_view(self, mode: str):
+        flow = getattr(self, "flow", None)
+        if flow is None:
+            try:
+                messagebox.showinfo(
+                    "Link to Axiom",
+                    "Linking flow is unavailable because the parent flow is missing.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+        snapshot = self._collect_snapshot()
+        view = getattr(flow, "_axioms_t11_link_view", None)
+        if isinstance(view, AxiomsLinkToAxiomView):
+            view.refresh(snapshot, mode=mode)
+        else:
+            view = AxiomsLinkToAxiomView(flow, self, snapshot, mode=mode)
+            setattr(flow, "_axioms_t11_link_view", view)
+        try:
+            flow._display(view)
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Unable to display axiom linking view: %s", exc, exc_info=False)
+
+    def _create_then_link(self):
+        _open_link_view(self, "new")
+
+    def _link_existing(self):
+        _open_link_view(self, "existing")
+
+    finalize_cls._axioms_t11_open_link_view = _open_link_view  # type: ignore[attr-defined]
+    finalize_cls._create_axiom_entry = _create_then_link  # type: ignore[method-assign]
+    finalize_cls._link_existing_axiom = _link_existing  # type: ignore[method-assign]
+    setattr(finalize_cls, "_axioms_t11_installed", True)
+
+
+_axioms_t11_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
