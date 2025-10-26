@@ -18946,10 +18946,22 @@ def _axioms_t9_open_manager(parent_widget, axiom_id: str):
         window = getattr(parent_widget, "_axioms_t9_keyword_window", None)
         if window and window.winfo_exists():
             try:
-                window.focus_set()
+                existing_axiom = getattr(getattr(window, "manager_view", None), "axiom_id", None)
             except Exception:
-                pass
-            return
+                existing_axiom = None
+            if existing_axiom and existing_axiom != axiom_id:
+                try:
+                    window.destroy()
+                except Exception:
+                    pass
+                setattr(parent_widget, "_axioms_t9_keyword_window", None)
+                window = None
+            else:
+                try:
+                    window.focus_set()
+                except Exception:
+                    pass
+                return
     except Exception:
         window = None
     try:
