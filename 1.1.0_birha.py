@@ -19663,7 +19663,10 @@ def _axioms_t11_upsert_contribution(
             idx = contrib_df.index[mask][0]
             contrib_df.at[idx, "verse"] = verse_text
             contrib_df.at[idx, "source"] = source
-            contrib_df.at[idx, "link_type"] = link_type or contrib_df.at[idx, "link_type"]
+            existing_type = str(contrib_df.at[idx, "link_type"] or "").strip()
+            incoming_type = (link_type or "").strip()
+            if not existing_type and incoming_type:
+                contrib_df.at[idx, "link_type"] = incoming_type
             if translation_revision_seen:
                 contrib_df.at[idx, "translation_revision_seen"] = translation_revision_seen
             contrib_df.at[idx, "link_updated_at"] = timestamp
