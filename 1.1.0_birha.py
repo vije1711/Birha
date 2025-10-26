@@ -11533,7 +11533,7 @@ class GrammarApp:
                 verse_mask = df_existing["Verse"] == verse_value
                 latest_revision = df_existing.loc[verse_mask, "Grammar Revision"].max()
                 df_existing.loc[verse_mask, "Translation Revision"] = latest_revision
-                _axioms_t10_update_contribution_revision(verse_value, latest_revision)
+                new_entry["_axioms_latest_translation_revision"] = latest_revision
             else:
                 return  # No changes, skip saving
         else:
@@ -11549,13 +11549,17 @@ class GrammarApp:
                 new_entry["Selected Darpan Meaning"] = selected_meaning
 
             df_existing = pd.concat([df_existing, pd.DataFrame([new_entry])], ignore_index=True)
-            _axioms_t10_update_contribution_revision(verse_value, new_entry.get("Translation Revision"))
 
         try:
             df_existing.to_excel(file_path, index=False)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save reanalysis data: {e}")
             return
+        else:
+            latest_revision = new_entry.get("Translation Revision")
+            if latest_revision is None:
+                latest_revision = new_entry.get("_axioms_latest_translation_revision")
+            _axioms_t10_update_contribution_revision(verse_value, latest_revision)
 
         # Also reflect reanalysis metadata in the Assess-by-Word tracker (increment count, set timestamp)
         try:
