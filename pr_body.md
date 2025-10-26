@@ -1,43 +1,33 @@
 ## Summary
-Implements **Task T10 — Reanalysis & Revision Sync**, enabling detection and queuing of Axioms whose verse translations have been revised since last analyzed.  
-This feature ensures that any verse, and its parent where applicable, is automatically flagged for reanalysis whenever its translation version changes in the master dataset (`1.2.1 assessment_data.xlsx`).
+Implements **Task T11 — Axiom Contribution & Linking**, introducing the ability to connect verses to new or existing Axioms and record both verse-specific and global Axiom-level descriptions.  
+The feature builds on the persistence and UI framework from Tasks T5–T10 and fulfills the functional requirements defined in *“0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx.”*
 
 ## Scope & Behavior
-- Introduces a new additive module under  
-  `# === Axioms T10: Reanalysis & Revision Sync (additive only) ===`
-- Adds helpers to:
-  - Read verse translation revisions from `1.2.1 assessment_data.xlsx`
-  - Compare with stored revision metadata (`translation_revision_seen`) in `1.3.0_axioms.xlsx`
-  - Identify mismatches and queue affected verses in the `AxiomWorkqueue` sheet.
-- Parent verses are also queued whenever linked child/support verses are updated.
-- Enhances the **Axioms Dashboard** with:
-  - A badge displaying the current count of “Reanalysis Required” verses.
-  - A **Refresh Revisions** action to rerun sync logic.
-  - A **View Queue** dialog listing all pending verses for reanalysis (read-only preview).
+- Adds a new section under  
+  `# === Axioms T11: Axiom Contribution & Linking (additive only) ===`
+  within `1.1.0_birha.py`.
+- Extends the post-translation Axioms flow to present a **Link to Axiom** dialog that supports:
+  - **Create New Axiom** → prompts for *Title* and optional *Axiom-level description.*
+  - **Link to Existing** → searchable type-ahead list of current Axioms.
+  - **Verse-specific description** → mandatory field summarizing the verse’s contribution.
+- Buttons: **Save Link**, **Back**, **Cancel** with non-blocking info dialogs.
+- Fully additive integration—no edits to pre-Axiom or legacy modules.
 
-## Implementation Notes
-- Data structure follows contract fields:
-  `verse`, `verse_key_norm`, `translation_revision_seen`, `last_checked_at`, `reason`, `queued_at`, `status`.
-- Workbook I/O uses atomic save (temp write → rename), preserving all non-spec sheets.
-- Handles missing or corrupted `assessment_data.xlsx` gracefully with an empty diff set.
-- All additions are **additive-only**, maintaining full compatibility with pre-Axiom code.
+## Data Model & Storage
+Persists data safely into `1.3.0_axioms.xlsx` using atomic write-and-replace logic established in T8.  
+New / extended sheets and fields:
+- **Axioms:** `axiom_id (UUID)`, `title`, `created_at`, `updated_at`
+- **AxiomDescriptions:** `axiom_id`, `kind (axiom|verse)`, `verse_key_norm`, `description_text`, timestamps, `author`
+- **AxiomContributions:** `axiom_id`, `verse_key_norm`, `source (darpan|own)`, link timestamps
+Ensures idempotent updates—relinking the same verse updates existing entries instead of duplicating them.
 
 ## How to Verify
-1. Launch the **Axioms Dashboard** and open the Reanalysis section.  
-2. Run **Refresh Revisions** — the pending count should reflect any verses whose revision differs from stored values.  
-3. Open **View Queue** to confirm pending entries are correctly populated with verse keys and reasons.  
-4. Inspect `1.3.0_axioms.xlsx → AxiomWorkqueue` to ensure queued rows have valid timestamps and statuses.  
-5. Re-run sync to confirm already-updated verses are no longer requeued.
-
-## Risks & Mitigations
-- **File access issues:** mitigated by atomic writes and try–except guards.  
-- **Parent–child propagation gaps:** handled conservatively, only when linkage metadata exists.  
-- **GUI freeze risk:** sync runs with UI-safe update calls (lightweight scan, no blocking).
-
-## Compliance
-- Fully aligned with **“0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx”** (Phase II, Task T10).  
-- Additive-only; no modification to pre-Axiom constants, strings, or UI components.  
-- Verified compilation with:  
-  ```bash
-  python -m py_compile 1.1.0_birha.py
+1. Launch the Axioms flow after verse review or translation steps.  
+2. Choose **Link to Axiom** → **Create New Axiom**, provide required fields, and Save.  
+3. Re-open **Link to Axiom** → **Existing**, select the same axiom, and add another verse-specific description.  
+4. Confirm both entries appear in `AxiomContributions` and `AxiomDescriptions` with correct timestamps.  
+5. Verify that no duplicate rows are created and that Excel write operations remain atomic.  
+6. Compilation:  
+   ```bash
+   python -m py_compile 1.1.0_birha.py
 
