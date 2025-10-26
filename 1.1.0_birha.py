@@ -17004,6 +17004,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
                 f"Seed keyword review for prompt captured via {snapshot.get('translation_source', 'prompt builder')}."
             ),
         )
+        self._notify_dashboard_queue_refresh()
 
     def _persist_linked_axiom(self, snapshot: dict[str, str]):
         identifier = snapshot.get("short_axiom", "")
@@ -17030,6 +17031,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
             "reanalysis",
             self._truncate_reason("Supporting verse linked via prompt builder; review for integration."),
         )
+        self._notify_dashboard_queue_refresh()
 
     def _lookup_existing_axiom_id(self, identifier: str) -> str | None:
         try:
@@ -17072,6 +17074,10 @@ class AxiomsFinalizeAxiomView(tk.Frame):
         if len(content) <= limit:
             return content
         return f"{content[:limit-3]}..."
+
+    def _notify_dashboard_queue_refresh(self):
+        dashboard = getattr(self, "dashboard", None)
+        _axioms_t10_signal_badge_update(dashboard)
 
     def _mock_save(self, message: str):
         try:
@@ -18969,6 +18975,385 @@ def _axioms_t9_open_manager(parent_widget, axiom_id: str):
         setattr(parent_widget, "_axioms_t9_keyword_window", window)
     except Exception as exc:
         _AXIOMS_LOGGER.warning("Unable to open Keyword Manager: %s", exc, exc_info=False)
+
+
+# === Axioms T10: Reanalysis & Revision Sync (additive only) ===
+
+_AXIOMS_T10_REASON = "revision_mismatch"
+_AXIOMS_T10_TASK = "reanalysis"
+
+
+def _axioms_t10_get_assessment_path() -> str:
+    try:
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+    except Exception:
+        base_dir = os.getcwd()
+    return os.path.join(base_dir, "1.2.1 assessment_data.xlsx")
+
+
+def _axioms_t10_load_assessment_map(path: str | None = None) -> dict[str, str]:
+    resolved = path or _axioms_t10_get_assessment_path()
+    if not os.path.exists(resolved):
+        return {}
+    try:
+        df = pd.read_excel(resolved)
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to read assessment data: %s", exc, exc_info=False)
+        return {}
+    if df.empty:
+        return {}
+
+    verse_col = None
+    revision_col = None
+    for column in df.columns:
+        normalized = str(column).strip().casefold()
+        if normalized in {"verse", "verse_text"}:
+            verse_col = column
+        elif normalized in {"translation revision", "translation_revision"}:
+            revision_col = column
+    if verse_col is None or revision_col is None:
+        return {}
+
+    subset = df[[verse_col, revision_col]].copy()
+    subset[verse_col] = subset[verse_col].astype(str).str.strip()
+    subset = subset[subset[verse_col].astype(bool)]
+    subset[revision_col] = subset[revision_col].apply(lambda val: "" if pd.isna(val) else str(val).strip())
+    subset = subset[subset[revision_col].astype(bool)]
+    if subset.empty:
+        return {}
+
+    subset["verse_key_norm"] = subset[verse_col].apply(_normalize_verse_key)
+    subset = subset[subset["verse_key_norm"].astype(bool)]
+
+    revision_map: dict[str, str] = {}
+    for _, row in subset.iloc[::-1].iterrows():
+        key = row["verse_key_norm"]
+        if key not in revision_map:
+            revision_map[key] = row[revision_col]
+    return revision_map
+
+
+def _axioms_t10_sync_revisions() -> int:
+    assessment_map = _axioms_t10_load_assessment_map()
+    if not assessment_map:
+        return _axioms_t10_count_pending_entries()
+
+    def _mutator(spec_frames, other_sheets):
+        contrib_df = _axioms_t8_prepare_frame("AxiomContributions", spec_frames.get("AxiomContributions", pd.DataFrame()))
+        work_df = _axioms_t8_prepare_frame("AxiomWorkqueue", spec_frames.get("AxiomWorkqueue", pd.DataFrame()))
+
+        mismatched_axioms: set[str] = set()
+        for _, row in contrib_df.iterrows():
+            axiom_id = str(row.get("axiom_id") or "").strip()
+            if not axiom_id:
+                continue
+            verse_norm = str(row.get("verse_key_norm") or "").strip()
+            if not verse_norm:
+                verse_norm = _normalize_verse_key(row.get("verse"))
+            if not verse_norm:
+                continue
+            expected = assessment_map.get(verse_norm)
+            if expected is None:
+                continue
+            seen = str(row.get("translation_revision_seen") or "").strip()
+            if seen != str(expected).strip():
+                mismatched_axioms.add(axiom_id)
+
+        work_df = work_df.copy()
+        if "reason" not in work_df.columns:
+            work_df["reason"] = pd.NA
+        if "status" not in work_df.columns:
+            work_df["status"] = pd.NA
+        if "task" not in work_df.columns:
+            work_df["task"] = pd.NA
+
+        reason_mask = work_df["reason"].astype(str) == _AXIOMS_T10_REASON
+        existing_indices: dict[str, int] = {}
+        for idx, row in work_df.loc[reason_mask].iterrows():
+            axiom = str(row.get("axiom_id") or "").strip()
+            if axiom and axiom not in existing_indices:
+                existing_indices[axiom] = idx
+
+        now = _axioms_t8_now()
+        remaining = set(mismatched_axioms)
+        for axiom_id, idx in existing_indices.items():
+            if axiom_id in remaining:
+                work_df.at[idx, "status"] = "pending"
+                remaining.discard(axiom_id)
+            else:
+                work_df.at[idx, "status"] = "done"
+
+        if remaining:
+            existing_ids = set(str(val) for val in work_df.get("work_id", []) if pd.notna(val))
+            for axiom_id in sorted(remaining):
+                work_id = _axioms_t8_generate_work_id(existing_ids)
+                existing_ids.add(work_id)
+                new_row = {
+                    "work_id": work_id,
+                    "axiom_id": axiom_id,
+                    "task": _AXIOMS_T10_TASK,
+                    "reason": _AXIOMS_T10_REASON,
+                    "created_at": now,
+                    "status": "pending",
+                }
+                work_df = pd.concat([work_df, pd.DataFrame([new_row])], ignore_index=True)
+
+        spec_frames["AxiomWorkqueue"] = _axioms_t8_prepare_frame("AxiomWorkqueue", work_df)
+
+        pending_mask = (work_df["reason"].astype(str) == _AXIOMS_T10_REASON) & (
+            work_df["status"].astype(str).str.lower() != "done"
+        )
+        return int(pending_mask.sum())
+
+    try:
+        pending = _axioms_t8_mutate_store(_mutator, path=_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Revision sync failed: %s", exc, exc_info=False)
+        return _axioms_t10_count_pending_entries()
+    return pending if isinstance(pending, int) else _axioms_t10_count_pending_entries()
+
+
+def _axioms_t10_count_pending_entries() -> int:
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception:
+        return 0
+    work_df = spec_frames.get("AxiomWorkqueue", pd.DataFrame())
+    work_df = _axioms_t8_prepare_frame("AxiomWorkqueue", work_df)
+    if work_df.empty:
+        return 0
+    reason_mask = work_df["reason"].astype(str) == _AXIOMS_T10_REASON
+    status_mask = work_df["status"].astype(str).str.lower() != "done"
+    return int((reason_mask & status_mask).sum())
+
+
+def _axioms_t10_load_revision_queue_entries() -> list[dict]:
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to load workqueue: %s", exc, exc_info=False)
+        return []
+    work_df = spec_frames.get("AxiomWorkqueue", pd.DataFrame())
+    work_df = _axioms_t8_prepare_frame("AxiomWorkqueue", work_df)
+    if work_df.empty:
+        return []
+    mask = (work_df["reason"].astype(str) == _AXIOMS_T10_REASON) & (
+        work_df["status"].astype(str).str.lower() != "done"
+    )
+    subset = work_df.loc[mask]
+    if subset.empty:
+        return []
+    entries: list[dict] = []
+    for _, row in subset.iterrows():
+        entries.append(
+            {
+                "work_id": str(row.get("work_id") or ""),
+                "axiom_id": str(row.get("axiom_id") or ""),
+                "task": str(row.get("task") or ""),
+                "reason": str(row.get("reason") or ""),
+                "status": str(row.get("status") or ""),
+                "created_at": str(row.get("created_at") or ""),
+            }
+        )
+    entries.sort(key=lambda item: item["created_at"], reverse=True)
+    return entries
+
+
+def _axioms_t10_update_badge(dashboard, count: int | None = None):
+    var = getattr(dashboard, "_axioms_t10_badge_var", None)
+    label = getattr(dashboard, "_axioms_t10_badge_label", None)
+    if var is None or label is None:
+        return
+    if count is None:
+        count = _axioms_t10_count_pending_entries()
+    var.set(f"Revision queue: {count} pending")
+    label.configure(fg="#8b1f2b" if count else "#2e8b57")
+
+
+def _axioms_t10_on_refresh(dashboard):
+    try:
+        pending = _axioms_t10_sync_revisions()
+        _axioms_t10_update_badge(dashboard, pending)
+        try:
+            messagebox.showinfo(
+                "Revision Sync",
+                f"Revision queue refreshed. {pending} item(s) pending.",
+                parent=dashboard,
+            )
+        except Exception:
+            pass
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Refresh revisions failed: %s", exc, exc_info=False)
+        try:
+            messagebox.showwarning(
+                "Revision Sync",
+                "Unable to refresh revisions right now.",
+                parent=dashboard,
+            )
+        except Exception:
+            pass
+
+
+class AxiomsRevisionQueueDialog(tk.Toplevel):
+    def __init__(self, parent, entries: list[dict]):
+        super().__init__(parent)
+        self.title("Revision Queue")
+        self.configure(bg="light gray")
+        self.geometry("640x360")
+        try:
+            self.transient(parent)
+            self.grab_set()
+        except Exception:
+            pass
+
+        header = tk.Label(
+            self,
+            text="Pending Axiom Revision Tasks",
+            font=("Arial", 14, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X)
+
+        tree = ttk.Treeview(
+            self,
+            columns=("axiom", "task", "status", "created"),
+            show="headings",
+            height=10,
+        )
+        tree.heading("axiom", text="Axiom ID")
+        tree.heading("task", text="Task")
+        tree.heading("status", text="Status")
+        tree.heading("created", text="Created At")
+        tree.column("axiom", width=140, anchor="w")
+        tree.column("task", width=120, anchor="w")
+        tree.column("status", width=100, anchor="center")
+        tree.column("created", width=160, anchor="w")
+
+        scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0), pady=12)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 12), pady=12)
+
+        for entry in entries:
+            tree.insert(
+                "",
+                tk.END,
+                values=(
+                    entry.get("axiom_id", ""),
+                    entry.get("task", ""),
+                    entry.get("status", ""),
+                    entry.get("created_at", ""),
+                ),
+            )
+
+        tk.Button(
+            self,
+            text="Close",
+            command=self.destroy,
+        ).pack(pady=(0, 12))
+
+
+def _axioms_t10_open_queue_dialog(dashboard):
+    entries = _axioms_t10_load_revision_queue_entries()
+    if not entries:
+        try:
+            messagebox.showinfo(
+                "Revision Queue",
+                "No pending revision tasks.",
+                parent=dashboard,
+            )
+        except Exception:
+            pass
+        return
+    AxiomsRevisionQueueDialog(dashboard, entries)
+
+
+def _axioms_t10_attach_badge(dashboard):
+    container = None
+    button_holder = None
+    try:
+        for child in dashboard.winfo_children():
+            if isinstance(child, tk.Frame):
+                container = child
+                for grand in child.winfo_children():
+                    if isinstance(grand, tk.Frame):
+                        button_holder = grand
+                        break
+                break
+    except Exception:
+        container = None
+        button_holder = None
+
+    if container is None or button_holder is None:
+        return
+
+    badge_frame = tk.Frame(container, bg="light gray")
+    try:
+        badge_frame.pack(fill=tk.X, pady=(0, 20), before=button_holder)
+    except Exception:
+        badge_frame.pack(fill=tk.X, pady=(0, 20))
+
+    label = tk.Label(
+        badge_frame,
+        text="Revision queue: 0 pending",
+        font=("Arial", 12, "bold"),
+        bg="light gray",
+        fg="#2e8b57",
+    )
+    label.pack(side=tk.LEFT)
+    var = tk.StringVar(value="Revision queue: 0 pending")
+    label.configure(textvariable=var)
+
+    tk.Button(
+        badge_frame,
+        text="Refresh Revisions",
+        command=lambda d=dashboard: _axioms_t10_on_refresh(d),
+    ).pack(side=tk.RIGHT, padx=(8, 0))
+    tk.Button(
+        badge_frame,
+        text="View Queue",
+        command=lambda d=dashboard: _axioms_t10_open_queue_dialog(d),
+    ).pack(side=tk.RIGHT, padx=(8, 0))
+
+    setattr(dashboard, "_axioms_t10_badge_var", var)
+    setattr(dashboard, "_axioms_t10_badge_label", label)
+    _axioms_t10_update_badge(dashboard)
+
+
+def _axioms_t10_install_dashboard_badge():
+    dashboard_cls = globals().get("AxiomsDashboard")
+    if dashboard_cls is None:
+        return
+    if getattr(dashboard_cls, "_axioms_t10_badge_installed", False):
+        return
+
+    original_build = getattr(dashboard_cls, "_build_layout", None)
+    if original_build is None:
+        return
+
+    def _patched_build(self):
+        original_build(self)
+        try:
+            _axioms_t10_attach_badge(self)
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Unable to attach revision badge: %s", exc, exc_info=False)
+
+    dashboard_cls._build_layout = _patched_build  # type: ignore[method-assign]
+    setattr(dashboard_cls, "_axioms_t10_badge_installed", True)
+
+
+def _axioms_t10_signal_badge_update(target):
+    if target is None:
+        return
+    try:
+        _axioms_t10_update_badge(target)
+    except Exception:
+        pass
+
+
+_axioms_t10_install_dashboard_badge()
 
 
 if __name__ == "__main__":
