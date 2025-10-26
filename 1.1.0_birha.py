@@ -19119,8 +19119,11 @@ def _axioms_t10_sync_revisions() -> int:
             axiom_id = str(row.get("axiom_id") or "").strip()
             if not axiom_id:
                 continue
-            verse_norm = str(row.get("verse_key_norm") or "").strip()
-            if not verse_norm:
+            verse_norm_value = row.get("verse_key_norm")
+            verse_norm = ""
+            if pd.notna(verse_norm_value):
+                verse_norm = str(verse_norm_value).strip()
+            if not verse_norm or verse_norm.lower() == "nan":
                 verse_norm = _normalize_verse_key(row.get("verse"))
             if not verse_norm:
                 continue
