@@ -21,6 +21,7 @@ import itertools
 from contextlib import contextmanager
 import atexit
 import time
+from collections import Counter
 try:
     import ctypes
     from ctypes import wintypes
@@ -16685,6 +16686,8 @@ class AxiomsFinalizeAxiomView(tk.Frame):
         self.dashboard = getattr(flow, "dashboard", None)
 
         self.prompt_text = ""
+        self._last_axiom_id = None
+        self._last_axiom_description_ts = None
 
         self._build_layout()
 
@@ -16793,6 +16796,17 @@ class AxiomsFinalizeAxiomView(tk.Frame):
 
         tk.Button(
             buttons,
+            text="Manage Keywords",
+            font=("Arial", 12, "bold"),
+            bg="#2f4f4f",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._open_keyword_manager,
+        ).pack(side=tk.RIGHT, padx=(0, 10))
+
+        tk.Button(
+            buttons,
             text="Save Axiom",
             font=("Arial", 12, "bold"),
             bg="#2e8b57",
@@ -16848,6 +16862,20 @@ class AxiomsFinalizeAxiomView(tk.Frame):
         snapshot = self._collect_snapshot()
         self._run_async_store_task(self._persist_linked_axiom, snapshot)
         self._mock_save("Linked draft axiom to existing entry — functionality coming soon.")
+
+    def _open_keyword_manager(self):
+        axiom_id = getattr(self, "_last_axiom_id", None)
+        if not axiom_id:
+            try:
+                messagebox.showinfo(
+                    "Keyword Manager",
+                    "Create or link an Axiom before managing keywords.",
+                    parent=self,
+                )
+            except Exception:
+                _AXIOMS_LOGGER.info("Keyword Manager requires a saved axiom.")
+            return
+        _axioms_t9_open_manager(self, axiom_id)
 
     def _run_async_store_task(self, func, snapshot: dict[str, str]):
         def _runner():
@@ -16939,6 +16967,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
     def _persist_new_axiom_data(self, snapshot: dict[str, str]):
         short_axiom = snapshot.get("short_axiom", "") or "Untitled Axiom"
         axiom_id = create_axiom(short_axiom, category="Primary", created_by="ui")
+        setattr(self, "_last_axiom_id", axiom_id)
 
         rationale = snapshot.get("rationale", "")
         if rationale:
@@ -16947,6 +16976,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
         prompt_text = snapshot.get("prompt", "")
         if prompt_text:
             upsert_axiom_description(axiom_id, prompt_text, description_type="verse_specific")
+            setattr(self, "_last_axiom_description_ts", _axioms_t8_now())
 
         verse = snapshot.get("verse", "")
         if verse:
@@ -16983,6 +17013,7 @@ class AxiomsFinalizeAxiomView(tk.Frame):
         if not axiom_id:
             _AXIOMS_LOGGER.info("No existing axiom matched user input '%s'.", identifier)
             return
+        setattr(self, "_last_axiom_id", axiom_id)
 
         verse = snapshot.get("verse", "")
         if verse:
@@ -17433,6 +17464,11 @@ _AXIOMS_SPEC_SHEETS = {
         "spiritual_synonyms",
         "spiritual_antonyms",
         "updated_at",
+        "category",
+        "keyword",
+        "normalized_key",
+        "source",
+        "created_at",
     ],
     "AxiomWorkqueue": [
         "work_id",
@@ -17872,6 +17908,1067 @@ def enqueue_work(axiom_id: str, task: str, reason: str, status: str = "pending")
         return None
 
     _axioms_t8_mutate_store(_mutator, path=path)
+
+
+# === Axioms T9: Keyword Manager (additive only) ===
+
+_AXIOMS_T9_CATEGORY_META = {
+    "literal_syn": {"label": "Literal Synonyms", "color": "#2e8b57"},
+    "literal_ant": {"label": "Literal Antonyms", "color": "#b45f04"},
+    "spiritual_syn": {"label": "Spiritual Synonyms", "color": "#1f6f8b"},
+    "spiritual_ant": {"label": "Spiritual Antonyms", "color": "#8b1f2b"},
+}
+_AXIOMS_T9_CATEGORY_ORDER = ["literal_syn", "literal_ant", "spiritual_syn", "spiritual_ant"]
+_AXIOMS_T9_MAX_PER_CATEGORY = 24
+_AXIOMS_T9_NEAR_DUP_RATIO = 92
+_AXIOMS_T9_DENSITY_THRESHOLDS = (0.35, 0.55)
+_AXIOMS_T9_TOKEN_PATTERN = re.compile(r"[A-Za-z\u0A00-\u0A7F']+")
+
+_AXIOMS_T9_STOPWORDS_EN = {
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "for",
+    "from",
+    "as",
+    "at",
+    "by",
+    "with",
+    "within",
+    "into",
+    "upon",
+    "that",
+    "which",
+    "who",
+    "whose",
+    "this",
+    "these",
+    "those",
+    "their",
+    "ours",
+    "yours",
+    "its",
+    "be",
+    "is",
+    "are",
+    "was",
+    "were",
+    "am",
+    "being",
+    "been",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "not",
+    "no",
+    "without",
+    "lack",
+    "lackings",
+    "ever",
+    "always",
+    "so",
+    "such",
+    "also",
+    "than",
+    "then",
+    "there",
+    "here",
+    "when",
+    "where",
+    "while",
+    "through",
+    "over",
+    "under",
+    "again",
+    "each",
+    "other",
+    "self",
+    "ones",
+    "one",
+    "two",
+    "three",
+    "more",
+    "most",
+    "many",
+    "much",
+    "can",
+    "will",
+    "shall",
+    "may",
+    "might",
+}
+_AXIOMS_T9_STOPWORDS_PA = {
+    "ika",
+    "vi",
+    "te",
+    "de",
+    "nu",
+    "jo",
+    "jis",
+    "jina",
+    "sabh",
+    "sare",
+    "sanu",
+    "asi",
+    "tusi",
+    "hona",
+    "hai",
+    "si",
+    "kar",
+    "ke",
+    "na",
+    "nahin",
+    "andar",
+    "bahar",
+    "wich",
+    "utte",
+    "gian",
+    "hore",
+}
+_AXIOMS_T9_STOPWORDS = {_word.casefold() for _word in (_AXIOMS_T9_STOPWORDS_EN | _AXIOMS_T9_STOPWORDS_PA)}
+
+_AXIOMS_T9_SPIRITUAL_TERMS = {
+    "naam",
+    "hukam",
+    "simran",
+    "seva",
+    "baani",
+    "shabad",
+    "sat",
+    "dharam",
+    "kirpa",
+    "kirpan",
+    "grace",
+    "divine",
+    "guru",
+    "gurbani",
+    "atam",
+    "atma",
+    "antar",
+    "prem",
+    "sach",
+    "naam-simran",
+}
+_AXIOMS_T9_SPIRITUAL_NEGATIVES = {
+    "haumai",
+    "ego",
+    "dukh",
+    "kaam",
+    "krodh",
+    "lobh",
+    "moh",
+    "ahankaar",
+    "maya",
+    "vikaar",
+    "ignorance",
+}
+_AXIOMS_T9_LITERAL_NEGATIVE_TERMS = {
+    "pain",
+    "suffering",
+    "doubt",
+    "hatred",
+    "fear",
+    "falsehood",
+    "violence",
+    "anger",
+    "disease",
+}
+_AXIOMS_T9_ANTONYM_LEADS = {"without", "lacking", "absence", "against", "versus", "opposed", "opposite", "anti", "beyond"}
+
+
+def _axioms_t9_parse_timestamp(value: str | None):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value))
+    except Exception:
+        return None
+
+
+def load_latest_axiom_description(axiom_id: str, description_type: str = "axiom") -> tuple[str, str]:
+    """Return (text, updated_at) for the latest description entry."""
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to load descriptions: %s", exc, exc_info=False)
+        return "", ""
+
+    desc_df = spec_frames.get("AxiomDescriptions", pd.DataFrame())
+    if desc_df is None or desc_df.empty:
+        return "", ""
+    try:
+        mask = (desc_df["axiom_id"].astype(str) == str(axiom_id)) & (
+            desc_df["description_type"].astype(str) == str(description_type)
+        )
+        subset = desc_df.loc[mask]
+    except Exception:
+        subset = pd.DataFrame()
+    if subset.empty:
+        return "", ""
+
+    try:
+        subset = subset.sort_values("updated_at", ascending=False, na_position="last")
+    except Exception:
+        subset = subset.reset_index(drop=True)
+    row = subset.iloc[0]
+    text = str(row.get("text") or "")
+    updated_at = str(row.get("updated_at") or "")
+    return text, updated_at
+
+
+def _axioms_t9_normalize_keyword(text: str | None) -> tuple[str, str]:
+    if text is None:
+        return "", ""
+    cleaned = unicodedata.normalize("NFC", str(text))
+    cleaned = cleaned.strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    normalized_key = unicodedata.normalize("NFC", cleaned).casefold()
+    normalized_key = re.sub(r"\s+", " ", normalized_key).strip()
+    return cleaned, normalized_key
+
+
+def _axioms_t9_is_valid_keyword(cleaned: str) -> bool:
+    if not cleaned:
+        return False
+    for ch in cleaned:
+        if ch.isalnum():
+            return True
+    return False
+
+
+def load_axiom_keywords_records(axiom_id: str) -> list[dict]:
+    try:
+        spec_frames, _ = load_axioms_store(_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to load keywords: %s", exc, exc_info=False)
+        return []
+
+    kw_df = spec_frames.get("AxiomKeywords", pd.DataFrame())
+    if kw_df is None or kw_df.empty:
+        return []
+    try:
+        mask = kw_df["axiom_id"].astype(str) == str(axiom_id)
+        subset = kw_df.loc[mask]
+    except Exception:
+        subset = pd.DataFrame()
+    if subset.empty:
+        return []
+
+    records: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    fallback_map = {
+        "literal_synonyms": "literal_syn",
+        "literal_antonyms": "literal_ant",
+        "spiritual_synonyms": "spiritual_syn",
+        "spiritual_antonyms": "spiritual_ant",
+    }
+
+    for _, row in subset.iterrows():
+        category = str(row.get("category") or "").strip()
+        keyword = str(row.get("keyword") or "").strip()
+        source = str(row.get("source") or "manual")
+        stored_norm = str(row.get("normalized_key") or "").strip()
+        created_at = str(row.get("created_at") or "")
+        updated_at = str(row.get("updated_at") or "")
+
+        cleaned, normalized_key = _axioms_t9_normalize_keyword(keyword or stored_norm)
+
+        if not category:
+            fallback_added = False
+            for column, fallback_category in fallback_map.items():
+                raw_values = row.get(column)
+                if raw_values is None:
+                    continue
+                try:
+                    if pd.isna(raw_values):
+                        continue
+                except Exception:
+                    continue
+                text = str(raw_values).strip()
+                if not text:
+                    continue
+                for part in re.split(r"[;,]", text):
+                    candidate, candidate_norm = _axioms_t9_normalize_keyword(part)
+                    if not _axioms_t9_is_valid_keyword(candidate):
+                        continue
+                    key = (fallback_category, candidate_norm)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    base_created = created_at or _axioms_t8_now()
+                    base_updated = updated_at or base_created
+                    records.append(
+                        {
+                            "category": fallback_category,
+                            "keyword": candidate,
+                            "normalized_key": candidate_norm,
+                            "source": source or "manual",
+                            "created_at": base_created,
+                            "updated_at": base_updated,
+                        }
+                    )
+                    fallback_added = True
+            if fallback_added:
+                continue
+
+        if not _axioms_t9_is_valid_keyword(cleaned):
+            continue
+        if stored_norm:
+            normalized_key = stored_norm
+        if not normalized_key:
+            continue
+        key = (category, normalized_key)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not created_at:
+            created_at = _axioms_t8_now()
+        if not updated_at:
+            updated_at = created_at
+        records.append(
+            {
+                "category": category,
+                "keyword": cleaned,
+                "normalized_key": normalized_key,
+                "source": source or "manual",
+                "created_at": created_at,
+                "updated_at": updated_at,
+            }
+        )
+    return records
+
+
+def save_axiom_keywords_records(axiom_id: str, records: list[dict]) -> None:
+    if not axiom_id:
+        return
+
+    sanitized: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for record in records or []:
+        category = str(record.get("category") or "").strip()
+        keyword = record.get("keyword")
+        cleaned, normalized_key = _axioms_t9_normalize_keyword(keyword)
+        if not category or not _axioms_t9_is_valid_keyword(cleaned):
+            continue
+        normalized_key = str(record.get("normalized_key") or normalized_key)
+        normalized_key = normalized_key.strip()
+        key = (category, normalized_key)
+        if not normalized_key or key in seen:
+            continue
+        seen.add(key)
+        created_at = str(record.get("created_at") or "") or _axioms_t8_now()
+        updated_at = str(record.get("updated_at") or "") or _axioms_t8_now()
+        sanitized.append(
+            {
+                "category": category,
+                "keyword": cleaned,
+                "normalized_key": normalized_key,
+                "source": str(record.get("source") or "manual"),
+                "created_at": created_at,
+                "updated_at": updated_at,
+            }
+        )
+
+    def _mutator(spec_frames, other_sheets):
+        kw_df = spec_frames.get("AxiomKeywords", pd.DataFrame())
+        if kw_df is None or kw_df.empty:
+            kw_df = pd.DataFrame(columns=_AXIOMS_SPEC_SHEETS.get("AxiomKeywords", []))
+        else:
+            try:
+                kw_df = kw_df[kw_df["axiom_id"].astype(str) != str(axiom_id)]
+            except Exception:
+                kw_df = kw_df.copy()
+                kw_df = kw_df[kw_df.get("axiom_id", "").astype(str) != str(axiom_id)]
+
+        new_rows = []
+        for record in sanitized:
+            new_rows.append(
+                {
+                    "axiom_id": axiom_id,
+                    "literal_synonyms": pd.NA,
+                    "literal_antonyms": pd.NA,
+                    "spiritual_synonyms": pd.NA,
+                    "spiritual_antonyms": pd.NA,
+                    "updated_at": record["updated_at"],
+                    "category": record["category"],
+                    "keyword": record["keyword"],
+                    "normalized_key": record["normalized_key"],
+                    "source": record["source"],
+                    "created_at": record["created_at"],
+                }
+            )
+
+        if new_rows:
+            additions = pd.DataFrame(new_rows)
+            kw_df = pd.concat([kw_df, additions], ignore_index=True)
+
+        spec_frames["AxiomKeywords"] = _axioms_t8_prepare_frame("AxiomKeywords", kw_df)
+        return None
+
+    _axioms_t8_mutate_store(_mutator, path=_get_axioms_store_path())
+
+
+def _axioms_t9_records_by_category(records: list[dict]) -> dict[str, list[dict]]:
+    buckets: dict[str, list[dict]] = {key: [] for key in _AXIOMS_T9_CATEGORY_ORDER}
+    for record in records or []:
+        category = record.get("category")
+        if category not in buckets:
+            buckets[category] = []
+        buckets[category].append(record)
+    return buckets
+
+
+def _axioms_t9_calculate_density(records: list[dict]) -> dict[str, tuple[float, str]]:
+    buckets = _axioms_t9_records_by_category(records)
+    total = sum(len(values) for values in buckets.values())
+    densities: dict[str, tuple[float, str]] = {}
+    low, mid = _AXIOMS_T9_DENSITY_THRESHOLDS
+    for category, values in buckets.items():
+        ratio = (len(values) / total) if total else 0.0
+        if ratio <= low:
+            color = "green"
+        elif ratio <= mid:
+            color = "amber"
+        else:
+            color = "red"
+        densities[category] = (ratio, color)
+    return densities
+
+
+def _axioms_t9_detect_near_duplicates(records: list[dict]) -> list[tuple[str, str, int]]:
+    warnings: list[tuple[str, str, int]] = []
+    for i, left in enumerate(records or []):
+        left_keyword = left.get("keyword", "")
+        for right in records[i + 1 :]:
+            right_keyword = right.get("keyword", "")
+            if not left_keyword or not right_keyword:
+                continue
+            score = fuzz.ratio(left_keyword.casefold(), right_keyword.casefold())
+            if score >= _AXIOMS_T9_NEAR_DUP_RATIO:
+                warnings.append((left_keyword, right_keyword, score))
+    return warnings
+
+
+def _axioms_t9_latest_keyword_timestamp(records: list[dict]) -> str:
+    latest = None
+    for record in records or []:
+        ts = _axioms_t9_parse_timestamp(record.get("updated_at"))
+        if ts is None:
+            continue
+        if latest is None or ts > latest:
+            latest = ts
+    return latest.isoformat() if latest else ""
+
+
+def _axioms_t9_stem_token(token: str) -> str:
+    if len(token) > 4 and token.endswith("ing"):
+        return token[:-3]
+    if len(token) > 3 and token.endswith(("ed", "es")):
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s"):
+        return token[:-1]
+    return token
+
+
+def _axioms_t9_classify_token(token: str, previous_token: str | None) -> str:
+    lower = token.casefold()
+    if lower in _AXIOMS_T9_SPIRITUAL_NEGATIVES:
+        return "spiritual_ant"
+    if lower in _AXIOMS_T9_SPIRITUAL_TERMS:
+        return "spiritual_syn"
+    if lower in _AXIOMS_T9_LITERAL_NEGATIVE_TERMS:
+        return "literal_ant"
+    if previous_token and previous_token.casefold() in _AXIOMS_T9_ANTONYM_LEADS:
+        return "literal_ant"
+    if lower.startswith(("anti", "non", "without", "versus", "against")):
+        return "literal_ant"
+    return "literal_syn"
+
+
+def _axioms_t9_generate_suggestions(description_text: str, existing: set[tuple[str, str]]) -> list[dict]:
+    if not description_text:
+        return []
+    tokens = _AXIOMS_T9_TOKEN_PATTERN.findall(description_text)
+    if not tokens:
+        return []
+
+    cleaned_tokens: list[str] = []
+    previous: list[str | None] = []
+    last_token = None
+    for token in tokens:
+        base = unicodedata.normalize("NFC", token)
+        base = base.strip()
+        base = re.sub(r"\s+", "", base)
+        lower = base.casefold()
+        if not base or lower in _AXIOMS_T9_STOPWORDS:
+            last_token = lower
+            continue
+        cleaned_tokens.append(base)
+        previous.append(last_token)
+        last_token = lower
+
+    if not cleaned_tokens:
+        return []
+
+    stems = [_axioms_t9_stem_token(tok.casefold()) for tok in cleaned_tokens]
+    counts = Counter(stems)
+    suggestions: list[dict] = []
+    seen_norm: set[tuple[str, str]] = set()
+
+    for token, prev in zip(cleaned_tokens, previous):
+        cleaned, normalized = _axioms_t9_normalize_keyword(token)
+        if not _axioms_t9_is_valid_keyword(cleaned):
+            continue
+        stem = _axioms_t9_stem_token(token.casefold())
+        score = counts.get(stem, 0)
+        category = _axioms_t9_classify_token(token, prev)
+        key = (category, normalized)
+        if key in existing or key in seen_norm:
+            continue
+        seen_norm.add(key)
+        suggestions.append(
+            {
+                "category": category,
+                "keyword": cleaned,
+                "normalized_key": normalized,
+                "source": "auto_description",
+                "score": score,
+            }
+        )
+
+    suggestions.sort(key=lambda item: (-item.get("score", 0), item["keyword"].casefold()))
+    return suggestions[:32]
+
+
+class AxiomsKeywordSuggestionDialog(tk.Toplevel):
+    def __init__(self, parent, suggestions: list[dict]):
+        super().__init__(parent)
+        self.title("Regenerate Keywords")
+        self.configure(bg="light gray")
+        self.resizable(False, False)
+        self.result: list[dict] | None = None
+        self._vars: list[tk.BooleanVar] = []
+        self._suggestions = suggestions
+
+        header = tk.Label(
+            self,
+            text="Suggested keywords derived from the current description.",
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+        )
+        header.pack(fill=tk.X, padx=16, pady=(16, 8))
+
+        info = tk.Label(
+            self,
+            text="Select the entries you want to merge. Existing keywords are never removed.",
+            font=("Arial", 10),
+            bg="light gray",
+        )
+        info.pack(fill=tk.X, padx=16)
+
+        frame = tk.Frame(self, bg="light gray", bd=1, relief=tk.SUNKEN)
+        frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=12)
+
+        canvas = tk.Canvas(frame, bg="light gray", highlightthickness=0, height=280)
+        scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL, command=canvas.yview)
+        inner = tk.Frame(canvas, bg="light gray")
+        inner.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        for suggestion in suggestions:
+            var = tk.BooleanVar(value=True)
+            self._vars.append(var)
+            category_meta = _AXIOMS_T9_CATEGORY_META.get(suggestion["category"], {})
+            label = category_meta.get("label", suggestion["category"])
+            item = tk.Checkbutton(
+                inner,
+                text=f"{label}: {suggestion['keyword']}",
+                variable=var,
+                anchor="w",
+                justify="left",
+                wraplength=420,
+                bg="light gray",
+            )
+            item.pack(fill=tk.X, padx=4, pady=2)
+
+        btns = tk.Frame(self, bg="light gray")
+        btns.pack(fill=tk.X, padx=16, pady=(0, 16))
+
+        tk.Button(
+            btns,
+            text="Deselect All",
+            command=lambda: [var.set(False) for var in self._vars],
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            btns,
+            text="Select All",
+            command=lambda: [var.set(True) for var in self._vars],
+        ).pack(side=tk.LEFT, padx=(8, 0))
+
+        tk.Button(
+            btns,
+            text="Cancel",
+            bg="red",
+            fg="white",
+            command=self._cancel,
+        ).pack(side=tk.RIGHT)
+        tk.Button(
+            btns,
+            text="Add Selected",
+            bg="#2e8b57",
+            fg="white",
+            command=self._accept,
+        ).pack(side=tk.RIGHT, padx=(0, 8))
+
+        try:
+            self.transient(parent)
+            self.grab_set()
+        except Exception:
+            pass
+
+    def _accept(self):
+        chosen = []
+        for var, suggestion in zip(self._vars, self._suggestions):
+            if var.get():
+                chosen.append(suggestion)
+        self.result = chosen
+        self.destroy()
+
+    def _cancel(self):
+        self.result = None
+        self.destroy()
+
+
+class KeywordCategoryPanel(tk.LabelFrame):
+    def __init__(self, parent, manager, category_key: str):
+        meta = _AXIOMS_T9_CATEGORY_META.get(category_key, {})
+        super().__init__(
+            parent,
+            text=meta.get("label", category_key),
+            font=("Arial", 12, "bold"),
+            bg="light gray",
+            fg="black",
+        )
+        self.manager = manager
+        self.category = category_key
+        self.configure(labelanchor="n", padx=8, pady=8)
+
+        self.listbox = tk.Listbox(self, selectmode=tk.SINGLE, height=6, activestyle="dotbox")
+        self.listbox.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
+        self.listbox.bind("<Double-Button-1>", lambda _e: self._edit_selected())
+        self.listbox.bind("<Return>", lambda _e: self._edit_selected())
+
+        button_row = tk.Frame(self, bg="light gray")
+        button_row.pack(fill=tk.X)
+
+        tk.Button(
+            button_row,
+            text="Add",
+            command=self._prompt_add,
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            button_row,
+            text="Edit",
+            command=self._edit_selected,
+        ).pack(side=tk.LEFT, padx=(6, 0))
+        tk.Button(
+            button_row,
+            text="Remove",
+            command=self._remove_selected,
+        ).pack(side=tk.LEFT, padx=(6, 0))
+
+        density_frame = tk.Frame(self, bg="light gray")
+        density_frame.pack(fill=tk.X, pady=(8, 0))
+
+        tk.Label(
+            density_frame,
+            text="Density:",
+            font=("Arial", 10, "bold"),
+            bg="light gray",
+        ).pack(side=tk.LEFT)
+
+        self.density_canvas = tk.Canvas(density_frame, width=120, height=12, bg="#d9d9d9", highlightthickness=0)
+        self.density_canvas.pack(side=tk.LEFT, padx=(6, 0))
+        self.density_label = tk.Label(density_frame, text="0%", font=("Arial", 10), bg="light gray")
+        self.density_label.pack(side=tk.LEFT, padx=(6, 0))
+
+        self.warning_var = tk.StringVar()
+        warning_label = tk.Label(
+            self,
+            textvariable=self.warning_var,
+            font=("Arial", 9),
+            bg="light gray",
+            fg="#8b1f2b",
+            wraplength=220,
+            justify="left",
+        )
+        warning_label.pack(fill=tk.X, pady=(6, 0))
+
+    def _prompt_add(self):
+        try:
+            keyword = simpledialog.askstring("Add Keyword", "Enter keyword:", parent=self)
+        except Exception:
+            keyword = None
+        if keyword:
+            self.manager.add_keyword(self.category, keyword, source="manual")
+
+    def _edit_selected(self):
+        selection = self.listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        current = self.listbox.get(index)
+        try:
+            new_value = simpledialog.askstring("Edit Keyword", "Update keyword:", initialvalue=current, parent=self)
+        except Exception:
+            new_value = None
+        if new_value:
+            self.manager.edit_keyword(self.category, index, new_value)
+
+    def _remove_selected(self):
+        selection = self.listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        self.manager.remove_keyword(self.category, index)
+
+    def refresh(self, records: list[dict]):
+        self.listbox.delete(0, tk.END)
+        for record in records:
+            keyword = record.get("keyword", "")
+            source = record.get("source", "")
+            label = keyword
+            if source and source != "manual":
+                label = f"{keyword} - {source}"
+            self.listbox.insert(tk.END, label)
+
+    def update_density(self, percent: float, color: str):
+        percent = max(0.0, min(percent, 1.0))
+        self.density_canvas.delete("all")
+        width = int(120 * percent)
+        fill_color = {"green": "#2e8b57", "amber": "#b8860b", "red": "#8b1f2b"}.get(color, "#2e8b57")
+        if width > 0:
+            self.density_canvas.create_rectangle(0, 0, width, 12, fill=fill_color, outline=fill_color)
+        self.density_label.configure(text=f"{int(percent * 100)}%")
+
+    def set_warning(self, message: str):
+        self.warning_var.set(message or "")
+
+
+class AxiomsKeywordManagerView(tk.Frame):
+    def __init__(self, parent, axiom_id: str, *, description_loader):
+        super().__init__(parent, bg="light gray")
+        self.axiom_id = axiom_id
+        self.description_loader = description_loader
+        self._records: dict[str, list[dict]] = {key: [] for key in _AXIOMS_T9_CATEGORY_ORDER}
+        self._dirty = False
+        self._last_prompt_key = ""
+
+        header = tk.Label(
+            self,
+            text=f"Keyword Manager - Axiom {axiom_id}",
+            font=("Arial", 16, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=6,
+        )
+        header.pack(fill=tk.X)
+
+        toolbar = tk.Frame(self, bg="light gray")
+        toolbar.pack(fill=tk.X, padx=12, pady=12)
+
+        tk.Button(
+            toolbar,
+            text="Regenerate from Description",
+            bg="#1f6f8b",
+            fg="white",
+            command=self._handle_regenerate,
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            toolbar,
+            text="Save Changes",
+            bg="#2e8b57",
+            fg="white",
+            command=self._persist_changes,
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            toolbar,
+            text="Close",
+            command=self._close_window,
+        ).pack(side=tk.RIGHT, padx=(0, 8))
+
+        grid = tk.Frame(self, bg="light gray")
+        grid.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+
+        self.panels: dict[str, KeywordCategoryPanel] = {}
+        for idx, category in enumerate(_AXIOMS_T9_CATEGORY_ORDER):
+            panel = KeywordCategoryPanel(grid, self, category)
+            panel.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=8, pady=8)
+            self.panels[category] = panel
+        for i in range(2):
+            grid.columnconfigure(i, weight=1)
+        for i in range(2):
+            grid.rowconfigure(i, weight=1)
+
+        self.status_var = tk.StringVar()
+        status = tk.Label(
+            self,
+            textvariable=self.status_var,
+            font=("Arial", 10),
+            bg="light gray",
+            fg="#333333",
+            wraplength=620,
+            justify="left",
+        )
+        status.pack(fill=tk.X, padx=12, pady=(0, 12))
+
+        self._load_initial()
+
+    # ---------------------------
+    # Public API used by panels
+    # ---------------------------
+    def add_keyword(self, category: str, keyword: str, source: str = "manual"):
+        cleaned, normalized = _axioms_t9_normalize_keyword(keyword)
+        if not _axioms_t9_is_valid_keyword(cleaned):
+            self._update_status("Keyword must include letters or numbers.", error=True)
+            return
+        bucket = self._records.setdefault(category, [])
+        if len(bucket) >= _AXIOMS_T9_MAX_PER_CATEGORY:
+            self._update_status(f"{_AXIOMS_T9_CATEGORY_META[category]['label']} already has the maximum allowed items ({_AXIOMS_T9_MAX_PER_CATEGORY}).", error=True)
+            return
+        if any(item["normalized_key"] == normalized for item in bucket):
+            self._update_status("This keyword already exists in the selected category.", error=True)
+            return
+        now = _axioms_t8_now()
+        bucket.append(
+            {
+                "category": category,
+                "keyword": cleaned,
+                "normalized_key": normalized,
+                "source": source,
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+        self._dirty = True
+        self._refresh()
+        self._update_status("Keyword added.", error=False)
+
+    def edit_keyword(self, category: str, index: int, keyword: str):
+        bucket = self._records.get(category, [])
+        if index < 0 or index >= len(bucket):
+            return
+        cleaned, normalized = _axioms_t9_normalize_keyword(keyword)
+        if not _axioms_t9_is_valid_keyword(cleaned):
+            self._update_status("Keyword must include letters or numbers.", error=True)
+            return
+        for idx, item in enumerate(bucket):
+            if idx != index and item["normalized_key"] == normalized:
+                self._update_status("Another entry already uses that keyword.", error=True)
+                return
+        bucket[index]["keyword"] = cleaned
+        bucket[index]["normalized_key"] = normalized
+        bucket[index]["updated_at"] = _axioms_t8_now()
+        self._dirty = True
+        self._refresh()
+        self._update_status("Keyword updated.", error=False)
+
+    def remove_keyword(self, category: str, index: int):
+        bucket = self._records.get(category, [])
+        if index < 0 or index >= len(bucket):
+            return
+        del bucket[index]
+        self._dirty = True
+        self._refresh()
+        self._update_status("Keyword removed.", error=False)
+
+    # ---------------------------
+    # Internal helpers
+    # ---------------------------
+    def _load_initial(self):
+        records = load_axiom_keywords_records(self.axiom_id)
+        buckets = _axioms_t9_records_by_category(records)
+        self._records = buckets
+        self._refresh()
+        self._maybe_prompt_regenerate(records)
+
+    def _refresh(self):
+        all_records = []
+        for category in _AXIOMS_T9_CATEGORY_ORDER:
+            panel = self.panels.get(category)
+            items = self._records.get(category, [])
+            all_records.extend(items)
+            if panel:
+                panel.refresh(items)
+        densities = _axioms_t9_calculate_density(all_records)
+        for category, (ratio, color) in densities.items():
+            panel = self.panels.get(category)
+            if panel:
+                panel.update_density(ratio, color)
+        self._refresh_warnings(densities)
+
+    def _refresh_warnings(self, densities: dict[str, tuple[float, str]]):
+        for category, panel in self.panels.items():
+            messages: list[str] = []
+            ratio, color = densities.get(category, (0.0, "green"))
+            if color == "red" and ratio > _AXIOMS_T9_DENSITY_THRESHOLDS[1]:
+                messages.append("Density heavy - consider balancing categories.")
+            warnings = _axioms_t9_detect_near_duplicates(self._records.get(category, []))
+            if warnings:
+                pairs = ", ".join(f"{left} ↔ {right}" for left, right, _ in warnings[:3])
+                messages.append(f"Potential duplicates: {pairs}")
+            panel.set_warning(" ".join(messages))
+
+    def _persist_changes(self):
+        all_records = []
+        for category in _AXIOMS_T9_CATEGORY_ORDER:
+            all_records.extend(self._records.get(category, []))
+        try:
+            save_axiom_keywords_records(self.axiom_id, all_records)
+        except Exception as exc:
+            _AXIOMS_LOGGER.warning("Failed to persist keywords: %s", exc, exc_info=False)
+            self._update_status("Unable to save keywords at the moment.", error=True)
+            return
+        self._dirty = False
+        self._update_status("Keywords saved to axioms workbook.", error=False)
+
+    def _handle_regenerate(self):
+        description_text, updated_at = self.description_loader() if callable(self.description_loader) else ("", "")
+        if not description_text:
+            self._update_status("Description text unavailable. Save an Axiom description first.", error=True)
+            return
+        existing = {
+            (record["category"], record["normalized_key"])
+            for record in sum((self._records.get(cat, []) for cat in _AXIOMS_T9_CATEGORY_ORDER), [])
+        }
+        suggestions = _axioms_t9_generate_suggestions(description_text, existing)
+        if not suggestions:
+            self._update_status("No new suggestions available from the description.", error=False)
+            return
+        dialog = AxiomsKeywordSuggestionDialog(self.winfo_toplevel(), suggestions)
+        self.wait_window(dialog)
+        if dialog.result:
+            for suggestion in dialog.result:
+                self.add_keyword(suggestion["category"], suggestion["keyword"], source="auto_description")
+            if updated_at:
+                self._last_prompt_key = updated_at
+            self._update_status("Suggestions merged. Review before saving.", error=False)
+
+    def _maybe_prompt_regenerate(self, existing_records: list[dict]):
+        description_text, updated_at = self.description_loader() if callable(self.description_loader) else ("", "")
+        if not updated_at or updated_at == self._last_prompt_key:
+            return
+        latest_keywords = _axioms_t9_latest_keyword_timestamp(existing_records)
+        if latest_keywords and _axioms_t9_parse_timestamp(latest_keywords) and _axioms_t9_parse_timestamp(updated_at):
+            if _axioms_t9_parse_timestamp(updated_at) <= _axioms_t9_parse_timestamp(latest_keywords):
+                return
+        self._last_prompt_key = updated_at
+        try:
+            answer = messagebox.askyesno(
+                "Keyword Suggestions",
+                "The Axiom description changed. Re-generate keyword suggestions now?",
+                parent=self,
+            )
+        except Exception:
+            answer = False
+        if answer:
+            self._handle_regenerate()
+
+    def _update_status(self, message: str, *, error: bool):
+        if error:
+            self.status_var.set(f"Warning: {message}")
+        else:
+            self.status_var.set(message)
+
+    def _close_window(self):
+        if self._dirty:
+            try:
+                proceed = messagebox.askyesno(
+                    "Unsaved Keywords",
+                    "You have unsaved changes. Save before closing?",
+                    parent=self,
+                )
+            except Exception:
+                proceed = False
+            if proceed:
+                self._persist_changes()
+        try:
+            self.winfo_toplevel().destroy()
+        except Exception:
+            pass
+
+
+class AxiomsKeywordManagerWindow(tk.Toplevel):
+    def __init__(self, parent, axiom_id: str):
+        super().__init__(parent)
+        self.title("Axiom Keyword Manager")
+        self.configure(bg="light gray")
+        self.geometry("780x560")
+        self.manager_view = AxiomsKeywordManagerView(
+            self,
+            axiom_id,
+            description_loader=lambda: load_latest_axiom_description(axiom_id),
+        )
+        self.manager_view.pack(fill=tk.BOTH, expand=True)
+        try:
+            self.transient(parent)
+        except Exception:
+            pass
+
+
+def _axioms_t9_open_manager(parent_widget, axiom_id: str):
+    if not axiom_id:
+        try:
+            messagebox.showinfo(
+                "Keyword Manager",
+                "Save or link an Axiom before opening the Keyword Manager.",
+                parent=parent_widget,
+            )
+        except Exception:
+            _AXIOMS_LOGGER.info("Keyword Manager requires a saved axiom.")
+        return
+    try:
+        window = getattr(parent_widget, "_axioms_t9_keyword_window", None)
+        if window and window.winfo_exists():
+            try:
+                existing_axiom = getattr(getattr(window, "manager_view", None), "axiom_id", None)
+            except Exception:
+                existing_axiom = None
+            if existing_axiom and existing_axiom != axiom_id:
+                try:
+                    window.destroy()
+                except Exception:
+                    pass
+                setattr(parent_widget, "_axioms_t9_keyword_window", None)
+                window = None
+            else:
+                try:
+                    window.focus_set()
+                except Exception:
+                    pass
+                return
+    except Exception:
+        window = None
+    try:
+        window = AxiomsKeywordManagerWindow(parent_widget, axiom_id)
+        setattr(parent_widget, "_axioms_t9_keyword_window", window)
+    except Exception as exc:
+        _AXIOMS_LOGGER.warning("Unable to open Keyword Manager: %s", exc, exc_info=False)
 
 
 if __name__ == "__main__":
