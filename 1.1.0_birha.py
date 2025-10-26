@@ -11533,6 +11533,7 @@ class GrammarApp:
                 verse_mask = df_existing["Verse"] == verse_value
                 latest_revision = df_existing.loc[verse_mask, "Grammar Revision"].max()
                 df_existing.loc[verse_mask, "Translation Revision"] = latest_revision
+                _axioms_t10_update_contribution_revision(verse_value, latest_revision)
             else:
                 return  # No changes, skip saving
         else:
@@ -11548,6 +11549,7 @@ class GrammarApp:
                 new_entry["Selected Darpan Meaning"] = selected_meaning
 
             df_existing = pd.concat([df_existing, pd.DataFrame([new_entry])], ignore_index=True)
+            _axioms_t10_update_contribution_revision(verse_value, new_entry.get("Translation Revision"))
 
         try:
             df_existing.to_excel(file_path, index=False)
@@ -18983,6 +18985,72 @@ _AXIOMS_T10_REASON = "revision_mismatch"
 _AXIOMS_T10_TASK = "reanalysis"
 
 
+def _axioms_t10_normalize_revision(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return ""
+            try:
+                float_val = float(value)
+            except ValueError:
+                return value
+        else:
+            float_val = float(value)
+        if pd.isna(float_val):
+            return ""
+        if float_val.is_integer():
+            return str(int(float_val))
+        return str(float_val)
+    except Exception:
+        text = str(value).strip()
+        return text
+
+
+def _axioms_t10_update_contribution_revision(verse_text: str, revision_value) -> None:
+    normalized_revision = _axioms_t10_normalize_revision(revision_value)
+    if not verse_text or not normalized_revision:
+        return
+    verse_norm = _normalize_verse_key(verse_text)
+    if not verse_norm:
+        return
+
+    def _mutator(spec_frames, other_sheets):
+        contrib_df = _axioms_t8_prepare_frame(
+            "AxiomContributions",
+            spec_frames.get("AxiomContributions", pd.DataFrame()),
+        )
+        if contrib_df.empty:
+            return None
+        mask = contrib_df["verse_key_norm"].astype(str).str.strip() == verse_norm
+        if not mask.any():
+            try:
+                raw_mask = (
+                    contrib_df["verse"].astype(str).str.strip().str.casefold()
+                    == verse_text.strip().casefold()
+                )
+            except Exception:
+                raw_mask = pd.Series([False] * len(contrib_df))
+            mask = raw_mask
+        if not mask.any():
+            return None
+        contrib_df.loc[mask, "translation_revision_seen"] = normalized_revision
+        spec_frames["AxiomContributions"] = _axioms_t8_prepare_frame("AxiomContributions", contrib_df)
+        return None
+
+    try:
+        _axioms_t8_mutate_store(_mutator, path=_get_axioms_store_path())
+    except Exception as exc:
+        _AXIOMS_LOGGER.debug(
+            "Failed to sync translation revision for verse '%s': %s",
+            verse_text,
+            exc,
+            exc_info=False,
+        )
+
+
 def _axioms_t10_get_assessment_path() -> str:
     try:
         base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -19017,7 +19085,7 @@ def _axioms_t10_load_assessment_map(path: str | None = None) -> dict[str, str]:
     subset = df[[verse_col, revision_col]].copy()
     subset[verse_col] = subset[verse_col].astype(str).str.strip()
     subset = subset[subset[verse_col].astype(bool)]
-    subset[revision_col] = subset[revision_col].apply(lambda val: "" if pd.isna(val) else str(val).strip())
+    subset[revision_col] = subset[revision_col].apply(_axioms_t10_normalize_revision)
     subset = subset[subset[revision_col].astype(bool)]
     if subset.empty:
         return {}
@@ -19053,10 +19121,10 @@ def _axioms_t10_sync_revisions() -> int:
             if not verse_norm:
                 continue
             expected = assessment_map.get(verse_norm)
-            if expected is None:
+            if not expected:
                 continue
-            seen = str(row.get("translation_revision_seen") or "").strip()
-            if seen != str(expected).strip():
+            seen = _axioms_t10_normalize_revision(row.get("translation_revision_seen"))
+            if seen != expected:
                 mismatched_axioms.add(axiom_id)
 
         work_df = work_df.copy()
