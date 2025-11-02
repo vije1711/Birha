@@ -39,6 +39,8 @@ from openpyxl import load_workbook
 import tempfile
 import shutil
 import zipfile
+from pathlib import Path
+from typing import Optional, Union
 
 
 # ────────────────────────────────────────────────────────────────
@@ -20377,6 +20379,81 @@ def _axioms_t11_install():
 
 
 _axioms_t11_install()
+
+
+# === Axioms T12: Automated Prompt Generation & Regression Tests (additive only) ===
+
+AXIOMS_T12_TEST_PATTERN = "test_axioms_*.py"
+
+
+def run_axioms_tests(
+    pattern: str = AXIOMS_T12_TEST_PATTERN,
+    directory: Optional[Union[str, Path]] = None,
+    *,
+    verbosity: int = 1,
+) -> int:
+    """Run Axioms regression tests and return a process-style exit code.
+
+    Example:
+        python - <<'PY'
+        import importlib.machinery as M; m=M.SourceFileLoader('birha','1.1.0_birha.py').load_module(); exit(m.run_axioms_tests())
+        PY
+    """
+    tests_root = Path(directory) if directory is not None else Path(__file__).resolve().parent / "tests" / "axioms"
+    if not tests_root.exists():
+        print("Axioms tests directory not found; skipping run_axioms_tests.")
+        return 0
+
+    try:
+        import pytest  # type: ignore
+    except Exception:
+        pytest = None
+
+    if pytest is not None:
+        pytest_args: list[str] = []
+        if verbosity <= 0:
+            pytest_args.append("-q")
+        elif verbosity > 1:
+            pytest_args.append("-" + "v" * min(int(verbosity), 3))
+        pytest_args.append(str(tests_root / pattern))
+        exit_code = pytest.main(pytest_args)
+        return int(getattr(exit_code, "value", exit_code))
+
+    import unittest
+
+    suite = None
+    discover = globals().get("discover_axioms_tests")
+    if callable(discover):
+        for attempt in (
+            lambda: discover(start_dir=str(tests_root), pattern=pattern),
+            lambda: discover(str(tests_root), pattern),
+            lambda: discover(),
+        ):
+            try:
+                suite = attempt()
+                if suite is not None:
+                    break
+            except TypeError:
+                continue
+            except Exception as exc:
+                print(f"Axioms unittest discovery helper failed: {exc}")
+                suite = None
+                break
+    if suite is None:
+        loader = unittest.TestLoader()
+        try:
+            suite = loader.discover(start_dir=str(tests_root), pattern=pattern)
+        except Exception as exc:
+            print(f"Axioms unittest discovery failed: {exc}")
+            return 1
+
+    runner = unittest.TextTestRunner(verbosity=verbosity)
+    try:
+        result = runner.run(suite)
+    except Exception as exc:
+        print(f"Axioms unittest execution failed: {exc}")
+        return 1
+    return 0 if result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":
