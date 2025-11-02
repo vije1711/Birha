@@ -20578,6 +20578,8 @@ def _axioms_t13_render_status_rows(container, statuses: list[tuple[str, bool, st
 
 
 def _axioms_t13_position_panel(dashboard) -> None:
+    if getattr(dashboard, "_axioms_t13_repositioning", False):
+        return
     panel = getattr(dashboard, "_axioms_t13_panel", None)
     if panel is None or not int(panel.winfo_exists()):
         return
@@ -20587,34 +20589,25 @@ def _axioms_t13_position_panel(dashboard) -> None:
         pack_kwargs = {"fill": tk.X, "padx": 0, "pady": (18, 0)}
     else:
         pack_kwargs = dict(pack_kwargs)
-
-    button_holder = getattr(dashboard, "_axioms_t2_button_holder", None)
-    if (
-        button_holder is not None
-        and int(button_holder.winfo_exists())
-        and getattr(button_holder, "winfo_manager", lambda: "")()
-    ):
-        pack_kwargs["after"] = button_holder
-    else:
         pack_kwargs.pop("after", None)
+        pack_kwargs.pop("before", None)
 
+    setattr(dashboard, "_axioms_t13_repositioning", True)
     try:
-        panel.pack_forget()
-    except Exception:
-        pass
-    try:
-        panel.pack(**pack_kwargs)
-    except Exception:
         try:
-            panel.pack(fill=tk.X, padx=0, pady=(18, 0))
+            panel.pack_forget()
         except Exception:
             pass
-    setattr(panel, "_axioms_t13_pack", pack_kwargs)
-    if container is not None:
         try:
-            container.update_idletasks()
+            panel.pack(**pack_kwargs)
         except Exception:
-            pass
+            try:
+                panel.pack(fill=tk.X, padx=0, pady=(18, 0))
+            except Exception:
+                pass
+        setattr(panel, "_axioms_t13_pack", pack_kwargs)
+    finally:
+        setattr(dashboard, "_axioms_t13_repositioning", False)
 
 
 def _axioms_t13_refresh_panel(dashboard) -> None:
@@ -20779,15 +20772,6 @@ def _axioms_t13_attach_integration_panel(dashboard) -> None:
     setattr(dashboard, "_axioms_t13_summary_var", summary_var)
     setattr(dashboard, "_axioms_t13_details_window", None)
     setattr(dashboard, "_axioms_t13_details_holder", None)
-
-    try:
-        dashboard.bind(
-            "<Visibility>",
-            lambda _e: _axioms_t13_refresh_panel(dashboard),
-            add="+",
-        )
-    except Exception:
-        pass
 
     _axioms_t13_refresh_panel(dashboard)
 

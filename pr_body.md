@@ -1,7 +1,7 @@
 ## Summary
 - Refined **Task T13 — Integration Validation & Final Polishing** by replacing the tall dashboard checklist with a compact status row plus “View details…” dialog to keep navigation buttons visible.
 - Preserved the reusable integration helpers and structured report; the modal reuses them to display the full checklist on demand.
-- Ensured the summary row stays anchored beneath the navigation buttons even after entering and exiting verse/SGGS flows.
+- Ensured the summary row stays anchored beneath the navigation buttons even after entering and exiting verse/SGGS flows by repositioning it whenever the dashboard layout is restored.
 - Added refresh hooks for both the summary row and dialog so QA can re-run integration checks without leaving the dashboard.
 
 ## How to Verify
