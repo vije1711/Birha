@@ -12,3 +12,4 @@ Thumbs.db
 error_log.txt
 .ipynb_checkpoints/
 .env
+tests
