@@ -20523,28 +20523,31 @@ def get_axioms_integration_report(app=None) -> dict:
     }
 
 
-def _axioms_t13_refresh_panel(dashboard) -> None:
-    holder = getattr(dashboard, "_axioms_t13_status_holder", None)
+def _axioms_t13_update_summary(dashboard, statuses: list[tuple[str, bool, str]]) -> None:
+    total = len(statuses)
+    failed = sum(1 for _, ok, _ in statuses if not ok)
+    passed = total - failed
     summary_var = getattr(dashboard, "_axioms_t13_summary_var", None)
-    if holder is None:
-        return
+    if summary_var is not None:
+        message = f"{passed}/{total} checks passing — {AXIOMS_T13_VERSION_TAG}"
+        if failed:
+            message += " — review details."
+        else:
+            message += " — all systems ready."
+        summary_var.set(message)
+    setattr(dashboard, "_axioms_t13_latest_status", statuses)
+
+
+def _axioms_t13_render_status_rows(container, statuses: list[tuple[str, bool, str]]) -> None:
     try:
-        for child in holder.winfo_children():
+        for child in container.winfo_children():
             child.destroy()
     except Exception:
         pass
 
-    app_owner = getattr(dashboard, "_app_owner", None)
-    statuses = _axioms_t13_collect_status(app_owner)
-    total = len(statuses)
-    failed = sum(1 for _, ok, _ in statuses if not ok)
-    passed = total - failed
-    if summary_var is not None:
-        summary_var.set(f"{passed}/{total} checks passing — {AXIOMS_T13_VERSION_TAG}")
-
     for label, ok, detail in statuses:
-        row = tk.Frame(holder, bg="light gray")
-        row.pack(fill=tk.X, pady=2)
+        row = tk.Frame(container, bg="light gray")
+        row.pack(fill=tk.X, pady=3)
         badge = "[OK]" if ok else "[WARN]"
         color = "#2e8b57" if ok else "#b22222"
         tk.Label(
@@ -20574,6 +20577,104 @@ def _axioms_t13_refresh_panel(dashboard) -> None:
         ).pack(side=tk.RIGHT, padx=(8, 0))
 
 
+def _axioms_t13_refresh_panel(dashboard) -> None:
+    app_owner = getattr(dashboard, "_app_owner", None)
+    statuses = _axioms_t13_collect_status(app_owner)
+    _axioms_t13_update_summary(dashboard, statuses)
+    holder = getattr(dashboard, "_axioms_t13_details_holder", None)
+    if holder is not None and int(holder.winfo_exists()):
+        _axioms_t13_render_status_rows(holder, statuses)
+
+
+def _axioms_t13_refresh_details(dashboard) -> None:
+    _axioms_t13_refresh_panel(dashboard)
+
+
+def _axioms_t13_close_details(dashboard) -> None:
+    window = getattr(dashboard, "_axioms_t13_details_window", None)
+    if window is not None:
+        try:
+            window.destroy()
+        except Exception:
+            pass
+    setattr(dashboard, "_axioms_t13_details_window", None)
+    setattr(dashboard, "_axioms_t13_details_holder", None)
+
+
+def _axioms_t13_show_details(dashboard) -> None:
+    statuses = getattr(dashboard, "_axioms_t13_latest_status", None)
+    if not isinstance(statuses, list):
+        statuses = _axioms_t13_collect_status(getattr(dashboard, "_app_owner", None))
+    _axioms_t13_update_summary(dashboard, statuses)
+
+    window = getattr(dashboard, "_axioms_t13_details_window", None)
+    if window is not None and int(window.winfo_exists()):
+        try:
+            window.deiconify()
+            window.lift()
+            holder = getattr(dashboard, "_axioms_t13_details_holder", None)
+            if holder is not None and int(holder.winfo_exists()):
+                _axioms_t13_render_status_rows(holder, statuses)
+        except Exception:
+            pass
+        return
+
+    window = tk.Toplevel(dashboard)
+    window.title("Axioms Integration Checklist")
+    window.configure(bg="light gray")
+    window.transient(dashboard)
+    setattr(dashboard, "_axioms_t13_details_window", window)
+
+    header = tk.Label(
+        window,
+        text=f"{AXIOMS_T13_VERSION_TAG} — integration details",
+        font=("Arial", 13, "bold"),
+        bg="light gray",
+        fg="#1f6f8b",
+        anchor="w",
+    )
+    header.pack(fill=tk.X, padx=12, pady=(12, 6))
+
+    holder = tk.Frame(window, bg="light gray")
+    holder.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+    setattr(dashboard, "_axioms_t13_details_holder", holder)
+    _axioms_t13_render_status_rows(holder, statuses)
+
+    button_row = tk.Frame(window, bg="light gray")
+    button_row.pack(fill=tk.X, padx=12, pady=(0, 12))
+    tk.Button(
+        button_row,
+        text="Refresh",
+        font=("Arial", 11, "bold"),
+        bg="#2e8b57",
+        fg="white",
+        padx=12,
+        pady=4,
+        command=lambda: _axioms_t13_refresh_details(dashboard),
+    ).pack(side=tk.RIGHT)
+    tk.Button(
+        button_row,
+        text="Close",
+        font=("Arial", 11, "bold"),
+        bg="#555555",
+        fg="white",
+        padx=12,
+        pady=4,
+        command=lambda: _axioms_t13_close_details(dashboard),
+    ).pack(side=tk.RIGHT, padx=(0, 10))
+
+    try:
+        window.protocol("WM_DELETE_WINDOW", lambda: _axioms_t13_close_details(dashboard))
+    except Exception:
+        pass
+
+    try:
+        window.geometry("560x360")
+    except Exception:
+        pass
+
+
+
 def _axioms_t13_attach_integration_panel(dashboard) -> None:
     if getattr(dashboard, "_axioms_t13_panel", None):
         _axioms_t13_refresh_panel(dashboard)
@@ -20597,38 +20698,46 @@ def _axioms_t13_attach_integration_panel(dashboard) -> None:
         bg="light gray",
         fg="black",
     )
-    panel.pack(fill=tk.X, padx=0, pady=(24, 0))
+    panel.pack(fill=tk.X, padx=0, pady=(18, 0))
 
-    summary_var = tk.StringVar(master=panel, value="")
-    summary = tk.Label(
-        panel,
+    summary_row = tk.Frame(panel, bg="light gray")
+    summary_row.pack(fill=tk.X, padx=6, pady=6)
+
+    summary_var = tk.StringVar(master=panel, value="Checking integration status…")
+    tk.Label(
+        summary_row,
         textvariable=summary_var,
         font=("Arial", 11, "bold"),
         bg="light gray",
         fg="#1f6f8b",
         anchor="w",
-    )
-    summary.pack(fill=tk.X, padx=6, pady=(6, 0))
+    ).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-    holder = tk.Frame(panel, bg="light gray")
-    holder.pack(fill=tk.X, padx=6, pady=(6, 6))
-
-    action_row = tk.Frame(panel, bg="light gray")
-    action_row.pack(fill=tk.X, padx=6, pady=(0, 6))
     tk.Button(
-        action_row,
-        text="Re-run Integration Check",
+        summary_row,
+        text="Refresh",
         font=("Arial", 11, "bold"),
         bg="#2e8b57",
         fg="white",
-        padx=12,
+        padx=10,
         pady=4,
         command=lambda: _axioms_t13_refresh_panel(dashboard),
-    ).pack(side=tk.RIGHT)
+    ).pack(side=tk.RIGHT, padx=(10, 0))
+    tk.Button(
+        summary_row,
+        text="View details…",
+        font=("Arial", 11, "bold"),
+        bg="#1f6f8b",
+        fg="white",
+        padx=10,
+        pady=4,
+        command=lambda: _axioms_t13_show_details(dashboard),
+    ).pack(side=tk.RIGHT, padx=(10, 0))
 
     setattr(dashboard, "_axioms_t13_panel", panel)
-    setattr(dashboard, "_axioms_t13_status_holder", holder)
     setattr(dashboard, "_axioms_t13_summary_var", summary_var)
+    setattr(dashboard, "_axioms_t13_details_window", None)
+    setattr(dashboard, "_axioms_t13_details_holder", None)
 
     try:
         dashboard.bind(
