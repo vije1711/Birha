@@ -1,16 +1,17 @@
 ## Summary
-- Implemented **Task T13 — Integration Validation & Final Polishing** with an integration checklist panel that appears in the Axioms Dashboard and surfaces readiness of all prior Axioms milestones.
-- Added reusable helpers that collect integration status (UI surfaces, data utilities, harness) and expose a structured report with the new `Birha 1.1.1 (Axioms-enabled)` version tag.
-- Ensured the dashboard can refresh integration checks on demand without touching legacy Grammar or translation flows.
+- Refined **Task T13 — Integration Validation & Final Polishing** by replacing the tall dashboard checklist with a compact status row plus “View details…” dialog to keep navigation buttons visible.
+- Preserved the reusable integration helpers and structured report; the modal reuses them to display the full checklist on demand.
+- Added refresh hooks for both the summary row and dialog so QA can re-run integration checks without leaving the dashboard.
 
 ## How to Verify
-- Launch `Axioms (beta)` from the welcome dashboard and confirm the new **Integration Checklist** section renders with passing counts and a refresh button.
-- (Optional) Run `python - <<'PY' ... get_axioms_integration_report()` to review the structured status output.
+- Launch `Axioms (beta)` and confirm the **Integration Checklist** row shows the pass/fail count and offers `Refresh` + `View details…`.
+- Click `View details…` to open the modal; use `Refresh` inside the dialog to confirm the checklist updates without resizing the dashboard.
+- (Optional) Run the harness programmatically: `python - <<'PY' ... get_axioms_integration_report()`.
 - `python -m py_compile 1.1.0_birha.py`
 
 ## Risks
-- Minimal visual regression risk within the Axioms Dashboard layout due to the additional checklist frame.
-- Status checks rely on existing monkey patches; unexpected future changes to hook signatures could report warnings until updated.
+- Low risk of focus/stacking quirks if multiple dialogs are opened simultaneously; mitigated by reusing a single modal instance.
+- Status checks still depend on existing monkey patches; breaking changes upstream will surface as warnings until addressed.
 
 ## Additive Changes
-- All updates are additive within `# === Axioms T13: Integration Validation & Final Polishing ===` in `1.1.0_birha.py`; no legacy constants or functions were modified.
+- All updates remain additive within `# === Axioms T13: Integration Validation & Final Polishing ===` in `1.1.0_birha.py`; legacy code paths untouched.
