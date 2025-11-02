@@ -20456,6 +20456,217 @@ def run_axioms_tests(
     return 0 if result.wasSuccessful() else 1
 
 
+# === Axioms T13: Integration Validation & Final Polishing ===
+
+AXIOMS_T13_VERSION_TAG = "Birha 1.1.1 (Axioms-enabled)"
+
+
+def _axioms_t13_collect_status(app=None) -> list[tuple[str, bool, str]]:
+    statuses: list[tuple[str, bool, str]] = []
+
+    def _add(label: str, condition: bool, detail_ok: str = "ready", detail_fail: str = "missing") -> None:
+        statuses.append((label, bool(condition), detail_ok if condition else detail_fail))
+
+    grammar_show = getattr(GrammarApp, "show_dashboard", None)
+    hook_active = bool(getattr(grammar_show, "_axioms_t0_wrapped", False))
+    _add("Grammar dashboard hook active", hook_active, "wrapped", "hook not installed")
+
+    dash_cls = globals().get("AxiomsDashboard")
+    _add("AxiomsDashboard available", dash_cls is not None)
+
+    verse_flow = globals().get("AxiomsVerseInputFlow")
+    _add("Verse Input Flow ready", verse_flow is not None and hasattr(verse_flow, "reset"))
+
+    translation_view = globals().get("AxiomsTranslationChoiceView")
+    _add("Translation Choice View ready", translation_view is not None and hasattr(translation_view, "prepare"))
+
+    prompt_view = globals().get("AxiomsPromptBuilderView")
+    _add("Prompt Builder View ready", prompt_view is not None and hasattr(prompt_view, "prepare"))
+
+    reader_view = globals().get("AxiomsSGGSReaderView")
+    _add("SGGS Reader View ready", reader_view is not None and hasattr(reader_view, "_select_verse"))
+
+    link_view = globals().get("AxiomsLinkToAxiomView")
+    _add("Link-to-Axiom View ready", link_view is not None and hasattr(link_view, "refresh"))
+
+    harness_callable = callable(globals().get("run_axioms_tests"))
+    _add("Automated harness available", harness_callable)
+
+    tests_root = Path(__file__).resolve().parent / "tests" / "axioms"
+    _add("Axioms test suite present", tests_root.exists(), f"found at {tests_root}", "directory missing")
+
+    if app is not None:
+        try:
+            frame = _axioms_t0_locate_button_frame(app)
+            button_present = bool(frame and _axioms_t0_find_button(frame))
+            _add("Welcome button attached", button_present, "attached", "button not found")
+        except Exception as exc:
+            statuses.append(("Welcome button inspection", False, f"error: {exc}"))
+
+    return statuses
+
+
+def get_axioms_integration_report(app=None) -> dict:
+    """Return a structured report summarizing Axioms integration status."""
+    statuses = _axioms_t13_collect_status(app)
+    passed = [row for row in statuses if row[1]]
+    failed = [row for row in statuses if not row[1]]
+    return {
+        "version": AXIOMS_T13_VERSION_TAG,
+        "total_checks": len(statuses),
+        "passed": len(passed),
+        "failed": len(failed),
+        "checks": [
+            {"label": label, "ok": ok, "detail": detail}
+            for label, ok, detail in statuses
+        ],
+    }
+
+
+def _axioms_t13_refresh_panel(dashboard) -> None:
+    holder = getattr(dashboard, "_axioms_t13_status_holder", None)
+    summary_var = getattr(dashboard, "_axioms_t13_summary_var", None)
+    if holder is None:
+        return
+    try:
+        for child in holder.winfo_children():
+            child.destroy()
+    except Exception:
+        pass
+
+    app_owner = getattr(dashboard, "_app_owner", None)
+    statuses = _axioms_t13_collect_status(app_owner)
+    total = len(statuses)
+    failed = sum(1 for _, ok, _ in statuses if not ok)
+    passed = total - failed
+    if summary_var is not None:
+        summary_var.set(f"{passed}/{total} checks passing — {AXIOMS_T13_VERSION_TAG}")
+
+    for label, ok, detail in statuses:
+        row = tk.Frame(holder, bg="light gray")
+        row.pack(fill=tk.X, pady=2)
+        badge = "[OK]" if ok else "[WARN]"
+        color = "#2e8b57" if ok else "#b22222"
+        tk.Label(
+            row,
+            text=badge,
+            font=("Arial", 11, "bold"),
+            bg="light gray",
+            fg=color,
+            width=6,
+            anchor="w",
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            row,
+            text=label,
+            font=("Arial", 11),
+            bg="light gray",
+            fg="#202020",
+            anchor="w",
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(
+            row,
+            text=detail,
+            font=("Arial", 10),
+            bg="light gray",
+            fg="#444444",
+            anchor="w",
+        ).pack(side=tk.RIGHT, padx=(8, 0))
+
+
+def _axioms_t13_attach_integration_panel(dashboard) -> None:
+    if getattr(dashboard, "_axioms_t13_panel", None):
+        _axioms_t13_refresh_panel(dashboard)
+        return
+
+    container = None
+    try:
+        for child in dashboard.winfo_children():
+            if isinstance(child, tk.Frame):
+                container = child
+                break
+    except Exception:
+        container = None
+    if container is None:
+        container = dashboard
+
+    panel = tk.LabelFrame(
+        container,
+        text="Integration Checklist",
+        font=("Arial", 12, "bold"),
+        bg="light gray",
+        fg="black",
+    )
+    panel.pack(fill=tk.X, padx=0, pady=(24, 0))
+
+    summary_var = tk.StringVar(master=panel, value="")
+    summary = tk.Label(
+        panel,
+        textvariable=summary_var,
+        font=("Arial", 11, "bold"),
+        bg="light gray",
+        fg="#1f6f8b",
+        anchor="w",
+    )
+    summary.pack(fill=tk.X, padx=6, pady=(6, 0))
+
+    holder = tk.Frame(panel, bg="light gray")
+    holder.pack(fill=tk.X, padx=6, pady=(6, 6))
+
+    action_row = tk.Frame(panel, bg="light gray")
+    action_row.pack(fill=tk.X, padx=6, pady=(0, 6))
+    tk.Button(
+        action_row,
+        text="Re-run Integration Check",
+        font=("Arial", 11, "bold"),
+        bg="#2e8b57",
+        fg="white",
+        padx=12,
+        pady=4,
+        command=lambda: _axioms_t13_refresh_panel(dashboard),
+    ).pack(side=tk.RIGHT)
+
+    setattr(dashboard, "_axioms_t13_panel", panel)
+    setattr(dashboard, "_axioms_t13_status_holder", holder)
+    setattr(dashboard, "_axioms_t13_summary_var", summary_var)
+
+    try:
+        dashboard.bind(
+            "<Visibility>",
+            lambda _e: _axioms_t13_refresh_panel(dashboard),
+            add="+",
+        )
+    except Exception:
+        pass
+
+    _axioms_t13_refresh_panel(dashboard)
+
+
+def _axioms_t13_install():
+    dashboard_cls = globals().get("AxiomsDashboard")
+    if dashboard_cls is None:
+        return
+    if getattr(dashboard_cls, "_axioms_t13_installed", False):
+        return
+
+    original_build_layout = getattr(dashboard_cls, "_build_layout", None)
+    if original_build_layout is None:
+        return
+
+    def _wrapped_build_layout(self, *args, **kwargs):
+        original_build_layout(self, *args, **kwargs)
+        try:
+            _axioms_t13_attach_integration_panel(self)
+        except Exception:
+            pass
+
+    dashboard_cls._build_layout = _wrapped_build_layout  # type: ignore[method-assign]
+    setattr(dashboard_cls, "_axioms_t13_installed", True)
+
+
+_axioms_t13_install()
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GrammarApp(root)
