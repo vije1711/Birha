@@ -20577,6 +20577,46 @@ def _axioms_t13_render_status_rows(container, statuses: list[tuple[str, bool, st
         ).pack(side=tk.RIGHT, padx=(8, 0))
 
 
+def _axioms_t13_position_panel(dashboard) -> None:
+    panel = getattr(dashboard, "_axioms_t13_panel", None)
+    if panel is None or not int(panel.winfo_exists()):
+        return
+    container = panel.master
+    pack_kwargs = getattr(panel, "_axioms_t13_pack", None)
+    if not isinstance(pack_kwargs, dict):
+        pack_kwargs = {"fill": tk.X, "padx": 0, "pady": (18, 0)}
+    else:
+        pack_kwargs = dict(pack_kwargs)
+
+    button_holder = getattr(dashboard, "_axioms_t2_button_holder", None)
+    if (
+        button_holder is not None
+        and int(button_holder.winfo_exists())
+        and getattr(button_holder, "winfo_manager", lambda: "")()
+    ):
+        pack_kwargs["after"] = button_holder
+    else:
+        pack_kwargs.pop("after", None)
+
+    try:
+        panel.pack_forget()
+    except Exception:
+        pass
+    try:
+        panel.pack(**pack_kwargs)
+    except Exception:
+        try:
+            panel.pack(fill=tk.X, padx=0, pady=(18, 0))
+        except Exception:
+            pass
+    setattr(panel, "_axioms_t13_pack", pack_kwargs)
+    if container is not None:
+        try:
+            container.update_idletasks()
+        except Exception:
+            pass
+
+
 def _axioms_t13_refresh_panel(dashboard) -> None:
     app_owner = getattr(dashboard, "_app_owner", None)
     statuses = _axioms_t13_collect_status(app_owner)
@@ -20584,6 +20624,7 @@ def _axioms_t13_refresh_panel(dashboard) -> None:
     holder = getattr(dashboard, "_axioms_t13_details_holder", None)
     if holder is not None and int(holder.winfo_exists()):
         _axioms_t13_render_status_rows(holder, statuses)
+    _axioms_t13_position_panel(dashboard)
 
 
 def _axioms_t13_refresh_details(dashboard) -> None:
@@ -20698,7 +20739,7 @@ def _axioms_t13_attach_integration_panel(dashboard) -> None:
         bg="light gray",
         fg="black",
     )
-    panel.pack(fill=tk.X, padx=0, pady=(18, 0))
+    setattr(panel, "_axioms_t13_pack", {"fill": tk.X, "padx": 0, "pady": (18, 0)})
 
     summary_row = tk.Frame(panel, bg="light gray")
     summary_row.pack(fill=tk.X, padx=6, pady=6)
@@ -20774,6 +20815,28 @@ def _axioms_t13_install():
 
 
 _axioms_t13_install()
+
+
+def _axioms_t13_install_home_patch():
+    home_fn = globals().get("_axioms_t2_show_home")
+    if not callable(home_fn):
+        return
+    if getattr(home_fn, "_axioms_t13_wrapped", False):
+        return
+
+    def _wrapped(dashboard, *args, **kwargs):
+        result = home_fn(dashboard, *args, **kwargs)
+        try:
+            _axioms_t13_position_panel(dashboard)
+        except Exception:
+            pass
+        return result
+
+    _wrapped._axioms_t13_wrapped = True  # type: ignore[attr-defined]
+    globals()["_axioms_t2_show_home"] = _wrapped
+
+
+_axioms_t13_install_home_patch()
 
 
 if __name__ == "__main__":
