@@ -43,6 +43,28 @@ from pathlib import Path
 from typing import Optional, Union
 
 
+DATA_ROOT = Path(__file__).resolve().parent
+SGGS_EXCEL_NAME = "1.1.3 sggs_extracted_with_page_numbers.xlsx"
+LEXICON_INDEX_NAME = "1.1.3_lexicon_index.json"
+BIRHA_CSV_NAME = "1.1.1_birha.csv"
+GRAMMAR_DICT_NAME = "1.1.2 Grammatical Meanings Dictionary.csv"
+ASSESSMENT_DATA_NAME = "1.2.1 assessment_data.xlsx"
+
+
+def _resolve_data_path(path: Union[str, os.PathLike]) -> str:
+    """Return an absolute path rooted at the repository for relative inputs."""
+    try:
+        candidate = Path(path)
+    except TypeError:
+        candidate = Path(str(path))
+    if candidate.is_absolute():
+        return str(candidate)
+    return str((DATA_ROOT / candidate).resolve())
+
+
+DATA_LOGGER = logging.getLogger("birha.data")
+
+
 # ────────────────────────────────────────────────────────────────
 # GLOBAL HELPER  –  build live noun-morphology lookup
 # ────────────────────────────────────────────────────────────────
@@ -1799,10 +1821,11 @@ def _load_arth_sources_once(self):
     self._arth_loaded = True
     records = []
     # JSON sources (try multiple known filenames)
-    for json_path in [
+    for json_name in [
         '1.1.3 sggs_extracted_with_page_numbers.json',
         '1.1.4 Verse_Padarth_Arth_with_pages.json',
     ]:
+        json_path = _resolve_data_path(json_name)
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -1814,10 +1837,11 @@ def _load_arth_sources_once(self):
         except Exception:
             continue
     # CSV sources (try multiple known filenames)
-    for csv_path in [
+    for csv_name in [
         '1.1.4 Verse_Padarth_Arth_with_pages.csv',
         '1.1.5 Verse_Padarth_Arth_with_pages.csv',
     ]:
+        csv_path = _resolve_data_path(csv_name)
         try:
             df = pd.read_csv(csv_path)
             for _, row in df.iterrows():
@@ -2632,12 +2656,13 @@ class GrammarApp:
 
         # Lexicon index cache (built lazily from 1.1.3 Excel)
         self._lexicon_index = None
-        self._lexicon_index_path = "1.1.3_lexicon_index.json"
+        self._lexicon_index_path = _resolve_data_path(LEXICON_INDEX_NAME)
         # Derived suggestions cache for Number/Gender/Type
-        self._derived_cache_path = "1.1.1_birha.csv"
+        self._derived_cache_path = _resolve_data_path(BIRHA_CSV_NAME)
         self._derived_cache = None
         self._derived_cache_mtime = None
         self._derived_highlight_callbacks = []
+        self._sggs_load_error = None
 
         # word‑by‑word navigation
         self.current_word_index = 0
@@ -2662,9 +2687,9 @@ class GrammarApp:
         # ------------------------------------------------------------------
         # ─── 3.  DATA LOAD ────────────────────────────────────────────────
         # ------------------------------------------------------------------
-        self.grammar_data   = self.load_grammar_data("1.1.1_birha.csv")
+        self.grammar_data   = self.load_grammar_data(BIRHA_CSV_NAME)
         self.dictionary_data = pd.read_csv(
-            "1.1.2 Grammatical Meanings Dictionary.csv",
+            _resolve_data_path(GRAMMAR_DICT_NAME),
             encoding="utf-8"
         )
 
@@ -2672,6 +2697,16 @@ class GrammarApp:
         # ─── 4.  LAUNCH DASHBOARD ─────────────────────────────────────────
         # ------------------------------------------------------------------
         self.show_dashboard()
+
+    def _set_root_disabled(self, disabled: bool) -> None:
+        """Best-effort wrapper for root.attributes('-disabled', disabled)."""
+        root = getattr(self, "root", None)
+        if root is None:
+            return
+        try:
+            root.attributes("-disabled", bool(disabled))
+        except Exception:
+            pass
     def _norm_get(self, d, key):
         """Unified getter that tolerates legacy field names."""
         if key == "\ufeffVowel Ending" or key == "Vowel Ending":
@@ -2821,7 +2856,7 @@ class GrammarApp:
             return existing
 
         cache_path = getattr(self, "_lexicon_index_path", None)
-        excel_path = "1.1.3 sggs_extracted_with_page_numbers.xlsx"
+        excel_path = _resolve_data_path(SGGS_EXCEL_NAME)
 
         # Try to load cache if present and not forcing rebuild
         if not force_rebuild and cache_path and os.path.exists(cache_path):
@@ -9374,7 +9409,7 @@ class GrammarApp:
         select_win.configure(bg="light gray")
 
         # === Load Excel data ===
-        file_path = "1.2.1 assessment_data.xlsx"
+        file_path = _resolve_data_path(ASSESSMENT_DATA_NAME)
         df_existing = self.load_existing_assessment_data(file_path)
 
         # === Center content ===
@@ -9584,7 +9619,7 @@ class GrammarApp:
         """Launch a window to review and select words for re-analysis from a saved verse."""
 
         verse = self.finalized_verse
-        df = self.load_existing_assessment_data("1.2.1 assessment_data.xlsx")
+        df = self.load_existing_assessment_data(ASSESSMENT_DATA_NAME)
 
         # === Clear root ===
         for widget in self.root.winfo_children():
@@ -9701,7 +9736,7 @@ class GrammarApp:
         explicit_cb_edit.pack(side=tk.LEFT, padx=10)
 
         def update_verse_metadata(new_framework, new_explicit):
-            file_path = "1.2.1 assessment_data.xlsx"
+            file_path = _resolve_data_path(ASSESSMENT_DATA_NAME)
             try:
                 # Load existing data
                 df_existing = self.load_existing_assessment_data(file_path)
@@ -9862,7 +9897,7 @@ class GrammarApp:
             self.current_reanalysis_index = []
 
             # Step 2: Load Excel and pre-fill all words from verse
-            df = self.load_existing_assessment_data("1.2.1 assessment_data.xlsx")
+            df = self.load_existing_assessment_data(ASSESSMENT_DATA_NAME)
             verse_rows = df[df["Verse"] == verse]
 
             for i, word in enumerate(self.pankti_words):
@@ -10878,7 +10913,7 @@ class GrammarApp:
             self.root.after_idle(self.setup_verse_analysis_dashboard)
 
     def prompt_save_results_reanalysis(self, new_entries, skip_copy=False):
-        file_path = "1.2.1 assessment_data.xlsx"
+        file_path = _resolve_data_path(ASSESSMENT_DATA_NAME)
         existing_data = self.load_existing_assessment_data(file_path)
         original_accumulated_pankti = self.accumulated_pankti
 
@@ -11075,7 +11110,7 @@ class GrammarApp:
         )
 
         # --- Preceding Verses & Translations ---
-        existing_data = self.load_existing_assessment_data("1.2.1 assessment_data.xlsx")
+        existing_data = self.load_existing_assessment_data(ASSESSMENT_DATA_NAME)
         selected_columns = [
             'S. No.', 'Verse', 'Verse No.', 'Stanza No.', 'Text Set No.',
             'Raag (Fixed)', 'Sub-Raag', 'Writer (Fixed)', 'Verse Configuration (Optional)',
@@ -11465,7 +11500,7 @@ class GrammarApp:
         Saves a new re-analysis entry to the Excel file.
         Handles grammar and translation revision tracking for specific word occurrences.
         """
-        file_path = "1.2.1 assessment_data.xlsx"
+        file_path = _resolve_data_path(ASSESSMENT_DATA_NAME)
         df_existing = self.load_existing_assessment_data(file_path)
         self._ensure_translation_for_reanalysis(new_entry)
 
@@ -12687,6 +12722,7 @@ class GrammarApp:
         FileNotFoundError: If the specified file does not exist.
         IOError: If an error occurs while reading the file.
         """
+        file_path = _resolve_data_path(file_path)
         try:
             with open(file_path, "r", encoding='utf-8') as data_base:
                 return list(csv.DictReader(data_base))
@@ -13293,8 +13329,8 @@ class GrammarApp:
         The main window is disabled (to prevent user interaction) while the heavy work runs in a background thread.
         The main thread enters a loop to update the UI (so the progress bar animates) until the data is loaded.
         """
-        # Disable the main window to prevent interaction
-        self.root.attributes("-disabled", True)
+        # Disable the main window to prevent interaction (best effort)
+        self._set_root_disabled(True)
 
         # Show the progress bar modally on the main thread
         self.start_progress()
@@ -13302,25 +13338,39 @@ class GrammarApp:
 
         # This flag will be set when loading is complete.
         self.loading_done = False
+        status: dict[str, Optional[object]] = {"error": None, "data": None, "headers": None}
+        excel_path = _resolve_data_path(SGGS_EXCEL_NAME)
 
         import threading
 
         def heavy_work():
-            # Perform the heavy work (reading and processing the Excel file)
-            data = pd.read_excel("1.1.3 sggs_extracted_with_page_numbers.xlsx")
-            headers = list(data.columns)
-            data['NormalizedVerse'] = (
-                data['Verse']
-                .astype(str)
-                .str.lower()
-                .str.strip()
-            )
-            # Schedule the finalization on the main thread.
-            def finish():
-                self.sggs_data = data
-                self.sggs_headers = headers
-                self.loading_done = True
-            self.root.after(0, finish)
+            try:
+                data = pd.read_excel(excel_path, engine="openpyxl")
+                headers = list(data.columns)
+                data['NormalizedVerse'] = (
+                    data['Verse']
+                    .astype(str)
+                    .str.lower()
+                    .str.strip()
+                )
+                status["data"] = data
+                status["headers"] = headers
+            except Exception as exc:  # pragma: no cover - UI feedback path
+                status["error"] = exc
+            finally:
+                def finish():
+                    data_obj = status.get("data")
+                    headers_obj = status.get("headers")
+                    if isinstance(data_obj, pd.DataFrame) and not data_obj.empty:
+                        self.sggs_data = data_obj
+                        self.sggs_headers = list(headers_obj) if headers_obj else list(data_obj.columns)
+                    else:
+                        self.sggs_data = pd.DataFrame()
+                        self.sggs_headers = []
+                    self._sggs_load_error = status.get("error")
+                    self.loading_done = True
+
+                self.root.after(0, finish)
 
         # Run the heavy work in a background thread
         threading.Thread(target=heavy_work, daemon=True).start()
@@ -13331,8 +13381,20 @@ class GrammarApp:
             self.root.update()
 
         # Re-enable the main window now that the heavy work is complete
-        self.root.attributes("-disabled", False)
+        self._set_root_disabled(False)
         self.stop_progress()
+
+        error = status.get("error")
+        if error is not None:
+            DATA_LOGGER.error("Failed to load SGGS data from %s: %s", excel_path, error)
+            try:
+                messagebox.showerror(
+                    "SGGS Data",
+                    f"Could not load '{excel_path}'.\n{error}",
+                    parent=self.root,
+                )
+            except Exception:
+                pass
 
     def match_sggs_verse(self, user_input, max_results=10, min_score=25):
         """
@@ -13345,20 +13407,31 @@ class GrammarApp:
         if not hasattr(self, 'sggs_data'):
             self.load_sggs_data()
         
-        headers = self.sggs_headers
-        normalized_input = user_input.lower().strip()
+        data = getattr(self, 'sggs_data', None)
+        headers = getattr(self, 'sggs_headers', [])
+        if data is None or not isinstance(data, pd.DataFrame) or data.empty:
+            if getattr(self, '_sggs_load_error', None):
+                DATA_LOGGER.warning("SGGS search aborted: %s", self._sggs_load_error)
+            return headers, []
+
+        normalized_input = (user_input or "").strip().lower()
+        if not normalized_input:
+            return headers, []
+
         candidate_matches = []
 
         # Disable the main window to block user interaction during matching
-        self.root.attributes("-disabled", True)
+        self._set_root_disabled(True)
         # Start the modal progress bar
         self.start_progress()
         self.root.update()  # Ensure progress window appears
 
-        total_rows = len(self.sggs_data)
+        total_rows = len(data)
         # Iterate over the rows in SGGS data
-        for i, (_, row) in enumerate(self.sggs_data.iterrows()):
-            verse_text = row['NormalizedVerse']
+        for i, (_, row) in enumerate(data.iterrows()):
+            verse_text = row.get('NormalizedVerse')
+            if verse_text is None:
+                verse_text = str(row.get('Verse', '')).lower().strip()
             # Remove extra spaces around numbers within "॥" markers
             verse_text = re.sub(r'॥\s*(\d+)\s*॥', r'॥\1॥', verse_text)
             score = fuzz.token_sort_ratio(normalized_input, verse_text)
@@ -13390,7 +13463,7 @@ class GrammarApp:
 
         # Stop the progress bar and re-enable the main window.
         self.stop_progress()
-        self.root.attributes("-disabled", False)
+        self._set_root_disabled(False)
 
         return headers, candidate_matches[:max_results]
 
@@ -13979,6 +14052,7 @@ class GrammarApp:
             "Special Type Demonstrator", "Verse Type", "Page Number",
             "Framework?", "Explicit?"
         ]
+        file_path = _resolve_data_path(file_path)
         if os.path.exists(file_path):
             try:
                 df = pd.read_excel(file_path)
@@ -14005,7 +14079,7 @@ class GrammarApp:
         - If no matching entry exists for the word in that verse, append the new entry with a Grammar Revision of 1,
             and initialize the Translation Revision.
         """
-        file_path = "1.2.1 assessment_data.xlsx"
+        file_path = _resolve_data_path(ASSESSMENT_DATA_NAME)
         df_existing = self.load_existing_assessment_data(file_path)
         
         # Define the grammar keys to compare (excluding Translation, which is updated separately).
@@ -14262,7 +14336,7 @@ class GrammarApp:
         
         # --- Preceding Verses & Translations ---
         # Load existing assessment data.
-        existing_data = self.load_existing_assessment_data("1.2.1 assessment_data.xlsx")
+        existing_data = self.load_existing_assessment_data(ASSESSMENT_DATA_NAME)
         
         # Identify the candidate matching the current verse.
         current_candidate = next((cand for cand in self.chosen_match 
@@ -14535,7 +14609,7 @@ class GrammarApp:
                 return ""
             return unicodedata.normalize("NFC", str(val).strip())
 
-        file_path = "1.2.1 assessment_data.xlsx"
+        file_path = _resolve_data_path(ASSESSMENT_DATA_NAME)
         existing_data = self.load_existing_assessment_data(file_path)
         
         # Save the original accumulated_pankti so it can be restored later.
@@ -15281,6 +15355,8 @@ class AxiomsVerseInputFlow(tk.Frame):
         self.verse_var = tk.StringVar()
         self.include_consecutive = tk.BooleanVar(value=False)
         self.consecutive_count = tk.StringVar(value="1")
+        self._related_matches: list[dict] = []
+        self._card_vars: list[tuple[tk.BooleanVar, dict]] = []
 
         self._active_view = None
         self._build_input_view()
@@ -15332,7 +15408,7 @@ class AxiomsVerseInputFlow(tk.Frame):
             fg="white",
             padx=16,
             pady=6,
-            command=self._load_mock_suggestions,
+            command=self._find_related_verses,
         ).pack(side=tk.LEFT, pady=(0, 8))
 
         suggestions_frame = tk.Frame(self.input_frame, bg="light gray")
@@ -15348,18 +15424,26 @@ class AxiomsVerseInputFlow(tk.Frame):
         list_holder = tk.Frame(suggestions_frame, bg="light gray")
         list_holder.pack(fill=tk.BOTH, expand=True)
 
-        self.suggestion_list = tk.Listbox(
+        self.cards_canvas = tk.Canvas(
             list_holder,
-            selectmode=tk.MULTIPLE,
-            activestyle="dotbox",
-            height=10,
-            font=("Arial", 12),
+            bg="light gray",
+            highlightthickness=0,
+            borderwidth=0,
         )
-        self.suggestion_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.cards_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        scroll = tk.Scrollbar(list_holder, command=self.suggestion_list.yview)
+        scroll = tk.Scrollbar(list_holder, command=self.cards_canvas.yview)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.suggestion_list.config(yscrollcommand=scroll.set)
+        self.cards_canvas.configure(yscrollcommand=scroll.set)
+
+        self._cards_frame = tk.Frame(self.cards_canvas, bg="light gray")
+        self._cards_window = self.cards_canvas.create_window(
+            (0, 0), window=self._cards_frame, anchor="n"
+        )
+        self._cards_frame.bind("<Configure>", self._update_cards_scrollregion)
+        self.cards_canvas.bind("<Configure>", self._handle_cards_canvas_resize)
+
+        self._render_related_cards([])
 
         consecutive_frame = tk.Frame(self.input_frame, bg="light gray")
         consecutive_frame.pack(fill=tk.X, pady=(8, 12))
@@ -15527,7 +15611,8 @@ class AxiomsVerseInputFlow(tk.Frame):
     # ---------------------------
     def reset(self):
         self.verse_var.set("")
-        self.suggestion_list.delete(0, tk.END)
+        self._related_matches = []
+        self._render_related_cards([])
         self.include_consecutive.set(False)
         self.consecutive_count.set("1")
         self._toggle_consecutive_inputs()
@@ -15548,7 +15633,151 @@ class AxiomsVerseInputFlow(tk.Frame):
         frame.pack(fill=tk.BOTH, expand=True)
         self._active_view = frame
 
-    def _load_mock_suggestions(self):
+    def _update_cards_scrollregion(self, _event=None):
+        canvas = getattr(self, "cards_canvas", None)
+        if canvas is None:
+            return
+        bbox = canvas.bbox("all")
+        if bbox:
+            canvas.configure(scrollregion=bbox)
+
+    def _center_cards_window(self):
+        canvas = getattr(self, "cards_canvas", None)
+        window = getattr(self, "_cards_window", None)
+        if canvas is None or window is None:
+            return
+        try:
+            width = canvas.winfo_width()
+            if width > 1:
+                canvas.coords(window, width // 2, 0)
+                canvas.itemconfigure(window, width=width)
+        except Exception:
+            pass
+
+    def _handle_cards_canvas_resize(self, event):
+        canvas = getattr(self, "cards_canvas", None)
+        window = getattr(self, "_cards_window", None)
+        if canvas is None or window is None:
+            return
+        try:
+            canvas.coords(window, event.width // 2, 0)
+            canvas.itemconfigure(window, width=event.width)
+        except Exception:
+            pass
+        self._update_cards_scrollregion()
+
+    def _render_related_cards(self, entries: list[dict]):
+        frame = getattr(self, "_cards_frame", None)
+        if frame is None:
+            return
+        for widget in frame.winfo_children():
+            widget.destroy()
+        self._card_vars = []
+        try:
+            frame.grid_columnconfigure(0, weight=1, minsize=450, uniform="axiom_cards")
+            frame.grid_columnconfigure(1, weight=1, minsize=450, uniform="axiom_cards")
+        except Exception:
+            frame.grid_columnconfigure(0, weight=1, minsize=450)
+            frame.grid_columnconfigure(1, weight=1, minsize=450)
+
+        if not entries:
+            placeholder = tk.Label(
+                frame,
+                text="Related verses will appear here once you search.",
+                font=("Arial", 12),
+                bg="light gray",
+                fg="#444",
+                wraplength=780,
+                justify="center",
+            )
+            placeholder.grid(row=0, column=0, columnspan=2, sticky="n", padx=20, pady=20)
+            self._update_cards_scrollregion()
+            self._center_cards_window()
+            return
+
+        total_cards = len(entries)
+        for idx, match in enumerate(entries):
+            row, column = divmod(idx, 2)
+            card = tk.Frame(
+                frame,
+                bg="white",
+                bd=1,
+                relief=tk.SOLID,
+                padx=12,
+                pady=12,
+            )
+            if (total_cards % 2 == 1) and (idx == total_cards - 1):
+                card.grid(row=row, column=0, columnspan=2, padx=12, pady=12, sticky="n")
+            else:
+                card.grid(row=row, column=column, padx=12, pady=12, sticky="nsew")
+
+            verse_text = str(match.get("Verse") or "—").strip()
+            tk.Label(
+                card,
+                text=verse_text,
+                font=("Arial", 14, "bold"),
+                wraplength=520,
+                justify="center",
+                bg="white",
+            ).pack(pady=(18, 8), padx=24)
+
+            fields = [
+                ("Raag", "Raag (Fixed)"),
+                ("Writer", "Writer (Fixed)"),
+                ("Bani", "Bani Name"),
+                ("Page", "Page Number"),
+            ]
+            meta_parts = []
+            for label, key in fields:
+                value = match.get(key)
+                if value is None:
+                    continue
+                if isinstance(value, float):
+                    try:
+                        if math.isnan(value):
+                            continue
+                    except Exception:
+                        pass
+                text = str(value).strip()
+                if text:
+                    meta_parts.append(f"{label}: {text}")
+            score = match.get("Score")
+            if score is not None:
+                try:
+                    meta_parts.append(f"Match: {float(score):.1f}%")
+                except Exception:
+                    meta_parts.append(f"Match: {score}")
+
+            meta_text = "   |   ".join(meta_parts)
+            if meta_text:
+                tk.Label(
+                    card,
+                    text=meta_text,
+                    font=("Arial", 12),
+                    bg="white",
+                    wraplength=520,
+                    justify="center",
+                ).pack(pady=(0, 4), padx=18)
+
+            var = tk.BooleanVar(value=False)
+            self._card_vars.append((var, match))
+            check = tk.Checkbutton(
+                card,
+                variable=var,
+                bg="white",
+                activebackground="white",
+                highlightthickness=0,
+            )
+            check.place(x=6, y=6)
+            try:
+                check.lift()
+            except Exception:
+                pass
+
+        self._update_cards_scrollregion()
+        self._center_cards_window()
+
+    def _find_related_verses(self):
         verse = self.verse_var.get().strip()
         if not verse:
             try:
@@ -15560,9 +15789,96 @@ class AxiomsVerseInputFlow(tk.Frame):
             except Exception:
                 pass
             return
-        self.suggestion_list.delete(0, tk.END)
-        for suggestion in self.MOCK_SUGGESTIONS:
-            self.suggestion_list.insert(tk.END, suggestion)
+
+        owner = getattr(self.dashboard, "_app_owner", None)
+        if owner is None or not hasattr(owner, "match_sggs_verse"):
+            self._load_mock_suggestions()
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Launch Axioms from the Grammar dashboard to query SGGS. "
+                    "Showing placeholder suggestions instead.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        try:
+            _, matches = owner.match_sggs_verse(verse, max_results=25, min_score=30)
+        except Exception as exc:  # pragma: no cover - UI feedback path
+            DATA_LOGGER.warning("Related verse lookup failed: %s", exc)
+            self._load_mock_suggestions()
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Unable to query the SGGS dataset right now. Showing placeholder suggestions.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        matches = matches or []
+        self._related_matches = matches
+        if not matches:
+            load_error = getattr(owner, "_sggs_load_error", None)
+            if load_error:
+                path_hint = _resolve_data_path(SGGS_EXCEL_NAME)
+                try:
+                    messagebox.showerror(
+                        "Axiom via Verse Analysis",
+                        f"Unable to read the SGGS verse dataset.\n"
+                        f"Verify '{path_hint}' exists and is accessible under WSL.\n{load_error}",
+                        parent=self,
+                    )
+                except Exception:
+                    pass
+                self._load_mock_suggestions()
+            else:
+                try:
+                    messagebox.showinfo(
+                        "Axiom via Verse Analysis",
+                        "No related verses matched your input.",
+                        parent=self,
+                    )
+                except Exception:
+                    pass
+                self._render_related_cards([])
+            return
+
+        self._render_related_cards(matches)
+
+    def _format_related_match(self, match: dict) -> str:
+        verse_text = str(match.get("Verse") or "").replace("\n", " ").strip()
+        preview = textwrap.shorten(verse_text, width=90, placeholder="...") if verse_text else "—"
+        ang = match.get("Page Number")
+        bani = match.get("Bani Name") or match.get("Raag (Fixed)") or ""
+        verse_no = match.get("Verse No.")
+        pieces = []
+        if ang:
+            pieces.append(f"Ang {ang}")
+        if verse_no:
+            pieces.append(f"Verse {verse_no}")
+        if bani:
+            pieces.append(str(bani))
+        prefix = " • ".join(pieces)
+        score = match.get("Score")
+        score_text = f" ({int(score)}%)" if score is not None else ""
+        return f"{prefix} — {preview}{score_text}" if prefix else f"{preview}{score_text}"
+
+    def _load_mock_suggestions(self):
+        mock_entries = [
+            {
+                "Verse": suggestion,
+                "Bani Name": "Suggested reference",
+                "Page Number": "",
+                "Score": None,
+            }
+            for suggestion in self.MOCK_SUGGESTIONS
+        ]
+        self._related_matches = mock_entries
+        self._render_related_cards(mock_entries)
 
     def _toggle_consecutive_inputs(self):
         state = "normal" if self.include_consecutive.get() else "disabled"
@@ -15618,9 +15934,11 @@ class AxiomsVerseInputFlow(tk.Frame):
                     pass
                 return
 
-        selections = self.suggestion_list.curselection()
+        selected_matches = [
+            match for (var, match) in getattr(self, "_card_vars", []) if var.get()
+        ]
         selected_suggestions = [
-            self.suggestion_list.get(idx) for idx in selections
+            self._format_related_match(match) for match in selected_matches
         ]
 
         suggestions_text = "\n".join(
@@ -19058,11 +19376,7 @@ def _axioms_t10_update_contribution_revision(verse_text: str, revision_value) ->
 
 
 def _axioms_t10_get_assessment_path() -> str:
-    try:
-        base_dir = os.path.abspath(os.path.dirname(__file__))
-    except Exception:
-        base_dir = os.getcwd()
-    return os.path.join(base_dir, "1.2.1 assessment_data.xlsx")
+    return _resolve_data_path(ASSESSMENT_DATA_NAME)
 
 
 def _axioms_t10_load_assessment_map(path: str | None = None) -> dict[str, str]:
