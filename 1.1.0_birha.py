@@ -15360,6 +15360,9 @@ class AxiomsVerseInputFlow(tk.Frame):
         self._card_vars: list[tuple[tk.BooleanVar, dict]] = []
         self._consecutive_modal = None
         self._consecutive_vars: list[tuple[tk.BooleanVar, dict]] = []
+        self._last_primary_match_meta: dict | None = None
+        self._last_primary_verse: str = ""
+        self._last_related_selection: list[dict] = []
 
         self._active_view = None
         self._build_input_view()
@@ -15622,6 +15625,9 @@ class AxiomsVerseInputFlow(tk.Frame):
         self.include_consecutive.set(False)
         self._selected_consecutive_lines = []
         self.consecutive_selection_var.set("No consecutive verses selected.")
+        self._last_primary_match_meta = None
+        self._last_primary_verse = ""
+        self._last_related_selection = []
         self._toggle_consecutive_inputs()
         self._update_next_state()
         self._display(self.input_frame)
@@ -16189,6 +16195,11 @@ class AxiomsVerseInputFlow(tk.Frame):
         selected_matches = [
             match for (var, match) in getattr(self, "_card_vars", []) if var.get()
         ]
+
+        self._last_primary_verse = verse
+        self._last_related_selection = selected_matches
+        primary_meta = selected_matches[0] if selected_matches else (self._related_matches[0] if self._related_matches else None)
+        self._last_primary_match_meta = primary_meta
         selected_suggestions = [
             self._format_related_match(match) for match in selected_matches
         ]
@@ -16380,6 +16391,8 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.verse_label_var = tk.StringVar()
         self.suggestions_var = tk.StringVar()
         self.consecutive_var = tk.StringVar()
+        self._active_verse_text = ""
+        self._active_primary_meta = None
 
         self._build_layout()
 
@@ -16488,33 +16501,70 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.proceed_button.pack(side=tk.RIGHT, padx=(0, 10))
 
     def _build_darpan_option(self, parent):
-        frame = tk.Frame(parent, bg="light gray", pady=6)
-        frame.pack(fill=tk.X, pady=(0, 12))
+        frame = tk.LabelFrame(
+            parent,
+            text="Use predefined Darpan translation",
+            font=("Arial", 13, "bold"),
+            bg="light gray",
+            fg="#002B36",
+            padx=8,
+            pady=8,
+        )
+        frame.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
 
+        header = tk.Frame(frame, bg="light gray")
+        header.pack(fill=tk.X)
         tk.Radiobutton(
-            frame,
+            header,
             text="Use predefined Darpan translation",
             variable=self.choice_var,
             value="darpan",
             bg="light gray",
             font=("Arial", 12, "bold"),
             command=self._on_choice_changed,
-        ).pack(anchor="w")
+        ).pack(side=tk.LEFT, anchor="w")
+
+        tk.Button(
+            header,
+            text="Reload",
+            font=("Arial", 10, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=10,
+            command=self._refresh_darpan_text,
+        ).pack(side=tk.RIGHT)
 
         text_holder = tk.Frame(frame, bg="light gray")
-        text_holder.pack(fill=tk.X, pady=(6, 0))
+        text_holder.pack(fill=tk.BOTH, expand=True, pady=(6, 4))
 
+        scroll_y = tk.Scrollbar(text_holder, orient=tk.VERTICAL)
         self.darpan_text = tk.Text(
             text_holder,
             height=8,
             wrap=tk.WORD,
             font=("Arial", 12),
-            background="#f0f0f0",
+            background="#fdfdfd",
             foreground="#202020",
+            padx=8,
+            pady=8,
         )
-        self.darpan_text.pack(fill=tk.BOTH, expand=True)
-        self.darpan_text.insert("1.0", self._DARPAN_SAMPLE)
+        self.darpan_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.configure(command=self.darpan_text.yview)
+        self.darpan_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self._set_darpan_preview(self._DARPAN_SAMPLE, "Mock preview")
         self.darpan_text.configure(state=tk.DISABLED)
+
+        status_row = tk.Frame(frame, bg="light gray")
+        status_row.pack(fill=tk.X)
+        self.darpan_status_var = tk.StringVar(value="Mock preview")
+        tk.Label(
+            status_row,
+            textvariable=self.darpan_status_var,
+            font=("Arial", 10, "italic"),
+            bg="light gray",
+            fg="#444",
+        ).pack(side=tk.LEFT)
 
     def _build_custom_option(self, parent):
         frame = tk.Frame(parent, bg="light gray", pady=6)
@@ -16545,6 +16595,83 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.own_text.pack(fill=tk.BOTH, expand=True)
         self.own_text.bind("<<Modified>>", self._on_own_modified)
 
+    def _set_darpan_preview(self, text: str, status: str) -> None:
+        widget = getattr(self, "darpan_text", None)
+        if widget is not None:
+            try:
+                prior = widget.cget("state")
+            except Exception:
+                prior = None
+            try:
+                if prior != tk.NORMAL:
+                    widget.configure(state=tk.NORMAL)
+                widget.delete("1.0", tk.END)
+                widget.insert("1.0", text or "")
+            finally:
+                try:
+                    widget.configure(state=tk.DISABLED)
+                except Exception:
+                    pass
+        status_var = getattr(self, "darpan_status_var", None)
+        if status_var is not None:
+            status_var.set(status or "")
+
+    def _get_owner_app(self):
+        dashboard = getattr(self.flow, "dashboard", None)
+        return getattr(dashboard, "_app_owner", None) if dashboard is not None else None
+
+    def _load_darpan_translation(self) -> tuple[str, str]:
+        verse_text = (self._active_verse_text or "").strip()
+        if not verse_text:
+            return self._DARPAN_SAMPLE, "Enter a verse to preview translation."
+
+        owner = self._get_owner_app()
+        if owner is None:
+            return (
+                self._DARPAN_SAMPLE,
+                "Launch Axioms from the Grammar workspace to load Darpan data.",
+            )
+
+        page_hint = None
+        meta = getattr(self.flow, "_last_primary_match_meta", None)
+        if isinstance(meta, dict):
+            page_hint = meta.get("Page Number")
+        try:
+            record = _find_arth_for(owner, verse_text, page_hint)
+        except Exception as exc:
+            DATA_LOGGER.warning("Axioms Darpan lookup failed: %s", exc)
+            record = None
+        if not record:
+            return self._DARPAN_SAMPLE, "No structured Darpan translation found."
+        return self._format_darpan_record(record), "Auto-filled from structured data"
+
+    def _format_darpan_record(self, record: dict) -> str:
+        sections = []
+
+        def _pick(keys):
+            for key in keys:
+                value = record.get(key)
+                if value:
+                    return str(value).strip()
+            return ""
+
+        entries = [
+            ("Verse", ("Verse", "verse")),
+            ("Padarth", ("Padarth", "padarth")),
+            ("Arth", ("Arth", "arth")),
+            ("Chhand", ("Chhand", "chhand")),
+            ("Bhav", ("Bhav", "bhav")),
+        ]
+        for label, keys in entries:
+            content = _pick(keys)
+            if content:
+                sections.append(f"{label}:\n{content}")
+        return "\n\n".join(sections) if sections else self._DARPAN_SAMPLE
+
+    def _refresh_darpan_text(self):
+        text, status = self._load_darpan_translation()
+        self._set_darpan_preview(text, status)
+
     # ---------------------------
     # Flow controls
     # ---------------------------
@@ -16552,7 +16679,10 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.verse_label_var.set(verse or "No verse provided.")
         self.suggestions_var.set(suggestions or "No related verses selected.")
         self.consecutive_var.set(consecutive or "")
+        self._active_verse_text = verse or ""
+        self._active_primary_meta = getattr(self.flow, "_last_primary_match_meta", None)
         self._reset_selection()
+        self._refresh_darpan_text()
 
     def _reset_selection(self):
         self.choice_var.set("")
