@@ -15964,7 +15964,33 @@ class AxiomsVerseInputFlow(tk.Frame):
         ).pack(side=tk.RIGHT)
 
     def _confirm_consecutive_selection(self):
-        selections = [record for var, record in self._consecutive_vars if var.get()]
+        selected_pairs = [(idx, record) for idx, (var, record) in enumerate(self._consecutive_vars) if var.get()]
+        if not selected_pairs:
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Select at least the primary verse before applying.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        indices = [idx for idx, _ in selected_pairs]
+        indices.sort()
+        if indices[-1] - indices[0] + 1 != len(indices):
+            try:
+                messagebox.showerror(
+                    "Axiom via Verse Analysis",
+                    "Selections must be consecutive. Choose a continuous block of verses.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        ordered_pairs = sorted(selected_pairs, key=lambda x: x[0])
+        selections = [record for _, record in ordered_pairs]
         if not selections:
             try:
                 messagebox.showwarning(
