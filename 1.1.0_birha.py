@@ -15354,9 +15354,12 @@ class AxiomsVerseInputFlow(tk.Frame):
 
         self.verse_var = tk.StringVar()
         self.include_consecutive = tk.BooleanVar(value=False)
-        self.consecutive_count = tk.StringVar(value="1")
+        self._selected_consecutive_lines: list[dict] = []
+        self.consecutive_selection_var = tk.StringVar(value="No consecutive verses selected.")
         self._related_matches: list[dict] = []
         self._card_vars: list[tuple[tk.BooleanVar, dict]] = []
+        self._consecutive_modal = None
+        self._consecutive_vars: list[tuple[tk.BooleanVar, dict]] = []
 
         self._active_view = None
         self._build_input_view()
@@ -15460,24 +15463,27 @@ class AxiomsVerseInputFlow(tk.Frame):
         )
         check.pack(side=tk.LEFT)
 
-        count_holder = tk.Frame(consecutive_frame, bg="light gray")
-        count_holder.pack(side=tk.LEFT, padx=(16, 0))
+        self.consecutive_button = tk.Button(
+            consecutive_frame,
+            text="Select consecutive verses",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=12,
+            pady=4,
+            state=tk.DISABLED,
+            command=self._open_consecutive_selector,
+        )
+        self.consecutive_button.pack(side=tk.LEFT, padx=(16, 0))
+
         tk.Label(
-            count_holder,
-            text="Count:",
+            consecutive_frame,
+            textvariable=self.consecutive_selection_var,
             font=("Arial", 12),
             bg="light gray",
-        ).pack(side=tk.LEFT)
-        self.consecutive_spin = tk.Spinbox(
-            count_holder,
-            from_=1,
-            to=10,
-            width=5,
-            textvariable=self.consecutive_count,
-            state="disabled",
-            font=("Arial", 12),
-        )
-        self.consecutive_spin.pack(side=tk.LEFT, padx=(6, 0))
+            wraplength=500,
+            justify="left",
+        ).pack(side=tk.LEFT, padx=(16, 0))
 
         button_bar = tk.Frame(self.input_frame, bg="light gray")
         button_bar.pack(fill=tk.X, pady=(20, 0))
@@ -15614,7 +15620,8 @@ class AxiomsVerseInputFlow(tk.Frame):
         self._related_matches = []
         self._render_related_cards([])
         self.include_consecutive.set(False)
-        self.consecutive_count.set("1")
+        self._selected_consecutive_lines = []
+        self.consecutive_selection_var.set("No consecutive verses selected.")
         self._toggle_consecutive_inputs()
         self._update_next_state()
         self._display(self.input_frame)
@@ -15777,6 +15784,219 @@ class AxiomsVerseInputFlow(tk.Frame):
         self._update_cards_scrollregion()
         self._center_cards_window()
 
+    def _get_primary_match(self) -> dict | None:
+        for var, match in getattr(self, "_card_vars", []):
+            try:
+                if var.get():
+                    return match
+            except Exception:
+                continue
+        return self._related_matches[0] if self._related_matches else None
+
+    def _open_consecutive_selector(self):
+        if not self.include_consecutive.get():
+            try:
+                messagebox.showinfo(
+                    "Axiom via Verse Analysis",
+                    "Enable the consecutive toggle to select extra verses.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        primary_match = self._get_primary_match()
+        if primary_match is None:
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Select at least one related verse before choosing consecutive lines.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        owner = getattr(self.dashboard, "_app_owner", None)
+        if owner is None or not hasattr(owner, "fetch_stanza_lines"):
+            try:
+                messagebox.showerror(
+                    "Axiom via Verse Analysis",
+                    "Consecutive verse selection requires launching Axioms from the Grammar dashboard.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        try:
+            stanza_lines = owner.fetch_stanza_lines(primary_match)
+        except Exception as exc:
+            DATA_LOGGER.warning("Consecutive verse lookup failed: %s", exc)
+            stanza_lines = []
+        if not stanza_lines:
+            try:
+                messagebox.showinfo(
+                    "Axiom via Verse Analysis",
+                    "No consecutive verses were found for this match.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+
+        self._show_consecutive_modal(primary_match, stanza_lines)
+
+    def _show_consecutive_modal(self, primary_match: dict, stanza_lines: list[dict]):
+        existing = getattr(self, "_consecutive_modal", None)
+        if existing is not None:
+            try:
+                existing.destroy()
+            except Exception:
+                pass
+        parent = self.dashboard if isinstance(self.dashboard, tk.Misc) else self
+        win = tk.Toplevel(parent)
+        self._consecutive_modal = win
+        win.title("Select Consecutive Verses")
+        win.configure(bg="light gray")
+        try:
+            win.transient(parent)
+        except Exception:
+            pass
+
+        header = tk.Label(
+            win,
+            text="Select consecutive verses to include with your primary choice:",
+            font=("Arial", 14, "bold"),
+            bg="dark slate gray",
+            fg="white",
+            pady=8,
+        )
+        header.pack(fill=tk.X)
+
+        container = tk.Frame(win, bg="light gray")
+        container.pack(fill=tk.BOTH, expand=True, padx=18, pady=12)
+
+        canvas = tk.Canvas(container, bg="light gray", highlightthickness=0)
+        scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        inner = tk.Frame(canvas, bg="light gray")
+        canvas_window = canvas.create_window((0, 0), window=inner, anchor="n")
+
+        def _sync_scroll(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        inner.bind("<Configure>", _sync_scroll)
+
+        def _resize(event):
+            try:
+                canvas.coords(canvas_window, event.width // 2, 0)
+                canvas.itemconfigure(canvas_window, width=event.width)
+            except Exception:
+                pass
+
+        canvas.bind("<Configure>", _resize)
+
+        primary_text = str(primary_match.get("Verse") or "").strip()
+        self._consecutive_vars = []
+        for idx, line in enumerate(stanza_lines):
+            verse_text = str(line.get("Verse") or "").strip()
+            is_primary = verse_text == primary_text
+            var = tk.BooleanVar(value=is_primary)
+            self._consecutive_vars.append((var, line))
+            row = tk.Frame(inner, bg="#f9fafb", bd=1, relief=tk.SOLID, padx=10, pady=10)
+            row.pack(fill=tk.X, expand=True, pady=6)
+            chk = tk.Checkbutton(
+                row,
+                variable=var,
+                bg="#f9fafb",
+                activebackground="#f9fafb",
+                font=("Arial", 12, "bold" if is_primary else "normal"),
+                anchor="w",
+                justify="left",
+                wraplength=760,
+                text=verse_text or "(blank verse)",
+                state=tk.DISABLED if is_primary else tk.NORMAL,
+                selectcolor="#e0f2f1",
+            )
+            chk.pack(fill=tk.X)
+
+            detail_bits = []
+            verse_no = line.get("Verse No.")
+            if verse_no:
+                detail_bits.append(f"Verse {verse_no}")
+            page = line.get("Page Number")
+            if page:
+                detail_bits.append(f"Ang {page}")
+            if detail_bits:
+                tk.Label(
+                    row,
+                    text=" • ".join(detail_bits),
+                    font=("Arial", 10, "italic"),
+                    bg="#f9fafb",
+                ).pack(anchor="w", pady=(4, 0))
+
+        button_bar = tk.Frame(win, bg="light gray")
+        button_bar.pack(fill=tk.X, pady=(4, 12))
+        tk.Button(
+            button_bar,
+            text="Cancel",
+            font=("Arial", 12, "bold"),
+            bg="gray",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._close_consecutive_modal,
+        ).pack(side=tk.RIGHT, padx=(0, 8))
+
+        tk.Button(
+            button_bar,
+            text="Apply Selection",
+            font=("Arial", 12, "bold"),
+            bg="dark cyan",
+            fg="white",
+            padx=16,
+            pady=6,
+            command=self._confirm_consecutive_selection,
+        ).pack(side=tk.RIGHT)
+
+    def _confirm_consecutive_selection(self):
+        selections = [record for var, record in self._consecutive_vars if var.get()]
+        if not selections:
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Select at least the primary verse before applying.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
+        self._selected_consecutive_lines = selections
+        summary = self._summarize_consecutive_selection(selections)
+        self.consecutive_selection_var.set(summary)
+        self._close_consecutive_modal()
+
+    def _summarize_consecutive_selection(self, selections: list[dict]) -> str:
+        count = len(selections)
+        verses = [str(item.get("Verse") or "").strip() for item in selections]
+        preview = "; ".join([v for v in verses[:2] if v])
+        if len(verses) > 2:
+            preview += " …"
+        return f"{count} verse(s) selected: {preview}" if preview else f"{count} verse(s) selected"
+
+    def _close_consecutive_modal(self):
+        win = getattr(self, "_consecutive_modal", None)
+        if win is not None:
+            try:
+                win.destroy()
+            except Exception:
+                pass
+        self._consecutive_modal = None
+
     def _find_related_verses(self):
         verse = self.verse_var.get().strip()
         if not verse:
@@ -15821,6 +16041,9 @@ class AxiomsVerseInputFlow(tk.Frame):
 
         matches = matches or []
         self._related_matches = matches
+        self._selected_consecutive_lines = []
+        if not self.include_consecutive.get():
+            self.consecutive_selection_var.set("No consecutive verses selected.")
         if not matches:
             load_error = getattr(owner, "_sggs_load_error", None)
             if load_error:
@@ -15878,16 +16101,24 @@ class AxiomsVerseInputFlow(tk.Frame):
             for suggestion in self.MOCK_SUGGESTIONS
         ]
         self._related_matches = mock_entries
+        if not self.include_consecutive.get():
+            self._selected_consecutive_lines = []
+            self.consecutive_selection_var.set("No consecutive verses selected.")
         self._render_related_cards(mock_entries)
 
     def _toggle_consecutive_inputs(self):
-        state = "normal" if self.include_consecutive.get() else "disabled"
-        try:
-            self.consecutive_spin.configure(state=state)
-        except Exception:
-            pass
-        if state == "disabled":
-            self.consecutive_count.set("1")
+        enabled = bool(self.include_consecutive.get())
+        state = tk.NORMAL if enabled else tk.DISABLED
+        btn = getattr(self, "consecutive_button", None)
+        if btn is not None:
+            try:
+                btn.configure(state=state)
+            except Exception:
+                pass
+        if not enabled:
+            self._selected_consecutive_lines = []
+            self.consecutive_selection_var.set("No consecutive verses selected.")
+            self._close_consecutive_modal()
 
     def _update_next_state(self):
         verse_present = bool(self.verse_var.get().strip())
@@ -15917,17 +16148,12 @@ class AxiomsVerseInputFlow(tk.Frame):
             return
 
         include_consecutive = bool(self.include_consecutive.get())
-        consecutive_count = 0
         if include_consecutive:
-            try:
-                consecutive_count = int(self.consecutive_count.get())
-            except Exception:
-                consecutive_count = 0
-            if consecutive_count <= 0:
+            if not self._selected_consecutive_lines:
                 try:
                     messagebox.showwarning(
                         "Axiom via Verse Analysis",
-                        "Enter how many consecutive verses to include (use 1 or more).",
+                        "Select consecutive verses before continuing.",
                         parent=self,
                     )
                 except Exception:
@@ -15946,7 +16172,7 @@ class AxiomsVerseInputFlow(tk.Frame):
         ) if selected_suggestions else "No suggestions selected."
 
         consecutive_text = (
-            f"Including {consecutive_count} consecutive verse(s)."
+            self.consecutive_selection_var.get()
             if include_consecutive
             else "Not including consecutive verses."
         )
