@@ -16393,6 +16393,8 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.consecutive_var = tk.StringVar()
         self._active_verse_text = ""
         self._active_primary_meta = None
+        self._active_related_matches: list[dict] = []
+        self._active_consecutive_lines: list[dict] = []
 
         self._build_layout()
 
@@ -16406,64 +16408,20 @@ class AxiomsTranslationChoiceView(tk.Frame):
             font=("Arial", 16, "bold"),
             bg="dark slate gray",
             fg="white",
-            pady=6,
+            pady=4,
         )
-        header.pack(fill=tk.X, pady=(0, 16))
+        header.pack(fill=tk.X, pady=(0, 10))
 
-        summary = tk.Frame(self, bg="light gray")
-        summary.pack(fill=tk.X, pady=(0, 16))
-
-        tk.Label(
-            summary,
-            text="Primary verse:",
-            font=("Arial", 12, "bold"),
-            bg="light gray",
-        ).pack(anchor="w")
-        tk.Label(
-            summary,
-            textvariable=self.verse_label_var,
-            font=("Arial", 12),
-            wraplength=760,
-            justify="left",
-            bg="light gray",
-        ).pack(anchor="w", pady=(0, 8))
-
-        tk.Label(
-            summary,
-            text="Related verses:",
-            font=("Arial", 12, "bold"),
-            bg="light gray",
-        ).pack(anchor="w")
-        tk.Label(
-            summary,
-            textvariable=self.suggestions_var,
-            font=("Arial", 12),
-            wraplength=760,
-            justify="left",
-            bg="light gray",
-        ).pack(anchor="w", pady=(0, 8))
-
-        tk.Label(
-            summary,
-            text="Consecutive verses:",
-            font=("Arial", 12, "bold"),
-            bg="light gray",
-        ).pack(anchor="w")
-        tk.Label(
-            summary,
-            textvariable=self.consecutive_var,
-            font=("Arial", 12),
-            bg="light gray",
-        ).pack(anchor="w")
+        self._build_summary_card()
 
         options = tk.Frame(self, bg="light gray")
-        options.pack(fill=tk.BOTH, expand=True, pady=(8, 16))
+        options.pack(fill=tk.BOTH, expand=True, pady=(4, 10))
 
         self._build_darpan_option(options)
         self._build_custom_option(options)
 
         button_bar = tk.Frame(self, bg="light gray")
-        button_bar.pack(fill=tk.X, pady=(12, 0))
+        button_bar.pack(fill=tk.X, pady=(6, 2))
 
         tk.Button(
             button_bar,
@@ -16500,17 +16458,141 @@ class AxiomsTranslationChoiceView(tk.Frame):
         )
         self.proceed_button.pack(side=tk.RIGHT, padx=(0, 10))
 
-    def _build_darpan_option(self, parent):
-        frame = tk.LabelFrame(
-            parent,
-            text="Use predefined Darpan translation",
-            font=("Arial", 13, "bold"),
-            bg="light gray",
-            fg="#002B36",
-            padx=8,
-            pady=8,
+    def _build_summary_card(self):
+        card = tk.Frame(self, bg="#f2f4f7", bd=1, relief=tk.SOLID)
+        card.pack(fill=tk.X, padx=12, pady=(0, 10))
+
+        header = tk.Frame(card, bg="#e6e9f0")
+        header.pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Verse summary",
+            font=("Arial", 12, "bold"),
+            bg="#e6e9f0",
+            fg="#1f2a44",
+            pady=4,
+        ).pack(side=tk.LEFT, padx=8)
+
+        self.summary_body = tk.Frame(card, bg="#f2f4f7", padx=8, pady=6)
+        self.summary_body.pack(fill=tk.BOTH, expand=True)
+
+    def _render_summary_cards(self):
+        container = getattr(self, "summary_body", None)
+        if container is None:
+            return
+        for widget in container.winfo_children():
+            widget.destroy()
+        segments: list[tuple[str, bool]] = []
+        seen: set[str] = set()
+
+        def _push_segment(text: str, highlight: bool = False):
+            clean = self._clean_verse_text(text)
+            if not clean:
+                return
+            key = clean.casefold()
+            if key in seen:
+                return
+            seen.add(key)
+            segments.append((clean, highlight))
+
+        primary_text = self._active_verse_text
+        _push_segment(primary_text, bool(self._active_consecutive_lines))
+
+        for match in self._active_related_matches:
+            _push_segment(match.get("Verse"))
+
+        for line in self._active_consecutive_lines:
+            verse_text = line.get("Verse") if isinstance(line, dict) else str(line)
+            _push_segment(verse_text)
+
+        if not segments:
+            segments.append(("No verse provided.", False))
+
+        card = tk.Frame(container, bg="white", bd=1, relief=tk.SOLID, padx=10, pady=8)
+        card.pack(fill=tk.X, pady=2)
+        verse_text_widget = tk.Text(
+            card,
+            height=3,
+            wrap=tk.WORD,
+            font=("Arial", 12),
+            bg="white",
+            bd=0,
+            relief=tk.FLAT,
         )
-        frame.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
+        verse_text_widget.pack(fill=tk.X, expand=True)
+        verse_text_widget.tag_configure("primary", foreground="#0b5f6d", font=("Arial", 12, "bold"))
+
+        for idx, (verse_text, highlight) in enumerate(segments):
+            if idx:
+                verse_text_widget.insert(tk.END, " / ")
+            start = verse_text_widget.index(tk.END)
+            verse_text_widget.insert(tk.END, verse_text)
+            end = verse_text_widget.index(tk.END)
+            if highlight:
+                verse_text_widget.tag_add("primary", start, end)
+        verse_text_widget.configure(state=tk.DISABLED)
+
+        meta_text = self._format_meta(self._active_primary_meta)
+        if meta_text:
+            tk.Label(
+                container,
+                text=meta_text,
+                font=("Arial", 10, "italic"),
+                bg="#f2f4f7",
+                fg="#555",
+                wraplength=720,
+                justify="left",
+            ).pack(anchor="w", pady=(6, 0))
+
+    def _clean_verse_text(self, verse: str | None) -> str:
+        if not verse:
+            return ""
+        text = str(verse)
+        text = " ".join(text.split())
+        return text.strip()
+
+    def _format_meta(self, meta: dict | None) -> str:
+        if not isinstance(meta, dict):
+            return ""
+        bits = []
+        page = meta.get("Page Number") or meta.get("page")
+        if isinstance(page, float):
+            try:
+                if math.isnan(page):
+                    page = None
+            except Exception:
+                page = None
+        elif isinstance(page, str) and page.strip().lower() == "nan":
+            page = None
+        if page:
+            bits.append(f"Page {page}")
+        raag = meta.get("Bani Name") or meta.get("Raag (Fixed)")
+        if isinstance(raag, float):
+            try:
+                if math.isnan(raag):
+                    raag = None
+            except Exception:
+                raag = None
+        elif isinstance(raag, str) and raag.strip().lower() == "nan":
+            raag = None
+        if raag:
+            bits.append(str(raag))
+        writer = meta.get("Writer (Fixed)")
+        if isinstance(writer, float):
+            try:
+                if math.isnan(writer):
+                    writer = None
+            except Exception:
+                writer = None
+        elif isinstance(writer, str) and writer.strip().lower() == "nan":
+            writer = None
+        if writer:
+            bits.append(str(writer))
+        return "   |   ".join(bits)
+
+    def _build_darpan_option(self, parent):
+        frame = tk.Frame(parent, bg="light gray")
+        frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
         header = tk.Frame(frame, bg="light gray")
         header.pack(fill=tk.X)
@@ -16535,12 +16617,12 @@ class AxiomsTranslationChoiceView(tk.Frame):
         ).pack(side=tk.RIGHT)
 
         text_holder = tk.Frame(frame, bg="light gray")
-        text_holder.pack(fill=tk.BOTH, expand=True, pady=(6, 4))
+        text_holder.pack(fill=tk.BOTH, expand=True, pady=(4, 2))
 
         scroll_y = tk.Scrollbar(text_holder, orient=tk.VERTICAL)
         self.darpan_text = tk.Text(
             text_holder,
-            height=8,
+            height=5,
             wrap=tk.WORD,
             font=("Arial", 12),
             background="#fdfdfd",
@@ -16556,7 +16638,7 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.darpan_text.configure(state=tk.DISABLED)
 
         status_row = tk.Frame(frame, bg="light gray")
-        status_row.pack(fill=tk.X)
+        status_row.pack(fill=tk.X, pady=(2, 0))
         self.darpan_status_var = tk.StringVar(value="Mock preview")
         tk.Label(
             status_row,
@@ -16567,7 +16649,7 @@ class AxiomsTranslationChoiceView(tk.Frame):
         ).pack(side=tk.LEFT)
 
     def _build_custom_option(self, parent):
-        frame = tk.Frame(parent, bg="light gray", pady=6)
+        frame = tk.Frame(parent, bg="light gray", pady=4)
         frame.pack(fill=tk.BOTH, expand=True)
 
         tk.Radiobutton(
@@ -16581,11 +16663,11 @@ class AxiomsTranslationChoiceView(tk.Frame):
         ).pack(anchor="w")
 
         text_holder = tk.Frame(frame, bg="light gray")
-        text_holder.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
+        text_holder.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
 
         self.own_text = tk.Text(
             text_holder,
-            height=8,
+            height=5,
             wrap=tk.WORD,
             font=("Arial", 12),
             background="white",
@@ -16681,8 +16763,13 @@ class AxiomsTranslationChoiceView(tk.Frame):
         self.consecutive_var.set(consecutive or "")
         self._active_verse_text = verse or ""
         self._active_primary_meta = getattr(self.flow, "_last_primary_match_meta", None)
+        raw_related = getattr(self.flow, "_last_related_selection", []) or []
+        self._active_related_matches = [m for m in raw_related if isinstance(m, dict)]
+        raw_consecutive = getattr(self.flow, "_selected_consecutive_lines", []) or []
+        self._active_consecutive_lines = [c for c in raw_consecutive if isinstance(c, dict)]
         self._reset_selection()
         self._refresh_darpan_text()
+        self._render_summary_cards()
 
     def _reset_selection(self):
         self.choice_var.set("")
@@ -21291,16 +21378,22 @@ def _axioms_t13_position_panel(dashboard) -> None:
     setattr(dashboard, "_axioms_t13_repositioning", True)
     try:
         try:
-            panel.pack_forget()
+            info = panel.pack_info()
         except Exception:
-            pass
-        try:
-            panel.pack(**pack_kwargs)
-        except Exception:
+            info = None
+        if info:
             try:
-                panel.pack(fill=tk.X, padx=0, pady=(18, 0))
+                panel.pack_configure(**pack_kwargs)
             except Exception:
                 pass
+        else:
+            try:
+                panel.pack(**pack_kwargs)
+            except Exception:
+                try:
+                    panel.pack(fill=tk.X, padx=0, pady=(18, 0))
+                except Exception:
+                    pass
         setattr(panel, "_axioms_t13_pack", pack_kwargs)
     finally:
         setattr(dashboard, "_axioms_t13_repositioning", False)
@@ -21421,17 +21514,11 @@ def _axioms_t13_attach_integration_panel(dashboard) -> None:
     if container is None:
         container = dashboard
 
-    panel = tk.LabelFrame(
-        container,
-        text="Integration Checklist",
-        font=("Arial", 12, "bold"),
-        bg="light gray",
-        fg="black",
-    )
-    setattr(panel, "_axioms_t13_pack", {"fill": tk.X, "padx": 0, "pady": (18, 0)})
+    panel = tk.Frame(container, bg="light gray")
+    setattr(panel, "_axioms_t13_pack", {"fill": tk.X, "padx": 6, "pady": (8, 4)})
 
     summary_row = tk.Frame(panel, bg="light gray")
-    summary_row.pack(fill=tk.X, padx=6, pady=6)
+    summary_row.pack(fill=tk.X, padx=4, pady=4)
 
     summary_var = tk.StringVar(master=panel, value="Checking integration status…")
     tk.Label(
@@ -21446,7 +21533,7 @@ def _axioms_t13_attach_integration_panel(dashboard) -> None:
     tk.Button(
         summary_row,
         text="Refresh",
-        font=("Arial", 11, "bold"),
+        font=("Arial", 10, "bold"),
         bg="#2e8b57",
         fg="white",
         padx=10,
@@ -21455,8 +21542,8 @@ def _axioms_t13_attach_integration_panel(dashboard) -> None:
     ).pack(side=tk.RIGHT, padx=(10, 0))
     tk.Button(
         summary_row,
-        text="View details…",
-        font=("Arial", 11, "bold"),
+        text="Details",
+        font=("Arial", 10, "bold"),
         bg="#1f6f8b",
         fg="white",
         padx=10,
