@@ -15357,7 +15357,12 @@ class AxiomsVerseInputFlow(tk.Frame):
         self._selected_consecutive_lines: list[dict] = []
         self.consecutive_selection_var = tk.StringVar(value="No consecutive verses selected.")
         self._related_matches: list[dict] = []
-        self._card_vars: list[tuple[tk.BooleanVar, dict]] = []
+        self._card_matches: list[dict] = []
+        self._selected_match_var = tk.IntVar(value=-1)
+        try:
+            self._selected_match_var.trace_add("write", lambda *_: self._update_next_state())
+        except Exception:
+            pass
         self._consecutive_modal = None
         self._consecutive_vars: list[tuple[tk.BooleanVar, dict]] = []
         self._last_primary_match_meta: dict | None = None
@@ -15628,6 +15633,8 @@ class AxiomsVerseInputFlow(tk.Frame):
         self._last_primary_match_meta = None
         self._last_primary_verse = ""
         self._last_related_selection = []
+        self._selected_match_var.set(-1)
+        self._card_matches = []
         self._toggle_consecutive_inputs()
         self._update_next_state()
         self._display(self.input_frame)
@@ -15685,7 +15692,8 @@ class AxiomsVerseInputFlow(tk.Frame):
             return
         for widget in frame.winfo_children():
             widget.destroy()
-        self._card_vars = []
+        self._card_matches = list(entries)
+        self._selected_match_var.set(-1)
         try:
             frame.grid_columnconfigure(0, weight=1, minsize=450, uniform="axiom_cards")
             frame.grid_columnconfigure(1, weight=1, minsize=450, uniform="axiom_cards")
@@ -15772,32 +15780,34 @@ class AxiomsVerseInputFlow(tk.Frame):
                     justify="center",
                 ).pack(pady=(0, 4), padx=18)
 
-            var = tk.BooleanVar(value=False)
-            self._card_vars.append((var, match))
-            check = tk.Checkbutton(
+            rb = tk.Radiobutton(
                 card,
-                variable=var,
+                variable=self._selected_match_var,
+                value=idx,
                 bg="white",
                 activebackground="white",
                 highlightthickness=0,
+                command=self._on_match_selected,
             )
-            check.place(x=6, y=6)
+            rb.place(x=6, y=6)
             try:
-                check.lift()
+                rb.lift()
             except Exception:
                 pass
 
         self._update_cards_scrollregion()
         self._center_cards_window()
+        self._update_next_state()
+
+    def _on_match_selected(self):
+        self._update_next_state()
 
     def _get_primary_match(self) -> dict | None:
-        for var, match in getattr(self, "_card_vars", []):
-            try:
-                if var.get():
-                    return match
-            except Exception:
-                continue
-        return self._related_matches[0] if self._related_matches else None
+        idx = self._selected_match_var.get()
+        matches = getattr(self, "_card_matches", None) or self._related_matches
+        if 0 <= idx < len(matches):
+            return matches[idx]
+        return matches[0] if matches else None
 
     def _open_consecutive_selector(self):
         if not self.include_consecutive.get():
@@ -16154,8 +16164,11 @@ class AxiomsVerseInputFlow(tk.Frame):
 
     def _update_next_state(self):
         verse_present = bool(self.verse_var.get().strip())
+        selection_idx = self._selected_match_var.get()
+        has_selection = 0 <= selection_idx < len(getattr(self, "_card_matches", self._related_matches))
+        enable = verse_present and has_selection
         try:
-            self.next_button.configure(state=tk.NORMAL if verse_present else tk.DISABLED)
+            self.next_button.configure(state=tk.NORMAL if enable else tk.DISABLED)
         except Exception:
             pass
 
@@ -16192,17 +16205,27 @@ class AxiomsVerseInputFlow(tk.Frame):
                     pass
                 return
 
-        selected_matches = [
-            match for (var, match) in getattr(self, "_card_vars", []) if var.get()
-        ]
+        matches = getattr(self, "_card_matches", None) or self._related_matches
+        selection_idx = self._selected_match_var.get()
+        selected_match = None
+        if 0 <= selection_idx < len(matches):
+            selected_match = matches[selection_idx]
+
+        if selected_match is None:
+            try:
+                messagebox.showwarning(
+                    "Axiom via Verse Analysis",
+                    "Select a verse from the related results before continuing.",
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
 
         self._last_primary_verse = verse
-        self._last_related_selection = selected_matches
-        primary_meta = selected_matches[0] if selected_matches else (self._related_matches[0] if self._related_matches else None)
-        self._last_primary_match_meta = primary_meta
-        selected_suggestions = [
-            self._format_related_match(match) for match in selected_matches
-        ]
+        self._last_related_selection = [selected_match]
+        self._last_primary_match_meta = selected_match
+        selected_suggestions = [self._format_related_match(selected_match)]
 
         suggestions_text = "\n".join(
             f"• {item}" for item in selected_suggestions
@@ -16524,7 +16547,7 @@ class AxiomsTranslationChoiceView(tk.Frame):
 
         for idx, (verse_text, highlight) in enumerate(segments):
             if idx:
-                verse_text_widget.insert(tk.END, " / ")
+                verse_text_widget.insert(tk.END, " ")
             start = verse_text_widget.index(tk.END)
             verse_text_widget.insert(tk.END, verse_text)
             end = verse_text_widget.index(tk.END)
