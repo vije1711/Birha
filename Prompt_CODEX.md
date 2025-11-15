@@ -5,7 +5,7 @@
 
 Codex, something interesting is happening inside `1.1.0_birha.py`.
 
-When the user selects a verse → chooses consecutive verses → reaches the **Summary Dialog (Task 13)**, the *Verse Summary* textbox shows *correct Gurmukhi text*, but individual verse fragments are joined using **slashes (`/`)**, creating duplicates and breaking readability. The user wants **one continuous clean line** containing all consecutive fragments, *without inserting slashes or separators unless they originally existed in the SGGS database*.
+When the user selects a verse → chooses consecutive verses → reaches the **Summary Dialog**, the *Verse Summary* textbox shows *correct Gurmukhi text*, but individual verse fragments are joined using **slashes (`/`)**, creating duplicates and breaking readability. The user wants **one continuous clean line** containing all consecutive fragments, *without inserting slashes or separators unless they originally existed in the SGGS database*.
 
 Here is the unexpected output pattern:
 
@@ -19,12 +19,12 @@ But the desired output is:
 ਬਿਨੁ ਗੁਰ ਗਿਆਨੁ ... ਹੋਇ ॥ ਤਰਤਿ ਵਰਤਣੁ ... ਹੋਇ ॥ ਨਾਨਕ ਸਭਦੇ ... ਹੋਇ ॥
 ```
 
-So the UI is correct; the database is correct; the issue is that **some helper inside Tasks 11–12 is artificially stitching consecutive verses using “ / ” instead of natural concatenation**.
+So the UI is correct; the database is correct; the issue is that **some helper is artificially stitching consecutive verses using “ / ” instead of natural concatenation**.
 
 Your objective:
 
-1. **Locate EXACTLY which helper builds the combined Verse Summary string** (likely the T12 builder `_axioms_t12_build_verse_summary(...)` or another join helper in the T11/T12 pipeline).
-2. **Understand why it injects “ / ” even though the SGGS source lines are independent and already end with a `॥` delimiter.**
+1. **Locate EXACTLY which helper builds the combined Verse Summary string**
+2. **Understand why it injects “ / ”.**
 3. **Refactor so consecutive fragments join naturally** – preserving original SGGS punctuation, spacing, and Gurmukhi structure — with *no artificial slash separators*.
 4. Ensure the fix is fully **Unicode-safe**, **Tkinter-safe**, and **compatible with both WSL and Windows fonts**.
 
