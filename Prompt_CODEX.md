@@ -1,122 +1,85 @@
-Task: Compare 1.1.0_birha_pre_Axiom.py and 1.1.0_birha.py, and ensure that any functionality used inside the new Axioms code in 1.1.0_birha.py is implemented via fresh, dedicated functions rather than calling the old ones from 1.1.0_birha_pre_Axiom.py.
 
-Repository context:
+---
 
-* You are working inside the Birha project.
-* Two key files:
+## Task prompt for Prompt_CODEX.md (plain text)
 
-  * 1.1.0_birha_pre_Axiom.py  (legacy / pre-Axioms implementation)
-  * 1.1.0_birha.py            (current main app with Axioms framework added)
+Task – Axioms “Perform own literal translation” workflow (auto-prefill + dedicated workbench)
 
-High-level goal:
+Context:
+We are working on the Axioms/Framework feature inside 1.1.0_birha.py. The Axioms module must remain self-contained and must not reuse or call pre-Axioms GUI helpers or flows from other modules. It may read/write shared data files (for example, assessment_data.xlsx) but all UI and control logic for Axioms must be implemented locally within the Axioms section.
 
-* Detect any direct reuse of functions from 1.1.0_birha_pre_Axiom.py inside the Axioms-related code in 1.1.0_birha.py.
-* For every such reused function, create a new, Axioms-specific implementation inside 1.1.0_birha.py (or an appropriate new Axioms module) that does not call back into 1.1.0_birha_pre_Axiom.py.
-* Update the Axioms code to use these new implementations.
-* Preserve existing behavior for Axioms flows as they are today.
+Before making any change:
 
-Definition: “Axioms code”
+1. Carefully read the latest “0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx” that is present in the workspace.
+2. Carefully read this Prompt_CODEX.md file itself to respect all meta-rules (additive safety, no cross-module UI reuse, etc.).
+3. Inspect the current Axioms Translation Choice flow inside 1.1.0_birha.py: the “Perform own literal translation” option, any existing Axioms literal helpers, and the prompt-builder path.
 
-* In this task, “Axioms code” means any classes, functions, or modules in 1.1.0_birha.py that are clearly part of the Axioms framework/feature (for example:
+Goal for this task:
+Implement a robust, Axioms-specific “Perform own literal translation” workflow that:
 
-  * Any sections explicitly marked in comments as Axioms or Axioms Framework.
-  * Classes or functions whose names include “Axiom”, “Axioms”, or are clearly grouped under Axioms-related comments/regions.
-* If needed, infer the Axioms boundary by reading surrounding comments and structure in 1.1.0_birha.py.
+A) Auto-prefills literal translation text when prior work exists (from assessment_data.xlsx), especially for consecutive verses;
+B) Provides a dedicated Axioms Literal Translation Workbench when no prior translation exists;
+C) Handles mixed cases where some selected verses already have translations and others do not;
+D) Keeps all behavior inside the Axioms module and does not call UI functions from the legacy “Literal Translation” or “Edit Saved Literal Translation → Analyze Selected Words” flows.
 
-Constraints:
+Detailed requirements:
 
-1. Do not remove or break any non-Axioms features that already exist.
-2. Do not make Axioms code call functions from 1.1.0_birha_pre_Axiom.py.
-3. For Axioms usage:
+1. Auto-prefill from assessment_data.xlsx
 
-   * “Developed from scratch” means: implement fresh functions in 1.1.0_birha.py (or an Axioms-specific helper module) whose logic is self-contained.
-   * You may use the old implementation as a reference to understand behavior, but the new Axioms-specific functions must not simply wrap or directly call the old functions.
-4. Outside Axioms code:
+* Use the existing data file (for example, 1.2.1 assessment_data.xlsx, or whatever file is already being used for literal translation history) as the single source of truth for prior literal translations.
+* When the user reaches the Axioms Translation Choice screen and selects “Perform own literal translation”, look at the currently selected verse block (including any consecutive verses) and check which of those verses already have a stored literal translation in the assessment data.
+* If all selected verses in the block have complete literal translations, automatically construct a combined literal translation string and prefill the “own literal translation” option in the Axioms UI.
+* Show a clear status in the Translation Choice view indicating that the text was loaded from saved assessment data. The user should still be able to open the Axioms workbench to refine or override the auto-filled text.
 
-   * It is acceptable for non-Axioms parts of the app to continue using 1.1.0_birha_pre_Axiom.py as they currently do.
-5. Preserve public behavior:
+2. Dedicated Axioms Literal Translation Workbench (no verse re-entry, no legacy UI reuse)
 
-   * From the user’s perspective, Axioms-related flows must behave the same as before this refactor (same inputs, outputs, and side effects).
+* When there is no prior translation for the selected verse(s), or when the user wants to refine them, open a dedicated Axioms Literal Translation Workbench.
+* This workbench must NOT ask the user to paste the verse again or click an “Analyze” button like the legacy Grammar Analyzer. The verse(s) are already known from the Axioms flow (Verse Analysis + consecutive selection or SGGS Reading Mode), so the workbench should receive the verse block directly as input.
+* Do NOT reuse the legacy UI flow that shows “Select one matching verse” or the step that re-selects additional lines; that verse selection work has already been done earlier in the Axioms path.
+* Instead, design the workbench by taking conceptual inspiration from the “Literal Translation” step of the Verse Analysis Dashboard:
 
-Step-by-step instructions:
+  * Break the verse(s) into words/tokens.
+  * Show grammar options and any existing word-level meanings where available.
+  * Allow the user to enter per-word literal meanings and build up a full, verse-level literal translation.
+  * Provide controls to copy the assembled translation and to apply it back into the Translation Choice view.
+* The workbench must live entirely inside the Axioms section of 1.1.0_birha.py (for example, as an Axioms-specific dialog or embedded frame) and must not call the pre-Axioms literal-translation or grammar-analysis UI functions.
 
-Step 1: Map legacy functions
+3. Mixed cases – some verses already translated, some not
 
-* Open 1.1.0_birha_pre_Axiom.py.
-* Build a list of all top-level functions and any key helper methods that could plausibly be reused (name, signature, and a one-line summary of what they do).
-* Keep this mapping in your reasoning only; do not print it to the user.
+* When the user has selected multiple consecutive verses, there may be a mix of verses with and without pre-existing literal translations.
+* In such cases, the Translation Choice screen should clearly indicate how many verses already have literal translations and how many still need to be completed.
+* When the user opens the Axioms Literal Translation Workbench:
 
-Step 2: Find Axioms code in 1.1.0_birha.py
+  * Prefill any verses that already have stored literal translations (read-only or editable as appropriate).
+  * Guide the user to complete literal translations for the remaining verses, using the same per-word grammar/meaning workflow.
+  * After the user finishes, the combined literal translation for all selected verses should be available and applied back to the “own literal translation” option in Translation Choice.
+* Optionally, and only if consistent with the Engineering Contract, you may write newly created literal translations back into assessment_data.xlsx so other modules can benefit later. If this is done, it must be done carefully and consistently (no partial or corrupted writes).
 
-* Open 1.1.0_birha.py.
-* Identify the Axioms-related region(s) as per the definition above (comments, class names, function names, etc.).
-* Treat everything clearly inside those regions as “Axioms code” for this task.
+4. Separation from legacy modules and safety
 
-Step 3: Detect reuse from pre-Axiom file
+* Do not call or reuse GUI helpers, windows, or flows from:
 
-* Within the Axioms code in 1.1.0_birha.py, find all places that:
+  * The old “Literal Meaning Analysis” feature of the Verse Analysis Dashboard, or
+  * “Edit Saved Literal Translation → Analyze Selected Words”.
+* You may reuse the idea of per-word grammar and meaning, but the actual code must be implemented as Axioms-owned helpers and classes.
+* Maintain all existing Axioms entry, verse selection, translation choice, and prompt builder behavior. New work should extend or wrap these flows rather than breaking them.
+* Be defensive: if loading from assessment_data.xlsx fails or returns no matches, fall back to the Axioms workbench path instead of crashing.
 
-  * Import from 1.1.0_birha_pre_Axiom.py, OR
-  * Call functions whose original definition is in 1.1.0_birha_pre_Axiom.py, whether via:
+5. Tests and sanity checks
 
-    * direct calls (e.g. some_legacy_fn(...)),
-    * imported aliases,
-    * or attribute-style calls if that file is imported as a module.
-* Make an internal list of “Axioms → reused function” pairs.
+* Run at least:
+  python -m py_compile 1.1.0_birha.py
+* Manually verify these scenarios at minimum (describe in your remarks):
 
-Step 4: Create new Axioms-specific implementations
-For each reused function from 1.1.0_birha_pre_Axiom.py that is called from Axioms code:
+  * Single verse with existing translation → Axioms auto-prefills correctly and Proceed works.
+  * Multiple consecutive verses with all translations present → combined literal translation is auto-filled.
+  * Block with partial coverage (some verses translated, some not) → status shows correctly, workbench opens, missing verses can be completed, and final translation is applied.
+  * Block with no prior translations → workbench starts from scratch and the resulting translation flows back into Translation Choice and then the prompt builder.
 
-* Design a new function that lives in 1.1.0_birha.py (preferably:
+In your final remarks, briefly summarize:
 
-  * near the Axioms code,
-  * or in a clearly-named Axioms helper section/module).
-* The new function should:
+* How you used “0.1.7.4 Axioms_Framework Engineering Contract — Birha V2.0.docx” and this Prompt_CODEX.md to guide decisions,
+* How you ensured no legacy UI flows are reused inside Axioms, and
+* How the new Axioms Literal Translation Workbench and auto-prefill behavior work together for single and consecutive verse selections.
 
-  * Have a clear, descriptive name that fits the Axioms context (e.g. prefix/suffix with axiom_ or similar, if consistent with existing style).
-  * Accept parameters that make sense for the Axioms call sites.
-  * Reimplement the necessary logic directly, without delegating to 1.1.0_birha_pre_Axiom.py.
-* It is OK to:
-
-  * Reuse existing utility helpers already defined inside 1.1.0_birha.py (such as general-purpose CSV/Excel helpers, normalization helpers, etc.), as long as they are not Axioms-specific and are not imported from 1.1.0_birha_pre_Axiom.py.
-  * Slightly improve clarity and safety (e.g. better variable names, small error checks) as long as behavior stays the same.
-
-Step 5: Wire Axioms code to new functions
-
-* For every Axioms call to an old function:
-
-  * Replace the call so that it uses the new Axioms-specific implementation you created.
-* Remove any now-unneeded imports from 1.1.0_birha_pre_Axiom.py that are only used inside Axioms code.
-* Do not touch imports or usage in non-Axioms areas.
-
-Step 6: Sanity checks and light tests
-
-* If the repository has an existing test suite, run it and ensure it passes.
-* If there is no formal test suite for this part, add minimal local checks such as:
-
-  * Small, self-contained test functions or script snippets (for example, guarded by if **name** == "**main**":) that exercise:
-
-    * One or two representative Axioms flows that previously used the legacy functions.
-    * Confirm the Axioms outputs (or side effects) match the current behavior.
-* Keep these tests light and do not introduce heavy new dependencies.
-
-Step 7: Code style and structure
-
-* Follow the existing style of 1.1.0_birha.py:
-
-  * Naming, comments, logging approach, and error handling.
-* Document the new functions with concise docstrings explaining:
-
-  * What they do.
-  * That they are Axioms-specific replacements for previously reused logic from 1.1.0_birha_pre_Axiom.py.
-
-Definition of Done:
-
-1. All Axioms-related code in 1.1.0_birha.py no longer calls any functions from 1.1.0_birha_pre_Axiom.py directly or via imports.
-2. New Axioms-specific helper functions exist in 1.1.0_birha.py (or a dedicated Axioms helper module) implementing the needed behavior from scratch.
-3. Non-Axioms code continues to work and may still use 1.1.0_birha_pre_Axiom.py unchanged.
-4. Axioms behavior is preserved (manual smoke tests or existing tests confirm the same outputs for typical flows).
-5. Imports are clean:
-
-   * No unused imports from 1.1.0_birha_pre_Axiom.py.
-   * No circular or broken imports introduced by this refactor.
+---
