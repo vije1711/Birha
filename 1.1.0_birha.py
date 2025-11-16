@@ -12102,7 +12102,11 @@ class GrammarApp:
                 lbl.pack(fill=tk.X, expand=True, anchor='w', padx=(15, 32) if is_last_column else (15, 15), pady=(4, 6))
                 column_widgets.append(lbl)
 
+            resize_state = {'wrap': None, 'resizing': False}
+
             def _resize_column(event=None, frame=column_frame, widgets=tuple(column_widgets), spacer=(30 if is_last_column else 22)):
+                if resize_state['resizing']:
+                    return
                 target_width = event.width if (event and event.width > 1) else frame.winfo_width()
                 if target_width <= 1:
                     return
@@ -12112,11 +12116,18 @@ class GrammarApp:
                 else:
                     wrap_width = max(150, available)
                 wrap_width = min(wrap_width, max(target_width - 8, 48))
-                for widget in widgets:
-                    widget.configure(wraplength=wrap_width)
-                updater = getattr(self, '_current_meanings_extent_updater', None)
-                if updater:
-                    updater()
+                if resize_state['wrap'] == wrap_width:
+                    return
+                resize_state['resizing'] = True
+                try:
+                    for widget in widgets:
+                        widget.configure(wraplength=wrap_width)
+                    resize_state['wrap'] = wrap_width
+                    updater = getattr(self, '_current_meanings_extent_updater', None)
+                    if updater:
+                        updater()
+                finally:
+                    resize_state['resizing'] = False
 
             column_frame.bind('<Configure>', _resize_column)
             wrap_callbacks.append(_resize_column)
